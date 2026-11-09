@@ -1,0 +1,29 @@
+{
+  "version": "1.1.0",
+  "id": "AB-7DE663B669B5",
+  "revision": 2,
+  "title": "Search cards from the CLI",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "feature"
+  ],
+  "description": "Two onboarding reports requested CLI search; another project specifically needs to find potentially duplicate work before creating a card. Limit initial scope to straightforward text search; priority and label filters remain uncommitted ideas.",
+  "acceptanceCriteria": [
+    {
+      "text": "Provide a documented text search over card titles and descriptions, composable with existing list filters and output modes.",
+      "done": false
+    },
+    {
+      "text": "Preserve existing list behavior when search is omitted and test matching and empty results.",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-08T03:46:36.605Z",
+  "updatedAt": "2026-11-09T00:16:46.471Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

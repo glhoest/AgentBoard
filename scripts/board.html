@@ -1,0 +1,1809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>AgentBoard</title>
+<style>
+:root{
+  --bg:#f4f5f8;--surface:#fff;--surface-2:#f8f9fb;--col:#eceef3;--text:#1b1f2a;--muted:#5b6475;--line:#d9dde6;--line-strong:#b9bfcc;
+  --accent:#4f46e5;--accent-text:#fff;--accent-soft:#e8e7fd;
+  --ok:#0f7a4a;--ok-soft:#dcf3e8;--warn:#92580a;--warn-soft:#fdf0d5;--bad:#b42318;--bad-soft:#fde4e1;--info-soft:#e3effd;--info:#1d4f91;
+  --p-low:#5b6475;--p-medium:#1d4f91;--p-high:#92580a;--p-urgent:#b42318;
+  --shadow:0 1px 2px rgba(20,24,40,.08),0 1px 3px rgba(20,24,40,.06);
+  --radius:10px;--focus:0 0 0 3px rgba(79,70,229,.45);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#12141b;--surface:#1c1f29;--surface-2:#222633;--col:#171a22;--text:#e8eaf0;--muted:#a1a8b8;--line:#2d3240;--line-strong:#454c60;
+  --accent:#8b85ff;--accent-text:#12141b;--accent-soft:#2a2850;
+  --ok:#5fd6a0;--ok-soft:#12362a;--warn:#f1be64;--warn-soft:#3a2d12;--bad:#ff8f84;--bad-soft:#431c19;--info:#8dbcf5;--info-soft:#16304f;
+  --p-low:#a1a8b8;--p-medium:#8dbcf5;--p-high:#f1be64;--p-urgent:#ff8f84;
+  --shadow:0 1px 2px rgba(0,0,0,.4);--focus:0 0 0 3px rgba(139,133,255,.55);
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+#view-board[aria-pressed="true"],#view-features[aria-pressed="true"]{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+html,body{margin:0;height:100%}
+body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:none;box-shadow:var(--focus);border-radius:6px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+.wrap-any{overflow-wrap:anywhere;word-break:break-word}
+
+#app{display:flex;flex-direction:column;min-height:100dvh}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand h1{font-size:18px;margin:0;overflow-wrap:anywhere}
+.top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.skip{position:absolute;left:-999px;top:8px;background:var(--accent);color:var(--accent-text);padding:8px 12px;border:0;border-radius:6px;z-index:100}
+.skip:focus{left:8px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.badge.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.badge.info{background:var(--info-soft);color:var(--info);border-color:transparent}
+.badge.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:6px 14px;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;font-weight:600}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.btn.small{min-height:28px;padding:2px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--surface-2)}
+
+.conn{display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);font-size:13px}
+.conn .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.conn[data-state=ok] .dot{background:var(--ok)}
+.conn[data-state=error] .dot{background:var(--bad)}
+.conn[data-state=connecting] .dot{background:var(--warn);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.conn button{border:0;background:none;padding:0 2px;color:var(--accent);font-weight:600;text-decoration:underline}
+
+#notices{display:flex;flex-direction:column;gap:8px;padding:0 20px}
+#notices:not(:empty){padding-top:12px}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid transparent;background:var(--info-soft);color:var(--text)}
+.alert[hidden]{display:none}
+.alert>.a-icon{font-weight:700}
+.alert.warn{background:var(--warn-soft);border-color:var(--warn)}
+.alert.error{background:var(--bad-soft);border-color:var(--bad)}
+.alert.info{background:var(--info-soft);border-color:var(--info)}
+.alert .a-body{flex:1;min-width:0}
+.alert .a-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.alert h3{margin:0 0 2px;font-size:14px}
+.alert p{margin:2px 0}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 20px}
+.toolbar input[type=search]{flex:1 1 220px;min-width:160px}
+.toolbar input,.toolbar select,.field input[type=text],.field select,.field textarea{min-height:36px;padding:6px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);width:100%}
+#feature-archive-label{display:flex;align-items:center;gap:6px}
+#feature-archive-label[hidden]{display:none}
+#feature-archived{width:20px;min-height:20px;height:20px;padding:0;accent-color:var(--accent)}
+.toolbar select{width:auto;max-width:200px}
+.toolbar .summary{margin-left:auto;color:var(--muted);font-size:13px}
+#drafts-strip{display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 8px;align-items:center}
+#drafts-strip:empty{display:none}
+
+#board{flex:1;display:flex;gap:14px;padding:4px 20px 20px;overflow-x:auto;align-items:flex-start;min-height:0}
+#board:focus{outline:none}
+.col{flex:1 0 190px;min-width:190px;max-width:340px;background:var(--col);border-radius:var(--radius);display:flex;flex-direction:column;max-height:calc(100dvh - 220px);min-height:120px;border:1px solid transparent}
+.col[data-col="needs-grilling"]{border-color:var(--accent)}
+.col.missing{border:1px dashed var(--bad);background:var(--bad-soft)}
+.col.drop-ok{border-color:var(--accent);background:var(--accent-soft)}
+.col-head{display:flex;align-items:center;gap:6px;padding:10px 10px 6px 12px}
+.col-head h2{font-size:14px;margin:0;flex:1;min-width:0;display:flex;gap:8px;align-items:center}
+.col-head h2 span.name{overflow-wrap:anywhere}
+.count{font-size:12px;font-weight:700;background:var(--surface);border:1px solid var(--line);color:var(--muted);padding:0 8px;border-radius:999px}
+.col-toggle{display:none;border:0;background:none;padding:4px 8px;font-size:16px}
+.col-body{list-style:none;margin:0;padding:4px 8px 10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:48px}
+.col-empty{color:var(--muted);font-size:13px;padding:10px 6px;text-align:center}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px;cursor:grab;position:relative}
+.card.dragging{opacity:.45}
+.card.archived{opacity:.75;border-style:dashed}
+.card.flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:var(--shadow)}}
+.card-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.card .id{font-size:12px;color:var(--muted)}
+.card-title{display:block;text-align:left;border:0;background:none;padding:0;font-weight:600;font-size:14px;line-height:1.35;cursor:pointer;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
+.card-title:hover{text-decoration:underline}
+.prio{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 7px;border-radius:5px;border:1px solid currentColor;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prio-low{color:var(--p-low)}.prio-medium{color:var(--p-medium)}.prio-high{color:var(--p-high)}.prio-urgent{color:var(--p-urgent)}.prio-unknown{color:var(--bad)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;list-style:none;margin:0;padding:0}
+.label{font-size:12px;padding:0 8px;border-radius:999px;background:var(--accent-soft);color:var(--text);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-foot{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px}
+.assignee{border:1px dashed var(--line-strong);background:none;border-radius:999px;padding:1px 10px;font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:26px}
+.assignee.set{border-style:solid;background:var(--surface-2)}
+.crit{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.crit .bar{width:36px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;display:inline-block}
+.crit .bar i{display:block;height:100%;background:var(--ok)}
+.card-actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.move{min-height:30px;padding:2px 6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);font-size:12px;max-width:128px}
+
+.empty-panel{margin:40px auto;max-width:560px;text-align:center;padding:24px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.empty-panel h2{margin:0 0 6px}
+.panel{margin:24px auto;max-width:720px;padding:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);width:100%}
+.panel h2{margin-top:0}
+.panel pre{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
+.skeleton{flex:0 0 300px;height:240px;border-radius:var(--radius);background:linear-gradient(90deg,var(--col),var(--surface-2),var(--col));background-size:200% 100%;animation:sk 1.4s infinite linear}
+@keyframes sk{to{background-position:-200% 0}}
+.hint{padding:6px 20px 14px;color:var(--muted);font-size:12px}
+kbd{font:inherit;font-size:11px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface)}
+
+#toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:1000;max-width:min(420px,calc(100vw - 32px))}
+.toast{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--text);color:var(--bg);box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.toast.error{background:var(--bad);color:#fff}
+.toast.ok{background:var(--ok);color:#fff}
+.toast .toast-msg{flex:1;overflow-wrap:anywhere}
+.toast-x{border:0;background:none;color:inherit;font-size:16px;line-height:1;padding:0 4px}
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);padding:0;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,12,20,.5)}
+#editor{margin:0 0 0 auto;height:100dvh;max-height:none;width:min(680px,100vw);max-width:100vw;border-radius:12px 0 0 12px}
+#editor[open]{display:flex}
+#ed-form{display:flex;flex-direction:column;width:100%;min-height:0;height:100%}
+.ed-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.ed-head h2{margin:0;font-size:16px;flex:1;min-width:0}
+.ed-head .meta{font-size:12px;color:var(--muted)}
+.x{border:0;background:none;font-size:22px;line-height:1;padding:4px 10px;border-radius:6px;min-width:36px;min-height:36px}
+.x:hover{background:var(--surface-2)}
+.ed-alerts{display:flex;flex-direction:column;gap:8px;padding:0 18px}
+.ed-alerts:not(:empty){padding-top:12px}
+.ed-body{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.ed-foot{display:flex;gap:8px;align-items:center;padding:12px 18px;border-top:1px solid var(--line);background:var(--surface);flex-wrap:wrap}
+.ed-foot .note{flex:1 1 200px;font-size:12px;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field>label,.field>.lbl{font-weight:600;font-size:13px}
+#thread-panel input,#thread-panel textarea{display:block;width:100%;padding:6px 10px;margin:6px 0;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface)}
+#thread-panel textarea{min-height:70px;resize:vertical}
+.thread-entry{padding:10px 0;border-bottom:1px solid var(--line)}
+.thread-entry p{margin:8px 0}
+#thread-panel button{margin:4px 4px 4px 0}
+.field textarea{min-height:110px;resize:vertical;max-height:60vh;font-family:inherit}
+.field .help,.counter{font-size:12px;color:var(--muted)}
+.counter{text-align:right}
+.counter.near{color:var(--warn);font-weight:600}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.err{color:var(--bad);font-size:12px;min-height:0}
+.err:empty{display:none}
+[aria-invalid=true]{border-color:var(--bad)!important}
+.chips-ed{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0;margin:0;list-style:none}
+.chips-ed .chip{display:inline-flex;align-items:center;gap:2px;background:var(--accent-soft);border-radius:999px;padding:0 4px 0 10px;max-width:100%}
+.chips-ed .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.chips-ed .chip button{border:0;background:none;padding:2px 6px;font-size:16px;line-height:1}
+.inline-add{display:flex;gap:8px}
+.crit-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.crit-row{display:grid;grid-template-columns:auto 1fr auto;gap:6px 8px;align-items:center}
+.crit-row input[type=checkbox],.check input{width:20px;height:20px;accent-color:var(--accent)}
+.crit-row .err{grid-column:2 / 4}
+.crit-btns{display:flex;gap:2px}
+.crit-btns button{border:1px solid var(--line);background:var(--surface);border-radius:6px;min-width:30px;min-height:30px}
+.check{display:flex;gap:10px;align-items:flex-start}
+dl.meta-list{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;font-size:12px;color:var(--muted)}
+dl.meta-list dd{margin:0;overflow-wrap:anywhere}
+details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace,Consolas,monospace;font-size:12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);padding:6px}
+#feature-form ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+#feature-form li button{width:100%;text-align:left;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);padding:8px}
+#feature-editor{width:min(680px,calc(100vw - 24px));max-height:90dvh;overflow:auto}
+#confirm,#assign{width:min(440px,calc(100vw - 24px))}
+.dlg{padding:18px;display:flex;flex-direction:column;gap:12px}
+.dlg h2{margin:0;font-size:16px}
+.dlg p{margin:0;overflow-wrap:anywhere}
+.dlg-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+@media (max-width:720px){
+  .top,.toolbar,#notices,#drafts-strip,.hint{padding-left:12px;padding-right:12px}
+  #board{flex-direction:column;overflow-x:visible;padding:4px 12px 20px;align-items:stretch}
+  .col,.skeleton{flex:none;width:100%;min-width:0;max-width:none;max-height:none}
+  .col-toggle{display:inline-block}
+  .col.collapsed .col-body{display:none}
+  .col-body{overflow:visible}
+  .toolbar select{max-width:100%;min-width:0;flex:1 1 140px}
+  .toolbar .summary{margin-left:0;flex-basis:100%}
+  #editor{width:100vw;border-radius:0}
+  .row3{grid-template-columns:1fr}
+  .btn,.move,.assignee{min-height:44px}
+  .btn.small{min-height:40px}
+  .card-title{padding:8px 0}
+  .card-actions .move{max-width:none;flex:1 1 120px}
+  .x{min-width:44px;min-height:44px}
+  .crit-btns button{min-width:40px;min-height:40px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<button type="button" class="skip" id="skip">Skip to board</button>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <h1 id="board-name">AgentBoard</h1>
+      <span id="mode-badge" class="badge" hidden></span>
+    </div>
+    <div class="top-actions">
+      <div id="conn" class="conn" data-state="connecting"><span class="dot" aria-hidden="true"></span><span id="conn-text">Connecting…</span><button type="button" id="conn-retry" hidden>Retry now</button></div>
+      <button type="button" id="new-card" class="btn primary" disabled>+ New card</button>
+    </div>
+  </header>
+  <nav class="toolbar" aria-label="Views">
+    <button type="button" class="btn" id="view-board" aria-pressed="true">Board</button>
+    <button type="button" class="btn" id="view-features" aria-pressed="false">Features</button>
+    <button type="button" class="btn primary" id="new-feature" hidden>+ New feature</button>
+    <label id="feature-archive-label" hidden><input type="checkbox" id="feature-archived"> Show archived</label>
+  </nav>
+  <div id="notices"></div>
+  <section class="toolbar" id="toolbar" aria-label="Search and filters" hidden>
+    <input type="search" id="q" placeholder="Search title, ID, labels, notes…  ( / )" aria-label="Search cards" autocomplete="off">
+    <select id="f-priority" aria-label="Filter by priority"></select>
+    <select id="f-assignee" aria-label="Filter by assignee"></select>
+    <select id="f-label" aria-label="Filter by label"></select>
+    <select id="f-feature" aria-label="Filter by feature"></select>
+    <select id="f-archived" aria-label="Archived cards">
+      <option value="hide">Hide archived</option>
+      <option value="show">Show archived too</option>
+      <option value="only">Archived only</option>
+    </select>
+    <button type="button" class="btn small ghost" id="f-clear" hidden>Clear filters</button>
+    <span class="summary" id="summary"></span>
+  </section>
+  <div id="drafts-strip" aria-label="Unsaved drafts"></div>
+  <main id="board" tabindex="-1" aria-label="Board"></main>
+  <p class="hint" id="shortcuts" hidden><kbd>/</kbd> search · <kbd>n</kbd> new card · <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> on a focused card title moves it between columns · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves in the editor · <kbd>Esc</kbd> closes (drafts are kept). Cards are sorted by priority, then most recently updated.</p>
+</div>
+<div id="live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+<div id="toasts" aria-live="polite"></div>
+<datalist id="dl-assignees"></datalist>
+<datalist id="dl-labels"></datalist>
+<dialog id="editor" aria-labelledby="ed-heading"><form id="ed-form" novalidate></form></dialog>
+<dialog id="feature-editor" aria-label="Feature editor"><form class="dlg" id="feature-form"></form></dialog>
+<dialog id="confirm" aria-labelledby="cf-title"><form method="dialog" class="dlg" id="cf-form"></form></dialog>
+<dialog id="assign" aria-labelledby="as-title"><form method="dialog" class="dlg" id="as-form"></form></dialog>
+
+<script>
+'use strict';
+(() => {
+/* ====================================================================
+ * AgentBoard UI. Every piece of board data is untrusted: the DOM is built
+ * with textContent/createElement only (see h()); innerHTML is never used.
+ * ==================================================================== */
+const LIM = {title:300, assignee:120, labels:50, label:80, text:100000, criteria:200, criterion:1000};
+const PRIORITIES = ['low','medium','high','urgent'];
+const PRANK = {urgent:0, high:1, medium:2, low:3};
+const ID_RE = /^AB-[0-9A-F]{12}$/;
+const SLUG_RE = /^[a-z][a-z0-9-]{0,39}$/;
+const TS_RE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
+const HASH_RE = /^[0-9a-f]{64}$/;
+const TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/;
+const ITEM_KEYS = ['version','id','revision','title','status','priority','assignee','labels','description','acceptanceCriteria','notes','createdAt','updatedAt','archived','feature','thread'];
+const WRITABLE = ['title','status','priority','assignee','labels','description','acceptanceCriteria','notes','archived','feature'];
+const FEATURE_KEYS = ['version','id','revision','title','status','description','createdAt','updatedAt','archived'];
+const POLL_MS = 1500;
+
+const $ = (s, r = document) => r.querySelector(s);
+const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+class ApiError extends Error { constructor(kind, message, status = 0) { super(message); this.kind = kind; this.status = status; } }
+
+/* ---------- DOM helper: never parses HTML ---------- */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  let value;
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k === 'value') value = v;
+    else if (k === 'checked' || k === 'disabled' || k === 'hidden' || k === 'draggable' || k === 'readOnly' || k === 'selected') el[k] = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : String(v));
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  if (value !== undefined) el.value = value;
+  return el;
+}
+const clear = el => el.replaceChildren();
+
+/* ---------- state ---------- */
+const S = {
+  backend: null,           // {kind, load, create, patch}
+  mode: 'launch',          // launch | bridge | direct
+  launchNote: '',
+  conn: {state: 'connecting', failures: 0, lastOk: 0, message: '', kind: '', nextAt: 0},
+  snap: null,
+  filters: {q: '', priority: '', assignee: '', label: '', feature: '', archived: 'hide'},
+  view: 'board', showArchivedFeatures: false,
+  drafts: new Map(),       // key: item id | 'new'
+  editing: null,
+  returnFocus: null,
+  writing: false,
+  needsFresh: false,
+  drag: null,
+  renderDeferred: false,
+  collapsed: new Set(),
+  flash: new Set(),
+};
+let writeGen = 0;          // bumped when a mutating request starts and ends; polls that started earlier are discarded
+
+/* ---------- small utilities ---------- */
+function announce(msg) { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 40); }
+function toast(message, {kind = 'info'} = {}) {
+  const box = $('#toasts');
+  const t = h('div', {class: 'toast ' + kind, role: kind === 'error' ? 'alert' : 'status'},
+    h('span', {class: 'toast-msg', text: message}),
+    h('button', {type: 'button', class: 'toast-x', 'aria-label': 'Dismiss message', onclick: () => t.remove()}, '×'));
+  box.append(t);
+  setTimeout(() => t.remove(), kind === 'error' ? 15000 : 5000);
+  while (box.children.length > 4) box.firstChild.remove();
+}
+function fmtTime(iso) { const d = new Date(iso); return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString(); }
+function short(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+function arrEq(a, b) { return a.length === b.length && a.every((x, i) => x === b[i]); }
+function critEq(a, b) { return a.length === b.length && a.every((x, i) => x.text === b[i].text && x.done === b[i].done); }
+const prioLabel = p => typeof p === 'string' && p ? p : '?';
+
+function checkVersion(version, label) {
+  if (typeof version !== 'string' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw new ApiError('data', label + ' has an invalid version');
+  const parts = version.split('.').map(Number);
+  if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 1 || (parts[1] === 1 && parts[2] > 0)))) throw new ApiError('data', label + ' format ' + version + ' requires a newer AgentBoard');
+  if (version !== '1.1.0') throw new ApiError('data', label + ' format ' + version + ' is unsupported');
+}
+
+/* ---------- snapshot validation (server data is untrusted too) ---------- */
+function checkItem(it) {
+  if (!isObj(it)) return 'not an object';
+  if (typeof it.id !== 'string' || !ID_RE.test(it.id)) return 'invalid id';
+  if (!Number.isInteger(it.revision) || it.revision < 1) return 'invalid revision';
+  for (const k of ['title', 'status', 'priority', 'description', 'notes', 'createdAt', 'updatedAt']) if (typeof it[k] !== 'string') return `${k} is not text`;
+  if (it.assignee !== null && typeof it.assignee !== 'string') return 'assignee is not text or null';
+  if (!Array.isArray(it.labels) || it.labels.some(x => typeof x !== 'string')) return 'labels is not a list of text';
+  if (!Array.isArray(it.acceptanceCriteria) || it.acceptanceCriteria.some(c => !isObj(c) || typeof c.text !== 'string' || typeof c.done !== 'boolean')) return 'acceptanceCriteria is malformed';
+  if (typeof it.archived !== 'boolean') return 'archived is not true/false';
+  validateThread(it.thread);
+  return null;
+}
+function normalizeSnapshot(raw) {
+  if (!isObj(raw) || !isObj(raw.config) || !Array.isArray(raw.config.columns) || !Array.isArray(raw.items) || !isObj(raw.hashes))
+    throw new ApiError('data', 'Unexpected response shape from the board.');
+  checkVersion(raw.config.version, 'Board');
+  for (const item of raw.items) checkVersion(item && item.version, 'Card');
+  if (!Array.isArray(raw.features) || !Array.isArray(raw.config.featureColumns)) throw new ApiError('data', 'Invalid features snapshot');
+  if (raw.config.featureColumns.some(c => !isObj(c) || typeof c.id !== 'string' || !SLUG_RE.test(c.id) || typeof c.name !== 'string' || !c.name.trim())) throw new ApiError('data', 'Invalid feature columns');
+  const features = new Map();
+  for (const feature of raw.features) {
+    validateFeature(feature, raw.config);
+    if (features.has(feature.id)) throw new ApiError('data', 'Duplicate feature ' + feature.id);
+    features.set(feature.id, {...feature, hash: raw.hashes[feature.id]});
+  }
+  const problems = [], columns = [];
+  raw.config.columns.forEach((c, i) => {
+    if (isObj(c) && typeof c.id === 'string' && SLUG_RE.test(c.id) && typeof c.name === 'string' && c.name.trim() && !columns.some(x => x.id === c.id)) columns.push({id: c.id, name: c.name});
+    else problems.push(`Column #${i + 1} in board.json is malformed and was ignored.`);
+  });
+  if (!columns.length) throw new ApiError('data', 'The board has no valid columns configured.');
+  const items = new Map();
+  for (const r of raw.items) {
+    const bad = checkItem(r);
+    if (bad) { problems.push(`A card${isObj(r) && typeof r.id === 'string' ? ' (' + short(r.id, 20) + ')' : ''} was skipped: ${bad}.`); continue; }
+    const hash = typeof raw.hashes[r.id] === 'string' && HASH_RE.test(raw.hashes[r.id]) ? raw.hashes[r.id] : null;
+    if (!hash) problems.push(`${r.id} has no valid hash from the server, so it is read-only until the next refresh.`);
+    if (items.has(r.id)) { problems.push(`Duplicate card ${r.id} ignored.`); continue; }
+    items.set(r.id, Object.assign({}, r, {hash}));
+    if (!PRIORITIES.includes(r.priority)) problems.push(`${r.id} has an unknown priority "${short(r.priority, 30)}".`);
+  }
+  const known = new Set(columns.map(c => c.id));
+  const all = columns.slice();
+  for (const it of items.values()) if (!known.has(it.status)) { known.add(it.status); all.push({id: it.status, name: `Unknown status "${short(it.status, 40)}"`, missing: true}); }
+  for (const c of all) if (c.missing) problems.push(`Cards use status "${short(c.id, 40)}" which is not a configured column; they are listed under a warning column.`);
+  const list = [...items.values()];
+  return {
+    config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns},
+    columns: all, items, list, features, problems,
+    cfgKey: JSON.stringify(raw.config),
+    archivedCount: list.filter(i => i.archived).length,
+  };
+}
+
+/* ---------- backends ---------- */
+function bridgeBackend(token) {
+  async function call(path, {method = 'GET', body} = {}) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    let res, data = null;
+    try {
+      const headers = {Authorization: 'Bearer ' + token};
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
+      res = await fetch(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error', signal: ctl.signal});
+      try { data = await res.json(); } catch { data = null; }
+    } catch (e) {
+      throw new ApiError(e && e.name === 'AbortError' ? 'timeout' : 'network', e && e.name === 'AbortError' ? 'The bridge did not answer in time.' : 'Cannot reach the bridge.');
+    } finally { clearTimeout(timer); }
+    if (!res.ok) {
+      const msg = isObj(data) && typeof data.error === 'string' ? data.error : `HTTP ${res.status}`;
+      const kind = res.status === 409 ? 'conflict' : res.status === 403 ? 'forbidden' : res.status === 400 ? 'invalid' : res.status >= 500 ? 'server' : 'http';
+      throw new ApiError(kind, msg, res.status);
+    }
+    if (data === null) throw new ApiError('data', 'The bridge returned a response that is not JSON.');
+    return data;
+  }
+  return {
+    kind: 'bridge',
+    load: () => call('api/board'),
+    createFeature: values => call('api/features', {method: 'POST', body: values}),
+    patchFeature: (id, revision, hash, changes) => call('api/features/' + encodeURIComponent(id), {method: 'PATCH', body: {revision, hash, changes}}),
+    create: values => call('api/items', {method: 'POST', body: values}),
+    patch: (id, revision, hash, changes) => call('api/items/' + encodeURIComponent(id), {method: 'PATCH', body: {revision, hash, changes}}),
+    postEntry: (id, revision, hash, entry) => call('api/items/' + encodeURIComponent(id) + '/thread', {method:'POST', body:{revision, hash, entry}}),
+    editEntry: (id, entryId, revision, hash, changes) => call('api/items/' + encodeURIComponent(id) + '/thread/' + encodeURIComponent(entryId), {method:'PATCH', body:{revision, hash, changes}}),
+  };
+}
+
+/* Direct mode: File System Access API. Same schema, same polling, but NO advisory lock and NO atomic
+ * compare-and-swap: hash/revision are re-read right before writing, which narrows but does not close the race. */
+function validateFeature(feature, cfg) {
+  const bad = message => { throw new ApiError('data', message); };
+  if (isObj(feature) && typeof feature.version === 'string' && /^\d+\.\d+\.\d+$/.test(feature.version)) {
+    const parts = feature.version.split('.').map(Number);
+    if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 0 || parts[2] > 0))) {
+      bad('Feature requires a newer AgentBoard');
+    }
+  }
+  if (!isObj(feature) || Object.keys(feature).length !== FEATURE_KEYS.length ||
+      !FEATURE_KEYS.every(k => k in feature) || feature.version !== '1.0.0') {
+    bad('Invalid feature structure or version');
+  }
+  if (typeof feature.id !== 'string' || !/^FT-[0-9A-F]{12}$/.test(feature.id) ||
+      !Number.isInteger(feature.revision) || feature.revision < 1) {
+    bad('Invalid feature ID or revision');
+  }
+  if (typeof feature.title !== 'string' || !feature.title.trim() || feature.title.length > LIM.title ||
+      typeof feature.description !== 'string' || feature.description.length > LIM.text) {
+    bad('Invalid feature text');
+  }
+  if (!Array.isArray(cfg.featureColumns) || !cfg.featureColumns.some(c => c.id === feature.status) ||
+      typeof feature.archived !== 'boolean') {
+    bad('Invalid feature status or archive flag');
+  }
+  for (const key of ['createdAt', 'updatedAt']) {
+    if (typeof feature[key] !== 'string' || !TS_RE.test(feature[key])) bad('Invalid feature timestamp');
+  }
+}
+function validateStrict(item, cfg) {
+  const bad = m => { throw new ApiError('invalid', m); };
+  if (!isObj(item) || Object.keys(item).length !== ITEM_KEYS.length || !ITEM_KEYS.every(k => k in item) || item.version !== '1.1.0') bad('Invalid item structure or version');
+  if (typeof item.id !== 'string' || !ID_RE.test(item.id)) bad('Invalid item ID');
+  if (!Number.isInteger(item.revision) || item.revision < 1) bad('Invalid revision');
+  if (typeof item.title !== 'string' || !item.title.trim() || item.title.length > LIM.title) bad('Title must be 1–300 characters');
+  if (!cfg.columns.some(c => c.id === item.status)) bad('Unknown status');
+  if (!PRIORITIES.includes(item.priority)) bad('Unknown priority');
+  if (item.assignee !== null && (typeof item.assignee !== 'string' || !item.assignee.trim() || item.assignee.length > LIM.assignee)) bad('Invalid assignee');
+  for (const k of ['description', 'notes']) if (typeof item[k] !== 'string' || item[k].length > LIM.text) bad('Invalid ' + k);
+  if (!Array.isArray(item.labels) || item.labels.length > LIM.labels || item.labels.some(x => typeof x !== 'string' || !x.trim() || x.length > LIM.label) || new Set(item.labels).size !== item.labels.length) bad('Invalid labels');
+  const a = item.acceptanceCriteria;
+  if (!Array.isArray(a) || a.length > LIM.criteria || a.some(x => !isObj(x) || Object.keys(x).length !== 2 || typeof x.text !== 'string' || !x.text.trim() || x.text.length > LIM.criterion || typeof x.done !== 'boolean')) bad('Invalid acceptance criteria');
+  if (typeof item.archived !== 'boolean') bad('Invalid archived flag');
+  if (item.feature !== null && (typeof item.feature !== 'string' || !/^FT-[0-9A-F]{12}$/.test(item.feature))) bad('Invalid feature');
+  validateThread(item.thread);
+  for (const k of ['createdAt', 'updatedAt']) if (typeof item[k] !== 'string' || !TS_RE.test(item[k])) bad('Invalid ' + k);
+}
+function validateThread(thread) {
+  const bad = m => { throw new ApiError('invalid', m); };
+  if (!Array.isArray(thread) || thread.length > 500) bad('Invalid thread');
+  const entries = new Map();
+  for (const e of thread) {
+    if (!isObj(e) || Object.keys(e).length !== 7 || !['id','kind','author','body','replyTo','createdAt','updatedAt'].every(k => k in e) || !/^TH-[0-9A-F]{12}$/.test(e.id) || entries.has(e.id) || !['comment','question','answer'].includes(e.kind)) bad('Invalid thread entry');
+    if (e.author !== null && (typeof e.author !== 'string' || !e.author.trim() || e.author.length > 120)) bad('Invalid author');
+    if (typeof e.body !== 'string' || !e.body.trim() || e.body.length > 20000) bad('Invalid entry body');
+    if ((e.kind === 'question' && e.replyTo !== null) || (e.kind === 'answer' && entries.get(e.replyTo) !== 'question') || (e.kind === 'comment' && e.replyTo !== null && !entries.has(e.replyTo))) bad('Invalid reply');
+    if (!TS_RE.test(e.createdAt) || !TS_RE.test(e.updatedAt)) bad('Invalid entry timestamp');
+    entries.set(e.id, e.kind);
+  }
+}
+async function directBackend(picked) {
+  let ab = picked;
+  if (picked.name !== '.agentboard') {
+    try { ab = await picked.getDirectoryHandle('.agentboard'); }
+    catch { throw new ApiError('data', 'No .agentboard folder in the selected folder. Pick the project root (or the .agentboard folder itself).'); }
+  }
+  let itemsDir;
+  try { itemsDir = await ab.getDirectoryHandle('items'); } catch { throw new ApiError('data', 'The selected .agentboard folder has no items/ folder.'); }
+  const dec = new TextDecoder('utf-8', {fatal: true});
+  const bytesOf = async (dir, name) => { const f = await (await dir.getFileHandle(name)).getFile(); return new Uint8Array(await f.arrayBuffer()); };
+  const sha = async bytes => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+  const parse = (bytes, what) => { try { return JSON.parse(dec.decode(bytes)); } catch { throw new ApiError('data', `${what} is not valid UTF-8 JSON.`); } };
+  const wrapPerm = e => { if (e instanceof ApiError) throw e; if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw new ApiError('permission', 'Folder permission was lost. Re-select the folder.'); if (e && e.name === 'NotFoundError') throw new ApiError('data', 'A board file disappeared while reading.'); throw new ApiError('io', 'File access failed: ' + (e && e.message || e)); };
+  const readConfig = async () => {
+    let cfg = parse(await bytesOf(ab, 'board.json'), 'board.json');
+    const old = isObj(cfg) && (cfg.version === 1 || cfg.version === undefined || cfg.version === '1.0.0');
+    if (old) {
+      const {version, ...rest} = cfg;
+      let columns = cfg.columns;
+      if (Array.isArray(columns) && !columns.some(c => c && c.id === 'needs-grilling')) {
+        columns = [...columns]; const index = columns.findIndex(c => c && c.id === 'backlog');
+        columns.splice(index + 1, 0, {id:'needs-grilling', name:'Needs grilling'});
+      }
+      cfg = {version:'1.1.0', ...rest, columns};
+      if (!('featureColumns' in cfg)) cfg.featureColumns = [{id:'planned',name:'Planned'},{id:'active',name:'Active'},{id:'done',name:'Done'}];
+    } else if (isObj(cfg)) checkVersion(cfg.version, 'Board');
+    if (!isObj(cfg) || cfg.version !== '1.1.0' || !Array.isArray(cfg.columns) || !cfg.columns.length) throw new ApiError('data', 'Invalid or unsupported board configuration.');
+    if (Object.keys(cfg).some(k => !['version','name','columns','featureColumns'].includes(k)) || typeof cfg.name !== 'string') throw new ApiError('data', 'Invalid board configuration');
+    for (const columns of [cfg.columns, cfg.featureColumns]) {
+      if (!Array.isArray(columns) || !columns.length) throw new ApiError('data', 'Invalid columns');
+      const ids = new Set();
+      for (const c of columns) { if (!isObj(c) || Object.keys(c).length !== 2 || typeof c.id !== 'string' || !SLUG_RE.test(c.id) || typeof c.name !== 'string' || !c.name.trim() || ids.has(c.id)) throw new ApiError('data', 'Invalid or duplicate column in board.json.'); ids.add(c.id); }
+    }
+    if (old) await write(ab, 'board.json', cfg, false);
+    return cfg;
+  };
+  const encode = obj => new TextEncoder().encode(JSON.stringify(obj, null, 2) + '\n');
+  const write = async (dir, name, obj, create) => { const w = await (await dir.getFileHandle(name, {create})).createWritable(); await w.write(encode(obj)); await w.close(); };
+  async function changeThread(id, revision, hash, action) {
+    try {
+      const config = await readConfig();
+      const name = id + '.json';
+      const bytes = await bytesOf(itemsDir, name);
+      if (await sha(bytes) !== hash) throw new ApiError('conflict', 'Item file changed since it was read');
+      const item = parse(bytes, name);
+      validateStrict(item, config);
+      if (item.revision !== revision) throw new ApiError('conflict', 'Revision mismatch');
+      const stamp = new Date().toISOString();
+      action(item, stamp);
+      item.revision++;
+      item.updatedAt = stamp;
+      validateStrict(item, config);
+      await write(itemsDir, name, item, false);
+      return item;
+    } catch (e) {
+      wrapPerm(e);
+    }
+  }
+  async function featureDir(create = false) {
+    try { return await ab.getDirectoryHandle('features', {create}); }
+    catch (e) { if (!create && e.name === 'NotFoundError') return null; throw e; }
+  }
+  async function checkLink(id) {
+    if (id === null || id === undefined) return;
+    const dir = await featureDir();
+    if (!dir) throw new ApiError('invalid', 'Unknown feature');
+    let feature;
+    try { feature = parse(await bytesOf(dir, id + '.json'), id); }
+    catch { throw new ApiError('invalid', 'Unknown feature'); }
+    validateFeature(feature, await readConfig());
+    if (feature.archived) throw new ApiError('invalid', 'Feature is archived');
+  }
+  return {
+    kind: 'direct',
+    async createFeature(values) {
+      try {
+        const config = await readConfig(), dir = await featureDir(true), stamp = new Date().toISOString();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const id = 'FT-' + [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+          try { await dir.getFileHandle(id + '.json'); continue; } catch (e) { if (e.name !== 'NotFoundError') throw e; }
+          const feature = {version:'1.0.0', id, revision:1, title:values.title, status:values.status || config.featureColumns[0].id, description:values.description || '', createdAt:stamp, updatedAt:stamp, archived:false};
+          validateFeature(feature, config);
+          try {
+            await dir.getFileHandle(id + '.json');
+            throw new ApiError('conflict', 'Feature already exists');
+          } catch (e) {
+            if (e.name !== 'NotFoundError') throw e;
+          }
+          await write(dir, id + '.json', feature, true);
+          return feature;
+        }
+        throw new ApiError('conflict', 'ID collision; retry');
+      } catch (e) { wrapPerm(e); }
+    },
+    async patchFeature(id, revision, hash, changes) {
+      try {
+        const config = await readConfig(), dir = await featureDir(), name = id + '.json';
+        if (!dir) throw new ApiError('invalid', 'Unknown feature');
+        const bytes = await bytesOf(dir, name), feature = parse(bytes, name);
+        validateFeature(feature, config);
+        if (await sha(bytes) !== hash || feature.revision !== revision) throw new ApiError('conflict', 'Feature changed since it was read');
+        if (!isObj(changes) || !Object.keys(changes).length || Object.keys(changes).some(k => !['title','status','description','archived'].includes(k))) throw new ApiError('invalid', 'Invalid changes');
+        Object.assign(feature, changes, {revision:feature.revision + 1, updatedAt:new Date().toISOString()});
+        validateFeature(feature, config);
+        await write(dir, name, feature, false);
+        return feature;
+      } catch (e) { wrapPerm(e); }
+    },
+    postEntry(id, revision, hash, entry) {
+      return changeThread(id, revision, hash, (item, stamp) => {
+        if (item.archived && entry.kind === 'question') throw new ApiError('invalid', 'Unarchive the card first before asking a question');
+        if (item.thread.length >= 500) throw new ApiError('invalid', 'A thread holds at most 500 entries');
+        let entryId;
+        do {
+          entryId = 'TH-' + [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        } while (item.thread.some(e => e.id === entryId));
+        item.thread.push({id:entryId, kind:entry.kind, author:entry.author ?? null, body:entry.body, replyTo:entry.replyTo ?? null, createdAt:stamp, updatedAt:stamp});
+      });
+    },
+    editEntry(id, entryId, revision, hash, changes) {
+      return changeThread(id, revision, hash, (item, stamp) => {
+        const entry = item.thread.find(e => e.id === entryId);
+        if (!entry) throw new ApiError('invalid', 'Entry no longer exists');
+        Object.assign(entry, changes, {updatedAt:stamp});
+      });
+    },
+    async load() {
+      try {
+        const config = await readConfig(), items = [], hashes = {}, errors = [];
+        const names = [];
+        for await (const [name, handle] of itemsDir.entries()) if (handle.kind === 'file' && !name.startsWith('.tmp-') && name.endsWith('.json')) names.push(name);
+        names.sort();
+        for (const name of names) {
+          try {
+            const stem = name.slice(0, -5);
+            if (!ID_RE.test(stem)) throw new ApiError('data', 'Invalid item filename');
+            let bytes = await bytesOf(itemsDir, name), item = parse(bytes, name);
+            const old = isObj(item) && (item.version === 1 || item.version === undefined || item.version === '1.0.0');
+            if (old) {
+              if ('feature' in item || 'thread' in item) throw new ApiError('data', 'Invalid item structure or version');
+              const {version, ...rest} = item; item = {version:'1.1.0', ...rest, feature:null, thread:[]};
+            } else if (isObj(item)) checkVersion(item.version, 'Card');
+            validateStrict(item, config);
+            if (item.id !== stem) throw new ApiError('data', 'Item ID does not match filename');
+            if (old) { await write(itemsDir, name, item, false); bytes = encode(item); }
+            items.push(item); hashes[item.id] = await sha(bytes);
+          } catch (e) { if (e instanceof ApiError) errors.push(`${name}: ${e.message}`); else throw e; }
+        }
+        const features = [], dir = await featureDir();
+        if (dir) for await (const [name, handle] of dir.entries()) {
+          if (handle.kind !== 'file' || name.startsWith('.tmp-') || !name.endsWith('.json')) continue;
+          const bytes = await bytesOf(dir, name), feature = parse(bytes, name);
+          validateFeature(feature, config);
+          if (name !== feature.id + '.json') throw new ApiError('data', 'Invalid feature filename');
+          features.push(feature); hashes[feature.id] = await sha(bytes);
+        }
+        if (errors.length) throw new ApiError('data', 'Invalid board data on disk — ' + errors.slice(0, 3).join('; ') + (errors.length > 3 ? ` (+${errors.length - 3} more)` : ''));
+        return {config, items, features, hashes};
+      } catch (e) { wrapPerm(e); }
+    },
+    async create(values) {
+      try {
+        const config = await readConfig();
+        await checkLink(values.feature);
+        const extra = Object.keys(values).filter(k => !WRITABLE.includes(k));
+        if (extra.length) throw new ApiError('invalid', 'Unknown item fields: ' + extra.join(', '));
+        const stamp = new Date().toISOString();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const rnd = crypto.getRandomValues(new Uint8Array(6)), id = 'AB-' + [...rnd].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+          let exists = true;
+          try { await itemsDir.getFileHandle(id + '.json'); } catch (e) { if (e && e.name === 'NotFoundError') exists = false; else throw e; }
+          if (exists) continue;
+          const x = Object.assign({version: '1.1.0', id, revision: 1, title: '', status: config.columns[0].id, priority: 'medium', assignee: null, labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false, feature: null, thread: []}, values);
+          validateStrict(x, config);
+          await write(itemsDir, id + '.json', x, true);
+          return x;
+        }
+        throw new ApiError('conflict', 'ID collision; retry');
+      } catch (e) { wrapPerm(e); }
+    },
+    async patch(id, revision, hash, changes) {
+      try {
+        if (!isObj(changes) || !Object.keys(changes).length || Object.keys(changes).some(k => !WRITABLE.includes(k))) throw new ApiError('invalid', 'Invalid or empty changes');
+        const config = await readConfig(), name = id + '.json';
+        if ('feature' in changes) await checkLink(changes.feature);
+        const bytes = await bytesOf(itemsDir, name);
+        if (await sha(bytes) !== hash) throw new ApiError('conflict', 'Item file changed since it was read');
+        const item = parse(bytes, name);
+        validateStrict(item, config);
+        if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
+        const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
+        validateStrict(x, config);
+        await write(itemsDir, name, x, false);
+        return x;
+      } catch (e) { wrapPerm(e); }
+    },
+  };
+}
+
+/* ---------- polling ---------- */
+let inflight = null, pollTimer = 0;
+function describeError(e) {
+  switch (e.kind) {
+    case 'network': return 'Cannot reach the bridge — is “serve” still running? If you restarted it, open the new URL it printed (the token changes on every start).';
+    case 'timeout': return 'The bridge is not answering.';
+    case 'forbidden': return 'Access denied — the #token in this URL does not match the running bridge. Open the exact URL printed by “serve” (it changes on every restart).';
+    case 'invalid': case 'data': return 'The board data is invalid: ' + e.message;
+    case 'permission': return e.message;
+    default: return e.message || 'Unexpected error.';
+  }
+}
+function poll() {
+  if (inflight) return inflight;
+  if (!S.backend) return Promise.resolve(false);
+  clearTimeout(pollTimer);
+  const startGen = writeGen;
+  let discarded = false;
+  inflight = (async () => {
+    try {
+      const snap = normalizeSnapshot(await S.backend.load());
+      if (startGen !== writeGen) { discarded = true; return false; }   // raced with one of our own writes; never apply
+      const recovered = S.conn.state === 'error';
+      S.conn = {state: 'ok', failures: 0, lastOk: Date.now(), message: '', kind: '', nextAt: 0};
+      applySnapshot(snap);
+      if (recovered) announce('Reconnected. Board is live again.');
+      return true;
+    } catch (e) {
+      const err = e instanceof ApiError ? e : new ApiError('network', 'Unexpected error while loading the board.');
+      const wasError = S.conn.state === 'error';
+      S.conn = {state: 'error', failures: S.conn.failures + 1, lastOk: S.conn.lastOk, message: describeError(err), kind: err.kind, nextAt: 0};
+      if (!wasError) announce('Connection problem. Retrying automatically; your drafts are kept.');
+      renderConn(); renderNotices(); renderBoard(); renderChrome();
+      return false;
+    } finally {
+      inflight = null;
+      const delay = discarded ? 200 : S.conn.state === 'error' ? Math.min(15000, POLL_MS * 2 ** Math.min(S.conn.failures, 4)) * (1 + Math.random() * .2) : POLL_MS + Math.random() * 500;
+      S.conn.nextAt = Date.now() + delay;
+      pollTimer = setTimeout(poll, delay);
+      if (S.conn.state === 'error') renderConn();   // show the retry countdown immediately
+    }
+  })();
+  return inflight;
+}
+/* Resolves true only after a snapshot that STARTED after the most recent write has been applied. */
+async function pollFresh() {
+  for (let i = 0; i < 4; i++) {
+    if (inflight) await inflight;
+    const gen = writeGen;
+    if (await poll() && gen === writeGen) return true;
+  }
+  return false;
+}
+async function ensureFresh() {
+  if (S.conn.state === 'ok' && !S.needsFresh) return;
+  if (!await pollFresh()) throw new ApiError('stale', 'Cannot confirm the latest board state right now. Your draft is kept; it will work again once the connection returns.');
+}
+async function mutate(fn) { writeGen++; try { return await fn(); } finally { writeGen++; } }
+function pollNow() { if (S.backend) { clearTimeout(pollTimer); poll(); } }
+
+/* ---------- snapshot application ---------- */
+function applySnapshot(snap) {
+  const prev = S.snap;
+  S.snap = snap; S.needsFresh = false;
+  const changed = new Set();
+  if (prev) {
+    for (const [id, it] of snap.items) { const p = prev.items.get(id); if (!p || p.hash !== it.hash || p.revision !== it.revision) changed.add(id); }
+    for (const id of prev.items.keys()) if (!snap.items.has(id)) changed.add(id);
+  }
+  const featureChanged = !prev || JSON.stringify([...prev.features.values()]) !== JSON.stringify([...snap.features.values()]);
+  const structural = featureChanged || !prev || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
+  let draftChanged = false;
+  for (const d of S.drafts.values()) if (syncDraft(d)) draftChanged = true;
+  if (structural) {
+    S.flash = prev ? changed : new Set();
+    if (prev && changed.size && !S.writing) announce(`Board updated from disk: ${changed.size} card${changed.size === 1 ? '' : 's'} changed.`);
+    renderAll();
+  } else renderConn();
+  if (draftChanged) { renderDrafts(); onEditorSync(); }
+  if (S.editing && structural) updateEditorControls();
+}
+
+/* ---------- filtering / sorting ---------- */
+const hay = new WeakMap();
+function haystack(it) {
+  let s = hay.get(it);
+  if (!s) { s = [it.id, it.title, it.assignee || '', it.priority, it.labels.join(' '), it.description, it.notes, it.acceptanceCriteria.map(c => c.text).join(' ')].join('\n').toLowerCase(); hay.set(it, s); }
+  return s;
+}
+function filtersActive() { const f = S.filters; return !!(f.q.trim() || f.priority || f.assignee || f.label || f.feature); }
+function archiveOk(it) { const a = S.filters.archived; return a === 'show' || (a === 'hide' ? !it.archived : it.archived); }
+function matches(it) {
+  const f = S.filters;
+  if (!archiveOk(it)) return false;
+  if (f.priority && it.priority !== f.priority) return false;
+  if (f.assignee === '\u0000none' ? it.assignee !== null : f.assignee && it.assignee !== f.assignee) return false;
+  if (f.label && !it.labels.includes(f.label)) return false;
+  const linkedFeature = it.feature && S.snap.features.get(it.feature);
+  if (f.feature === 'none' ? linkedFeature && !linkedFeature.archived : f.feature && it.feature !== f.feature) return false;
+  const q = f.q.trim().toLowerCase();
+  if (q) { const t = haystack(it); if (!q.split(/\s+/).every(w => t.includes(w))) return false; }
+  return true;
+}
+const cmp = (a, b) => (PRANK[a.priority] ?? 9) - (PRANK[b.priority] ?? 9) || (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0) || (a.id < b.id ? -1 : 1);
+
+/* ---------- drafts ---------- */
+function fieldsFrom(it) {
+  return {title: it.title, status: it.status, priority: it.priority, assignee: it.assignee ?? '', labels: it.labels.slice(), description: it.description,
+    criteria: it.acceptanceCriteria.map(c => ({text: c.text, done: c.done})), notes: it.notes, archived: it.archived, feature: it.feature};
+}
+function newDraft(status) {
+  const cols = S.snap.config.columns;
+  return {key: 'new', id: null, base: null, fields: {title: '', status: status && cols.some(c => c.id === status) ? status : cols[0].id, priority: 'medium', assignee: '', labels: [], description: '', criteria: [], notes: '', archived: false, feature: null},
+    pendingLabel: '', pendingCriterion: '', conflict: null, refreshed: false, saveError: ''};
+}
+function draftFor(it) { return {key: it.id, id: it.id, base: it, fields: fieldsFrom(it), pendingLabel: '', pendingCriterion: '', conflict: null, refreshed: false, saveError: ''}; }
+/* Only fields the user actually changed are sent; everything else is left untouched on the server. */
+function computeChanges(d) {
+  const f = d.fields, b = d.base, c = {};
+  if (!b) return c;
+  if (f.title !== b.title && f.title.trim() !== b.title) c.title = f.title.trim();
+  if (f.status !== b.status) c.status = f.status;
+  if (f.priority !== b.priority) c.priority = f.priority;
+  if (f.assignee !== (b.assignee ?? '')) { const a = f.assignee.trim() || null; if (a !== b.assignee) c.assignee = a; }
+  if (!arrEq(f.labels, b.labels)) c.labels = f.labels.slice();
+  if (!critEq(f.criteria, b.acceptanceCriteria)) c.acceptanceCriteria = f.criteria.map(x => ({text: x.text.trim(), done: x.done}));
+  if (f.description !== b.description) c.description = f.description;
+  if (f.notes !== b.notes) c.notes = f.notes;
+  if (f.archived !== b.archived) c.archived = f.archived;
+  if (f.feature !== b.feature) c.feature = f.feature;
+  return c;
+}
+function fieldDirty(d) {
+  if (d.pendingLabel.trim() || d.pendingCriterion.trim()) return true;
+  if (d.id) return Object.keys(computeChanges(d)).length > 0;
+  const f = d.fields;
+  return !!(f.title || f.assignee || f.labels.length || f.description || f.criteria.length || f.notes || f.feature || f.priority !== 'medium' || f.status !== S.snap.config.columns[0].id);
+}
+function isDirty(d) {
+  if (fieldDirty(d) || d.threadBody) return true;
+  const entries = (S.snap.items.get(d.id) || d.base)?.thread || [];
+  return Object.entries(d.threadInputs || {}).some(([key, input]) => {
+    if (key.startsWith('answer:')) return !!input.body;
+    if (!key.startsWith('edit:')) return false;
+    const entry = entries.find(item => item.id === key.slice(5));
+    return !entry || input.body !== entry.body || input.author !== (entry.author || '');
+  });
+}
+function validateDraft(d) {
+  const f = d.fields, e = {crit: {}};
+  const t = f.title.trim();
+  if (!t) e.title = 'Title is required.'; else if (f.title.length > LIM.title) e.title = `Title is too long (${f.title.length}/${LIM.title}).`;
+  if (!S.snap.config.columns.some(c => c.id === f.status)) e.status = 'Choose a configured column.';
+  if (!PRIORITIES.includes(f.priority)) e.priority = 'Choose a priority.';
+  if (f.assignee.trim().length > LIM.assignee) e.assignee = `Assignee is too long (max ${LIM.assignee}).`;
+  if (f.labels.length > LIM.labels) e.labels = `At most ${LIM.labels} labels.`;
+  else if (f.labels.some(l => !l.trim() || l.length > LIM.label)) e.labels = `Labels must be 1–${LIM.label} characters.`;
+  if (f.description.length > LIM.text) e.description = `Description is too long (max ${LIM.text.toLocaleString()}).`;
+  if (f.notes.length > LIM.text) e.notes = `Notes are too long (max ${LIM.text.toLocaleString()}).`;
+  if (f.criteria.length > LIM.criteria) e.criteria = `At most ${LIM.criteria} criteria.`;
+  f.criteria.forEach((c, i) => { if (!c.text.trim()) e.crit[i] = 'Text is required — fill it in or remove this criterion.'; else if (c.text.length > LIM.criterion) e.crit[i] = `Too long (${c.text.length}/${LIM.criterion}).`; });
+  return e;
+}
+const hasErrors = e => Object.keys(e).some(k => k !== 'crit') || Object.keys(e.crit).length > 0;
+
+/* Reconcile a draft with the live item. Returns true when the draft's visible state changed. */
+function syncDraft(d) {
+  if (!d.id) return false;
+  const live = S.snap.items.get(d.id);
+  if (!live) { if (d.conflict && d.conflict.kind === 'deleted') return false; d.conflict = {kind: 'deleted', live: null, ack: false}; return true; }
+  if (live.hash === d.base.hash && live.revision === d.base.revision) { if (d.conflict) { d.conflict = null; return true; } return false; }
+  if (!fieldDirty(d)) { d.base = live; d.fields = fieldsFrom(live); d.conflict = null; d.refreshed = true; return true; }
+  if (!d.conflict || d.conflict.kind === 'deleted' || !d.conflict.live || d.conflict.live.hash !== live.hash) {
+    d.conflict = {kind: d.conflict && d.conflict.kind === 'server' ? 'server' : 'external', live, ack: false}; return true;
+  }
+  return false;
+}
+function sameNonThreadFields(a, b) {
+  const ignored = new Set(['thread', 'revision', 'updatedAt', 'hash']);
+  return Object.keys(a).filter(key => !ignored.has(key)).every(key => JSON.stringify(a[key]) === JSON.stringify(b[key]));
+}
+function changedFieldNames(base, live) {
+  const names = [], fb = fieldsFrom(base), fl = fieldsFrom(live);
+  for (const k of ['title', 'status', 'priority', 'assignee', 'description', 'notes', 'archived', 'feature']) if (fb[k] !== fl[k]) names.push(k);
+  if (!arrEq(fb.labels, fl.labels)) names.push('labels');
+  if (!critEq(fb.criteria, fl.criteria)) names.push('acceptance criteria');
+  return names;
+}
+function draftText(d) {
+  return JSON.stringify({card: d.id, basedOn: d.base ? {revision: d.base.revision, hash: d.base.hash} : null, draft: d.fields, uncommittedLabelText: d.pendingLabel, uncommittedCriterionText: d.pendingCriterion}, null, 2);
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* fall through */ }
+  const ta = h('textarea', {readOnly: true, 'aria-hidden': 'true', style: 'position:fixed;left:-9999px;top:0'}); ta.value = text;
+  document.body.append(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove(); return ok;
+}
+
+/* ---------- writes ---------- */
+async function createCard(values) { return mutate(() => S.backend.create(values)); }
+function conflictFromError(e) { return e instanceof ApiError && e.kind === 'conflict'; }
+
+async function quickPatch(id, changes, doneMsg) {
+  if (S.writing) { toast('Another save is in progress — try again in a moment.'); return false; }
+  const d = S.drafts.get(id);
+  if (d && isDirty(d)) { toast(`${id} has an unsaved draft. Open it and save or cancel the draft first.`, {kind: 'error'}); return false; }
+  S.writing = true; renderBusy();
+  try {
+    await ensureFresh();
+    const live = S.snap.items.get(id);
+    if (!live) throw new ApiError('gone', 'That card no longer exists.');
+    if (!live.hash) throw new ApiError('invalid', 'This card has no valid hash yet; wait for the next refresh.');
+    await mutate(() => S.backend.patch(id, live.revision, live.hash, changes));
+    S.needsFresh = true; await pollFresh();
+    toast(doneMsg, {kind: 'ok'}); announce(doneMsg);
+    return true;
+  } catch (e) {
+    if (conflictFromError(e)) { toast(`${id} changed elsewhere, so nothing was changed. The board is refreshing to the current card; review it and try again.`, {kind: 'error'}); S.needsFresh = true; pollFresh().catch(() => {}); }
+    else toast(`Could not update ${id}: ${e.message}`, {kind: 'error'});
+    return false;
+  } finally { S.writing = false; renderBusy(); }
+}
+function moveItem(id, status, dragFrom) {
+  const live = S.snap && S.snap.items.get(id);
+  if (!live) return toast('That card no longer exists.', {kind: 'error'});
+  if (dragFrom && live.status !== dragFrom) return toast(`${id} was moved elsewhere while you were dragging; nothing was changed.`, {kind: 'error'});
+  if (live.status === status) return;
+  const col = S.snap.config.columns.find(c => c.id === status);
+  if (!col) return toast('Cannot move to a column that is not configured.', {kind: 'error'});
+  return quickPatch(id, {status}, `Moved ${id} to ${col.name}.`);
+}
+
+/* ====================================================================
+ * Rendering
+ * ==================================================================== */
+function renderAll() {
+  $('#view-board').setAttribute('aria-pressed', String(S.view === 'board'));
+  $('#view-features').setAttribute('aria-pressed', String(S.view === 'features'));
+  $('#new-feature').hidden = S.view !== 'features';
+  $('#feature-archive-label').hidden = S.view !== 'features';
+  renderConn();
+  renderNotices();
+  renderChrome();
+  renderToolbar();
+  renderDrafts();
+  renderBoard();
+}
+
+function renderConn() {
+  const c = S.conn, el = $('#conn'), txt = $('#conn-text'), retry = $('#conn-retry');
+  el.hidden = S.mode === 'launch';
+  el.dataset.state = c.state;
+  if (c.state === 'ok') { txt.textContent = 'Live · synced ' + new Date(c.lastOk).toLocaleTimeString(); retry.hidden = true; }
+  else if (c.state === 'error') { const s = Math.max(0, Math.ceil((c.nextAt - Date.now()) / 1000)); txt.textContent = (S.snap ? 'Offline — showing last data' : 'Not connected') + (c.nextAt ? ` · retry in ${s}s` : ' · retrying…'); retry.hidden = false; }
+  else { txt.textContent = 'Connecting…'; retry.hidden = true; }
+}
+function renderChrome() {
+  const badge = $('#mode-badge');
+  badge.hidden = S.mode === 'launch';
+  if (S.mode === 'bridge') { badge.textContent = 'Local bridge'; badge.className = 'badge ok'; }
+  if (S.mode === 'direct') { badge.textContent = 'Direct file mode — unsafe writes'; badge.className = 'badge warn'; }
+  $('#board-name').textContent = S.snap && S.snap.config.name ? S.snap.config.name : 'AgentBoard';
+  document.title = (S.snap && S.snap.config.name ? S.snap.config.name + ' · ' : '') + 'AgentBoard';
+  $('#new-card').disabled = !S.snap;
+  $('#toolbar').hidden = !S.snap || S.view !== 'board';
+  $('#shortcuts').hidden = !S.snap;
+}
+function alertBox(kind, title, body, actions) {
+  return h('div', {class: 'alert ' + kind, role: kind === 'error' ? 'alert' : 'note'},
+    h('span', {class: 'a-icon', 'aria-hidden': 'true'}, kind === 'error' ? '✕' : kind === 'warn' ? '⚠' : 'ℹ'),
+    h('div', {class: 'a-body'}, title ? h('h3', {text: title}) : null, ...[].concat(body).map(b => h('p', {text: b})), actions && actions.length ? h('div', {class: 'a-actions'}, actions) : null));
+}
+function renderNotices() {
+  const box = $('#notices'); clear(box);
+  if (S.mode === 'direct') box.append(alertBox('warn', 'Direct file mode: concurrent updates can be lost',
+    ['This page writes board files itself. It cannot take the advisory lock or do an atomic compare-and-swap, so if the CLI, the bridge, another tab, Git or another person writes the same card at nearly the same moment, one of the updates can be silently lost.',
+     'The revision and file hash are re-checked just before each save, but that check is not a guarantee. Prefer the local bridge (bun agentboard.ts serve) whenever you can.']));
+  if (S.conn.state === 'error' && S.snap) {
+    const acts = [h('button', {type: 'button', class: 'btn small', onclick: () => pollNow()}, 'Retry now')];
+    if (S.mode === 'direct') acts.push(h('button', {type: 'button', class: 'btn small', onclick: () => pickFolder()}, 'Re-select folder'));
+    box.append(alertBox('error', 'Connection problem', [S.conn.message, 'Showing the last data received. New saves are paused; unsaved drafts are kept and retrying is automatic.'], acts));
+  }
+  if (S.snap && S.snap.problems.length) {
+    const shown = S.snap.problems.slice(0, 6);
+    box.append(alertBox('warn', 'Some board data needs attention', shown.concat(S.snap.problems.length > 6 ? [`…and ${S.snap.problems.length - 6} more.`] : [])));
+  }
+}
+
+function renderToolbar() {
+  if (S.snap) $('#toolbar').hidden = S.view !== 'board';
+  if (!S.snap) return;
+  const items = S.snap.list, f = S.filters;
+  const fill = (sel, opts, cur) => {
+    const key = JSON.stringify(opts);
+    if (sel.dataset.key !== key) { sel.dataset.key = key; clear(sel); for (const [v, t] of opts) sel.append(h('option', {value: v, text: t})); }
+    sel.value = cur;
+    return sel.value === cur;
+  };
+  const assignees = [...new Set(items.map(i => i.assignee).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const labels = [...new Set(items.flatMap(i => i.labels))].sort((a, b) => a.localeCompare(b));
+  fill($('#f-priority'), [['', 'Any priority'], ...PRIORITIES.map(p => [p, p[0].toUpperCase() + p.slice(1)])], f.priority);
+  if (!fill($('#f-assignee'), [['', 'Anyone'], ['\u0000none', 'Unassigned'], ...assignees.map(a => [a, short(a, 40)])], f.assignee)) { f.assignee = ''; $('#f-assignee').value = ''; }
+  if (!fill($('#f-label'), [['', 'Any label'], ...labels.map(l => [l, short(l, 40)])], f.label)) { f.label = ''; $('#f-label').value = ''; }
+  if (!fill($('#f-feature'), [['', 'Any feature'], ['none', 'No feature'], ...[...S.snap.features.values()].filter(x => !x.archived).map(x => [x.id, x.title])], f.feature)) {
+    f.feature = '';
+    $('#f-feature').value = '';
+    toast('The selected feature is no longer available. Showing all features.');
+  }
+  $('#f-archived').value = f.archived;
+  const dl = (el, vals) => { const key = JSON.stringify(vals); if (el.dataset.key !== key) { el.dataset.key = key; clear(el); for (const v of vals) el.append(h('option', {value: v})); } };
+  dl($('#dl-assignees'), assignees); dl($('#dl-labels'), labels);
+  $('#f-clear').hidden = !(filtersActive() || f.archived !== 'hide');
+}
+
+function renderDrafts() {
+  const box = $('#drafts-strip'); clear(box);
+  const ds = [...S.drafts.values()].filter(d => d.key !== S.editing && isDirty(d));
+  if (!ds.length) return;
+  box.append(h('span', {class: 'muted', text: 'Unsaved drafts:'}));
+  for (const d of ds) {
+    const label = (d.id || 'New card') + (d.fields.title ? ' — ' + short(d.fields.title, 40) : '');
+    box.append(h('button', {type: 'button', class: 'btn small' + (d.conflict ? ' danger' : ''), onclick: () => openEditor(d.key)}, label + (d.conflict ? ' (conflict)' : '')));
+  }
+}
+
+function renderBusy() {
+  $('#board').setAttribute('aria-busy', S.writing ? 'true' : 'false');
+  for (const el of document.querySelectorAll('.move,.card .assignee,.card-actions button')) el.disabled = S.writing;
+  for (const el of document.querySelectorAll('#feature-form button, #new-feature')) el.disabled = S.writing;
+  for (const el of document.querySelectorAll('#board .card')) {
+    if (el.dataset.id?.startsWith('FT-')) el.draggable = !S.writing;
+  }
+  updateEditorControls();
+}
+
+function launchPanel() {
+  const direct = typeof window.showDirectoryPicker === 'function';
+  const p = h('section', {class: 'panel'},
+    h('h2', {text: 'Connect AgentBoard to a project'}),
+    S.launchNote ? alertBox('error', '', S.launchNote) : null,
+    h('p', {text: 'Start the local bridge from a terminal. It prints a private URL that includes a #token=… part; open that exact URL.'}),
+    h('pre', {text: 'bun agentboard.ts --root /path/to/project serve\n# then open the printed  http://127.0.0.1:PORT/#token=…  URL'}),
+    h('p', {class: 'muted', text: 'Initialize a project first with “bun agentboard.ts init /path/to/project”. Keep the URL private: the token is what authorises changes. If you restart the bridge, open the new URL.'}),
+    location.protocol === 'file:' ? h('p', {class: 'muted', text: 'This page was opened as a local file, so the bridge cannot be reached from it. Use the bridge URL instead.'}) : null);
+  const det = h('details', {class: 'direct-box', open: !direct || !!S.launchNote},
+    h('summary', {text: 'Alternative: open the .agentboard folder directly (experimental)'}));
+  if (direct) det.append(
+    alertBox('warn', 'Writes are not safe against concurrent edits', 'Direct mode cannot use the advisory lock or atomic compare-and-swap; another writer’s update can be lost. Use the bridge for anything shared.'),
+    h('p', {class: 'muted', text: 'Select the project root (or the .agentboard folder). The browser will ask for read/write permission.'}),
+    h('button', {type: 'button', class: 'btn', id: 'pick-folder', onclick: () => pickFolder()}, 'Select folder…'));
+  else det.append(alertBox('info', 'Not supported in this browser', 'Direct mode needs the File System Access API (for example Chrome or Edge on desktop). Use the local bridge above instead.'));
+  p.append(det);
+  return p;
+}
+
+function renderBoard() {
+  if (S.drag) { S.renderDeferred = true; return; }
+  const root = $('#board'), focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+  const scrollX = root.scrollLeft, tops = new Map([...root.querySelectorAll('.col')].map(c => [c.dataset.col, c.querySelector('.col-body') && c.querySelector('.col-body').scrollTop]));
+  clear(root);
+  if (S.mode === 'launch') { root.append(launchPanel()); updateSummary(); return; }
+  if (!S.snap) {
+    if (S.conn.state === 'error') root.append(h('section', {class: 'panel', role: 'alert'},
+      h('h2', {text: 'Cannot load the board'}), h('p', {class: 'wrap-any', text: S.conn.message}),
+      h('p', {class: 'muted', text: 'Retrying automatically with back-off.'}),
+      h('div', {class: 'dlg-actions'}, S.mode === 'direct' ? h('button', {type: 'button', class: 'btn', onclick: () => pickFolder()}, 'Re-select folder') : null, h('button', {type: 'button', class: 'btn primary', onclick: () => pollNow()}, 'Retry now')),
+      S.conn.kind === 'forbidden' || S.conn.kind === 'network' ? h('pre', {text: 'bun agentboard.ts --root /path/to/project serve'}) : null));
+    else { root.setAttribute('aria-busy', 'true'); root.append(h('div', {class: 'sr-only', role: 'status', text: 'Loading board…'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'})); }
+    updateSummary(); return;
+  }
+  if (S.view === 'features') {
+    renderFeatures(root);
+    root.scrollLeft = scrollX;
+    for (const c of root.querySelectorAll('.col')) {
+      const top = tops.get(c.dataset.col);
+      if (top) c.querySelector('.col-body').scrollTop = top;
+    }
+    if (focusKey) focusFk(focusKey);
+    return;
+  }
+  const snap = S.snap, vis = snap.list.filter(matches).sort(cmp), byCol = new Map(snap.columns.map(c => [c.id, []]));
+  for (const it of vis) byCol.get(it.status).push(it);
+  const totalByCol = new Map(snap.columns.map(c => [c.id, 0]));
+  for (const it of snap.list) if (archiveOk(it)) totalByCol.set(it.status, totalByCol.get(it.status) + 1);
+  const anyActive = snap.list.some(i => !i.archived);
+  if (!snap.list.length) root.append(h('section', {class: 'empty-panel'}, h('h2', {text: 'No cards yet'}), h('p', {class: 'muted', text: 'Create the first card here, or from the CLI with “bun agentboard.ts create "Title"”. New cards appear automatically.'}), h('button', {type: 'button', class: 'btn primary', onclick: () => openEditor('new')}, '+ New card')));
+  for (const col of snap.columns) {
+    if (!snap.list.length) break;
+    const cards = byCol.get(col.id);
+    if (col.missing && !cards.length) continue;
+    const collapsed = S.collapsed.has(col.id), real = !col.missing;
+    const head = h('div', {class: 'col-head'},
+      h('button', {type: 'button', class: 'col-toggle', 'aria-expanded': String(!collapsed), 'aria-label': (collapsed ? 'Expand ' : 'Collapse ') + col.name, onclick: () => { collapsed ? S.collapsed.delete(col.id) : S.collapsed.add(col.id); renderBoard(); }}, collapsed ? '▸' : '▾'),
+      h('h2', {id: 'h-' + col.id}, col.missing ? h('span', {class: 'badge bad', text: 'Missing column'}) : null, h('span', {class: 'name wrap-any', text: col.name}),
+        h('span', {class: 'count', title: filtersActive() ? `${cards.length} of ${totalByCol.get(col.id)} shown` : '', text: filtersActive() ? `${cards.length}/${totalByCol.get(col.id)}` : String(cards.length)}, h('span', {class: 'sr-only', text: ' cards'}))),
+      real ? h('button', {type: 'button', class: 'btn small ghost', 'aria-label': 'Add card to ' + col.name, onclick: e => openEditor('new', {status: col.id, returnFocus: null})}, '+') : null);
+    const body = h('ul', {class: 'col-body', 'aria-labelledby': 'h-' + col.id}, cards.map(it => cardEl(it, snap)));
+    if (!cards.length) body.append(h('li', {class: 'col-empty', text: filtersActive() || S.filters.archived !== 'hide' ? 'No matching cards' : 'No cards'}));
+    const sec = h('section', {class: 'col' + (col.missing ? ' missing' : '') + (collapsed ? ' collapsed' : ''), 'data-col': col.id}, head, body);
+    if (col.missing) sec.append(h('p', {class: 'col-empty', text: 'These cards use a status that is not in board.json. Move them to a real column.'}));
+    if (real) {
+      sec.addEventListener('dragover', e => { if (!S.drag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; sec.classList.add('drop-ok'); });
+      sec.addEventListener('dragleave', e => { if (!sec.contains(e.relatedTarget)) sec.classList.remove('drop-ok'); });
+      sec.addEventListener('drop', e => { e.preventDefault(); sec.classList.remove('drop-ok'); const d = S.drag; S.drag = null; if (S.renderDeferred) { S.renderDeferred = false; renderBoard(); } if (d) moveItem(d.id, col.id, d.status); });
+    }
+    root.append(sec);
+  }
+  if (snap.list.length && !vis.length) root.prepend(h('section', {class: 'empty-panel', style: 'flex:0 0 100%;margin:8px 0'}, h('h2', {text: anyActive || S.filters.archived !== 'hide' ? 'No cards match' : 'Nothing here'}), h('p', {class: 'muted', text: filtersActive() || S.filters.archived !== 'hide' ? 'Adjust the search or filters.' : 'All cards are archived. Choose “Show archived too” to see them.'}), h('button', {type: 'button', class: 'btn', onclick: clearFilters}, 'Clear filters')));
+  root.setAttribute('aria-busy', 'false');
+  root.scrollLeft = scrollX;
+  for (const c of root.querySelectorAll('.col')) { const t = tops.get(c.dataset.col); if (t) c.querySelector('.col-body').scrollTop = t; }
+  S.flash = new Set();
+  if (focusKey) { const el = [...root.querySelectorAll('[data-fk]')].find(e => e.dataset.fk === focusKey); if (el) el.focus({preventScroll: true}); }
+  updateSummary();
+}
+function updateSummary() {
+  const el = $('#summary');
+  if (!S.snap) { el.textContent = ''; return; }
+  const shown = S.snap.list.filter(matches).length, active = S.snap.list.length - S.snap.archivedCount;
+  el.textContent = `${shown} shown · ${active} active · ${S.snap.archivedCount} archived${S.filters.archived === 'hide' && S.snap.archivedCount ? ' (hidden)' : ''}`;
+}
+
+async function featureWrite(action, onError = null) {
+  const focusKey = document.activeElement?.dataset?.fk;
+  if (S.writing) { toast('Another save is in progress.'); return false; }
+  S.writing = true;
+  renderBusy();
+  try {
+    await mutate(action);
+    S.needsFresh = true;
+    await pollFresh();
+    return true;
+  } catch (e) {
+    if (onError) onError(e);
+    else toast('Could not update feature: ' + e.message, {kind:'error'});
+    if (e.kind === 'conflict') { S.needsFresh = true; await pollFresh(); }
+    return false;
+  } finally {
+    S.writing = false;
+    renderBusy();
+    renderBoard();
+    if (focusKey) focusFk(focusKey);
+  }
+}
+function moveFeature(feature, status) {
+  if (feature.status === status) return;
+  return featureWrite(() => S.backend.patchFeature(feature.id, feature.revision, feature.hash, {status}));
+}
+function renderFeatures(root) {
+  const snap = S.snap;
+  const linkedByFeature = new Map();
+  for (const item of snap.list) {
+    if (item.feature && !item.archived) {
+      if (!linkedByFeature.has(item.feature)) linkedByFeature.set(item.feature, []);
+      linkedByFeature.get(item.feature).push(item);
+    }
+  }
+  for (const col of snap.config.featureColumns) {
+    const features = [...snap.features.values()].filter(feature =>
+      feature.status === col.id && (S.showArchivedFeatures || !feature.archived));
+    const body = h('ul', {class:'col-body'}, features.map(feature => {
+      const linked = linkedByFeature.get(feature.id) || [];
+      const done = linked.filter(item => item.status === 'done').length;
+      const select = h('select', {
+        class:'move', 'data-fk':'feature-move-' + feature.id,
+        'aria-label':'Move ' + feature.title, disabled:S.writing,
+        onchange:e => {
+          const status = e.target.value;
+          e.target.value = feature.status;
+          moveFeature(feature, status);
+        },
+      }, snap.config.featureColumns.map(c => h('option', {value:c.id, text:c.name})));
+      select.value = feature.status;
+      const article = h('article', {
+        class:'card' + (feature.archived ? ' archived' : ''),
+        draggable:!S.writing,
+        'data-id':feature.id,
+      },
+        h('span', {class:'id mono', text:feature.id}),
+        h('button', {
+          type:'button', class:'card-title', 'data-fk':'feature-title-' + feature.id,
+          onclick:() => openFeature(feature.id), text:feature.title,
+        }),
+        feature.archived ? h('span', {class:'badge', text:'Archived'}) : null,
+        h('progress', {max:linked.length || 1, value:done, 'aria-label':done + ' of ' + linked.length + ' cards done'}),
+        h('span', {'aria-hidden':'true', text:done + ' of ' + linked.length + ' cards done'}),
+        linked.length && done === linked.length && col.id !== snap.config.featureColumns.at(-1).id
+          ? h('span', {class:'badge ok', text:'All cards done'}) : null,
+        select);
+      article.addEventListener('dragstart', e => {
+        S.drag = {feature:true, featureData:feature};
+        e.dataTransfer.setData('text/plain', feature.id);
+      });
+      article.addEventListener('dragend', () => {
+        S.drag = null;
+        if (S.renderDeferred) { S.renderDeferred = false; renderBoard(); }
+      });
+      return h('li', {}, article);
+    }));
+    const head = h('div', {class:'col-head'},
+      h('h2', {text:col.name}),
+      h('span', {class:'count', text:String(features.length)}),
+      h('button', {type:'button', class:'btn small ghost', 'aria-label':'Add feature to ' + col.name,
+        onclick:() => openFeature(null, col.id)}, '+'));
+    const section = h('section', {class:'col', 'data-col':col.id}, head, body);
+    section.addEventListener('dragover', e => { if (S.drag?.feature) e.preventDefault(); });
+    section.addEventListener('drop', e => {
+      e.preventDefault();
+      const drag = S.drag;
+      S.drag = null;
+      if (S.renderDeferred) { S.renderDeferred = false; renderBoard(); }
+      if (drag?.feature) moveFeature(drag.featureData, col.id);
+    });
+    root.append(section);
+  }
+  root.setAttribute('aria-busy', String(S.writing));
+}
+function openFeature(id = null, status = null) {
+  const feature = id ? S.snap.features.get(id) : null;
+  if (id && !feature) return;
+  const dialog = $('#feature-editor'), form = $('#feature-form');
+  const opener = document.activeElement;
+  const openerKey = opener?.dataset?.fk;
+  dialog.onclose = () => {
+    if (!focusFk(openerKey) && opener?.isConnected) opener.focus();
+  };
+  clear(form);
+  const title = h('input', {type:'text', id:'feature-title', value:feature?.title || '', required:true, maxlength:300});
+  const desc = h('textarea', {id:'feature-description', value:feature?.description || '', maxlength:100000});
+  const select = h('select', {id:'feature-status'}, S.snap.config.featureColumns.map(c => h('option', {value:c.id, text:c.name})));
+  select.value = feature?.status || status || S.snap.config.featureColumns[0].id;
+  const error = h('div', {class:'alert error', role:'alert', hidden:true});
+  const showError = e => {
+    error.hidden = false;
+    clear(error);
+    const conflict = e.kind === 'conflict';
+    error.append(h('span', {text: conflict ? 'Feature changed. Your draft is kept.' : 'Could not save feature: ' + e.message}),
+      conflict && feature ? h('button', {type:'button', class:'btn small', onclick:() => { dialog.close(); openFeature(feature.id); }}, 'Reload current feature') : null);
+  };
+  form.append(h('h2', {text:feature ? 'Edit feature' : 'New feature'}), error,
+    field('feature-title', 'Title', title), field('feature-status', 'Status', select), field('feature-description', 'Description', desc));
+  if (feature) {
+    form.append(h('p', {class:'muted', text:'Revision ' + feature.revision + ' · Created ' + fmtTime(feature.createdAt) + ' · Updated ' + fmtTime(feature.updatedAt)}));
+    const cards = S.snap.list.filter(item => item.feature === feature.id);
+    form.append(h('h3', {text:'Linked cards'}), h('ul', {}, cards.map(item => h('li', {}, h('button', {type:'button', onclick:() => { dialog.close(); openEditor(item.id); }, text:item.id + ' · ' + item.title + ' · ' + item.status + (item.archived ? ' · Archived' : '')})))));
+  }
+  const save = h('button', {type:'submit', class:'btn primary'}, feature ? 'Save changes' : 'Create feature');
+  const archive = feature ? h('button', {type:'button', class:'btn', onclick:async () => { if (await featureWrite(() => S.backend.patchFeature(feature.id, feature.revision, feature.hash, {archived:!feature.archived}), showError)) dialog.close(); }}, feature.archived ? 'Restore' : 'Archive') : null;
+  form.append(h('div', {class:'dlg-actions'}, archive, h('button', {type:'button', class:'btn', onclick:() => dialog.close()}, 'Close'), save));
+  form.onsubmit = async e => {
+    e.preventDefault();
+    if (!title.value.trim()) { title.focus(); return; }
+    const changes = {title:title.value.trim(), status:select.value, description:desc.value};
+    const ok = await featureWrite(() => feature ? S.backend.patchFeature(feature.id, feature.revision, feature.hash, changes) : S.backend.createFeature(changes), showError);
+    if (ok) dialog.close();
+  };
+  dialog.showModal();
+  title.focus();
+}
+
+function openQuestions(it) {
+  const answered = new Set(it.thread.filter(e => e.kind === 'answer').map(e => e.replyTo));
+  return it.thread.filter(e => e.kind === 'question' && !answered.has(e.id));
+}
+function featureChip(id, snap) {
+  const feature = snap.features.get(id);
+  const available = feature && !feature.archived;
+  return h('span', {
+    class: 'label' + (available ? '' : ' badge bad'),
+    title: id,
+    'aria-label': available ? feature.title : 'Feature unavailable: ' + id,
+    text: available ? feature.title : 'Feature unavailable',
+  });
+}
+function cardEl(it, snap) {
+  const draft = S.drafts.get(it.id), dirty = draft && isDirty(draft);
+  const done = it.acceptanceCriteria.filter(c => c.done).length, total = it.acceptanceCriteria.length;
+  const colName = (snap.columns.find(c => c.id === it.status) || {}).name || it.status;
+  const real = snap.config.columns.some(c => c.id === it.status);
+  const titleId = 't-' + it.id;
+  const titleBtn = h('button', {type: 'button', class: 'card-title', id: titleId, title: it.title, 'data-fk': it.id + ':title', onclick: () => openEditor(it.id, {returnFocus: it.id + ':title'}),
+    onkeydown: e => {
+      if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      e.preventDefault();
+      const cols = snap.config.columns, i = cols.findIndex(c => c.id === it.status), j = i + (e.key === 'ArrowRight' ? 1 : -1);
+      if (i < 0) return toast('This card is in an unknown column; use the move control to pick a real one.');
+      if (j < 0 || j >= cols.length) return announce(`${e.key === 'ArrowRight' ? 'Already in the last' : 'Already in the first'} column.`);
+      moveItem(it.id, cols[j].id);
+    }}, it.title || '(untitled)');
+  const sel = h('select', {class: 'move', 'aria-label': `Move ${it.id} (${short(it.title, 40)}) to column. Currently ${colName}`, 'data-fk': it.id + ':move', disabled: S.writing || !it.hash,
+    onchange: e => { const to = e.target.value; e.target.value = it.status; moveItem(it.id, to); }},
+    snap.config.columns.map(c => h('option', {value: c.id, text: c.name})), real ? null : h('option', {value: it.status, text: 'Unknown: ' + short(it.status, 24), disabled: true}));
+  sel.value = it.status;
+  const card = h('li', {}, h('article', {class: 'card' + (it.archived ? ' archived' : '') + (S.flash.has(it.id) ? ' flash' : ''), 'data-id': it.id, 'aria-labelledby': titleId, draggable: real && !!it.hash},
+    h('div', {class: 'card-top'}, h('span', {class: 'id mono', text: it.id}),
+      h('span', {class: 'prio ' + (PRANK[it.priority] !== undefined ? 'prio-' + it.priority : 'prio-unknown'), text: prioLabel(it.priority), title: 'Priority'}),
+      it.archived ? h('span', {class: 'badge', text: 'Archived'}) : null,
+      openQuestions(it).length ? h('span', {class: 'badge', role: 'img', title: openQuestions(it).length + (openQuestions(it).length === 1 ? ' open question' : ' open questions'), 'aria-label': openQuestions(it).length + (openQuestions(it).length === 1 ? ' open question' : ' open questions'), text: '❔ ' + openQuestions(it).length}) : null,
+      dirty ? h('span', {class: 'badge ' + (draft.conflict ? 'bad' : 'info'), text: draft.conflict ? 'Draft: conflict' : 'Draft'}) : null),
+    titleBtn,
+    it.feature ? featureChip(it.feature, snap) : null,
+    it.labels.length ? h('ul', {class: 'chips', 'aria-label': 'Labels'}, it.labels.slice(0, 4).map(l => h('li', {class: 'label', title: l, text: l})), it.labels.length > 4 ? h('li', {class: 'label', title: it.labels.slice(4).join(', '), text: `+${it.labels.length - 4}`}) : null) : null,
+    h('div', {class: 'card-foot'},
+      h('button', {type: 'button', class: 'assignee' + (it.assignee ? ' set' : ''), 'data-fk': it.id + ':assignee', title: it.assignee ? 'Assignee: ' + it.assignee + ' (click to change)' : 'Unassigned (click to assign)', 'aria-label': it.assignee ? `Assignee ${it.assignee}. Change assignee` : 'Unassigned. Assign', disabled: S.writing || !it.hash, onclick: () => openAssign(it.id)}, it.assignee ? '@' + it.assignee : 'Unassigned'),
+      total ? h('span', {class: 'crit', title: `${done} of ${total} acceptance criteria done`}, h('span', {class: 'bar', 'aria-hidden': 'true'}, h('i', {style: `width:${Math.round(done / total * 100)}%`})), h('span', {text: `${done}/${total}`}, h('span', {class: 'sr-only', text: ' criteria done'}))) : null,
+      h('span', {class: 'card-actions'}, sel,
+        h('button', {type: 'button', class: 'btn small', 'data-fk': it.id + ':archive', disabled: S.writing || !it.hash, 'aria-label': (it.archived ? 'Restore ' : 'Archive ') + it.id, onclick: () => quickPatch(it.id, {archived: !it.archived}, it.archived ? `Restored ${it.id}.` : `Archived ${it.id}.`)}, it.archived ? 'Restore' : 'Archive')))));
+  const art = card.firstChild;
+  art.addEventListener('dragstart', e => {
+    if (S.writing) { e.preventDefault(); return; }
+    const dr = S.drafts.get(it.id);
+    if (dr && isDirty(dr)) { e.preventDefault(); toast(`${it.id} has an unsaved draft; save or cancel it before moving.`, {kind: 'error'}); return; }
+    S.drag = {id: it.id, status: it.status};
+    e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.id);
+    art.classList.add('dragging');
+  });
+  art.addEventListener('dragend', () => { S.drag = null; art.classList.remove('dragging'); document.querySelectorAll('.drop-ok').forEach(x => x.classList.remove('drop-ok')); if (S.renderDeferred) { S.renderDeferred = false; renderBoard(); } });
+  return card;
+}
+
+function clearFilters() { S.filters = {q: '', priority: '', assignee: '', label: '', feature: '', archived: 'hide'}; $('#q').value = ''; renderToolbar(); renderBoard(); }
+function focusFk(fk) { if (!fk) return false; const el = [...document.querySelectorAll('[data-fk]')].find(e => e.dataset.fk === fk); if (el) { el.focus(); return true; } return false; }
+
+/* ====================================================================
+ * Dialogs: confirm, assignee, editor
+ * ==================================================================== */
+function confirmDialog({title, message, confirmLabel, cancelLabel = 'Cancel', danger = true}) {
+  const dlg = $('#confirm'), form = $('#cf-form');
+  clear(form);
+  form.append(h('h2', {id: 'cf-title', text: title}), h('p', {text: message}),
+    h('div', {class: 'dlg-actions'}, h('button', {type: 'submit', value: 'cancel', class: 'btn', autofocus: ''}, cancelLabel), h('button', {type: 'submit', value: 'ok', class: 'btn ' + (danger ? 'danger' : 'primary')}, confirmLabel)));
+  return new Promise(res => { dlg.returnValue = 'cancel'; dlg.addEventListener('close', () => res(dlg.returnValue === 'ok'), {once: true}); dlg.showModal(); });
+}
+
+function openAssign(id) {
+  const it = S.snap && S.snap.items.get(id);
+  if (!it) return;
+  const d = S.drafts.get(id);
+  if (d && isDirty(d)) return toast(`${id} has an unsaved draft. Change the assignee in the editor, or save/cancel the draft first.`, {kind: 'error'});
+  const dlg = $('#assign'), form = $('#as-form');
+  clear(form);
+  const input = h('input', {type: 'text', id: 'as-input', list: 'dl-assignees', value: it.assignee || '', autocomplete: 'off', 'aria-describedby': 'as-help'});
+  const err = h('div', {class: 'err', id: 'as-err', role: 'alert'});
+  form.append(h('h2', {id: 'as-title', text: 'Assignee for ' + it.id}),
+    h('p', {class: 'muted wrap-any', text: short(it.title, 120)}),
+    h('div', {class: 'field'}, h('label', {for: 'as-input'}, 'Assignee'), input, err,
+      h('span', {class: 'help', id: 'as-help'}, 'Assigning is just a label: it does not lock the card, and anyone can still edit it.')),
+    h('div', {class: 'dlg-actions'},
+      h('button', {type: 'submit', value: 'cancel', class: 'btn', formnovalidate: ''}, 'Cancel'),
+      it.assignee ? h('button', {type: 'submit', value: 'unassign', class: 'btn danger', formnovalidate: ''}, 'Unassign') : null,
+      h('button', {type: 'submit', value: 'save', class: 'btn primary', id: 'as-save'}, 'Set assignee')));
+  // Enter must mean "Set assignee": implicit submission would otherwise pick the first submit button (Cancel).
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#as-save').click(); } });
+  const handler = e => {
+    const v = e.submitter && e.submitter.value;
+    if (v === 'save') {
+      const val = input.value.trim();
+      if (!val) { e.preventDefault(); err.textContent = 'Enter a name, or use Unassign.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+      if (val.length > LIM.assignee) { e.preventDefault(); err.textContent = `Too long (max ${LIM.assignee}).`; input.setAttribute('aria-invalid', 'true'); return; }
+    }
+  };
+  form.addEventListener('submit', handler);
+  dlg.returnValue = 'cancel';
+  dlg.addEventListener('close', () => {
+    form.removeEventListener('submit', handler);
+    const v = dlg.returnValue;
+    const back = () => focusFk(id + ':assignee');
+    if (v === 'unassign') quickPatch(id, {assignee: null}, `Unassigned ${id}.`).then(back);
+    else if (v === 'save') { const val = input.value.trim(); if (val === it.assignee) back(); else quickPatch(id, {assignee: val}, `Assigned ${id} to ${val}.`).then(back); }
+    else back();
+  }, {once: true});
+  dlg.showModal(); input.focus(); input.select();
+}
+
+/* ---------- editor ---------- */
+const editor = () => $('#editor');
+function openEditor(key, opts = {}) {
+  if (!S.snap) return;
+  let d = S.drafts.get(key);
+  if (!d) {
+    if (key === 'new') d = newDraft(opts.status);
+    else { const live = S.snap.items.get(key); if (!live) return toast('That card no longer exists.', {kind: 'error'}); d = draftFor(live); }
+    S.drafts.set(key, d);
+  } else syncDraft(d);
+  S.editing = key;
+  if (opts.returnFocus !== undefined) S.returnFocus = opts.returnFocus;
+  else if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.fk) S.returnFocus = document.activeElement.dataset.fk;
+  else S.returnFocus = key === 'new' ? 'new-card' : key + ':title';
+  d.refreshed = false;
+  buildEditor(d);
+  if (!editor().open) editor().showModal();
+  renderDrafts(); renderBoard();
+  const first = $('#ed-title'); if (first) { first.focus(); }
+}
+function closeEditorUi() { if (editor().open) editor().close(); }
+
+function field(id, label, control, extra) {
+  return h('div', {class: 'field'}, h('label', {for: id}, label), control, h('div', {class: 'err', id: 'err-' + id.replace(/^ed-/, '')}), extra || null);
+}
+function buildEditor(d) {
+  const f = d.fields, form = $('#ed-form'), isNew = !d.id, cols = S.snap.config.columns;
+  clear(form);
+  const dirtyTick = () => { d.saveError = ''; updateEditorControls(); };
+  const title = h('input', {type: 'text', id: 'ed-title', value: f.title, autocomplete: 'off', 'aria-describedby': 'err-title ct-title', oninput: e => { f.title = e.target.value; clearErr('title'); counter('ct-title', f.title.length, LIM.title); dirtyTick(); }});
+  const status = h('select', {id: 'ed-status', onchange: e => { f.status = e.target.value; dirtyTick(); }}, cols.map(c => h('option', {value: c.id, text: c.name})),
+    cols.some(c => c.id === f.status) ? null : h('option', {value: f.status, text: 'Unknown: ' + short(f.status, 30) + ' (missing column)'}));
+  status.value = f.status;
+  const prio = h('select', {id: 'ed-priority', onchange: e => { f.priority = e.target.value; dirtyTick(); }}, PRIORITIES.map(p => h('option', {value: p, text: p[0].toUpperCase() + p.slice(1)})),
+    PRIORITIES.includes(f.priority) ? null : h('option', {value: f.priority, text: 'Unknown: ' + short(f.priority, 20)}));
+  prio.value = f.priority;
+  const feature = h('select', {id:'ed-feature', onchange:e => { f.feature = e.target.value || null; dirtyTick(); }}, h('option', {value:'', text:'No feature'}), [...S.snap.features.values()].filter(x => !x.archived).map(x => h('option', {value:x.id, text:x.title})), f.feature && (!S.snap.features.has(f.feature) || S.snap.features.get(f.feature).archived) ? h('option', {value:f.feature, text:'Unavailable feature: ' + f.feature}) : null);
+  feature.value = f.feature || '';
+  const assignee = h('input', {type: 'text', id: 'ed-assignee', list: 'dl-assignees', value: f.assignee, autocomplete: 'off', 'aria-describedby': 'err-assignee help-assignee', oninput: e => { f.assignee = e.target.value; clearErr('assignee'); dirtyTick(); }});
+  const desc = h('textarea', {id: 'ed-description', value: f.description, spellcheck: 'true', 'aria-describedby': 'err-description ct-description', oninput: e => { f.description = e.target.value; clearErr('description'); counter('ct-description', f.description.length, LIM.text); dirtyTick(); }});
+  const notes = h('textarea', {id: 'ed-notes', value: f.notes, spellcheck: 'true', 'aria-describedby': 'err-notes ct-notes', oninput: e => { f.notes = e.target.value; clearErr('notes'); counter('ct-notes', f.notes.length, LIM.text); dirtyTick(); }});
+
+  form.append(
+    h('div', {class: 'ed-head'},
+      h('h2', {id: 'ed-heading'}, isNew ? 'New card' : 'Edit card ', isNew ? null : h('span', {class: 'mono muted', text: d.id})),
+      isNew ? null : h('span', {class: 'meta', text: 'rev ' + d.base.revision}),
+      h('button', {type: 'button', class: 'x', id: 'ed-close', 'aria-label': 'Close editor (your draft is kept)', title: 'Close — keeps your draft', onclick: closeEditorUi}, '×')),
+    h('div', {class: 'ed-alerts', id: 'ed-alerts'}),
+    h('div', {class: 'ed-body'},
+      field('ed-title', 'Title', title, h('div', {class: 'counter', id: 'ct-title'})),
+      h('div', {class: 'row3'}, field('ed-status', 'Status', status), field('ed-priority', 'Priority', prio),
+        field('ed-assignee', 'Assignee', assignee, h('span', {class: 'help', id: 'help-assignee'}, 'Empty = unassigned. A label only; it does not lock the card.'))),
+      field('ed-feature', 'Feature', feature),
+      labelsField(d),
+      field('ed-description', 'Description', desc, h('div', {class: 'counter', id: 'ct-description'})),
+      criteriaField(d),
+      field('ed-notes', 'Notes', notes, h('div', {class: 'counter', id: 'ct-notes'})),
+      isNew ? null : h('div', {class: 'field'}, h('div', {class: 'check'}, h('input', {type: 'checkbox', id: 'ed-archived', checked: f.archived, 'aria-describedby': 'help-archived', onchange: e => { f.archived = e.target.checked; dirtyTick(); }}), h('label', {for: 'ed-archived'}, 'Archived')),
+        h('span', {class: 'help', id: 'help-archived'}, 'Archived cards are hidden from the board by default (cards are never deleted).')),
+      isNew ? null : threadPanel(d),
+      isNew ? null : h('dl', {class: 'meta-list'}, h('dt', {text: 'Created'}), h('dd', {text: fmtTime(d.base.createdAt)}), h('dt', {text: 'Updated'}), h('dd', {text: fmtTime(d.base.updatedAt)}), h('dt', {text: 'Revision'}), h('dd', {text: String(d.base.revision)}), h('dt', {text: 'Hash'}), h('dd', {class: 'mono', text: d.base.hash ? d.base.hash.slice(0, 12) + '…' : 'none'}))),
+    h('div', {class: 'ed-foot'},
+      h('span', {class: 'note', id: 'ed-note', 'aria-live': 'polite'}),
+      h('button', {type: 'button', class: 'btn small', id: 'ed-copy', onclick: async () => { const ok = await copyText(draftText(d)); toast(ok ? 'Draft copied to clipboard.' : 'Clipboard unavailable — use “Show draft as text” in the conflict panel or select the text manually.', {kind: ok ? 'ok' : 'error'}); }}, 'Copy draft'),
+      h('button', {type: 'button', class: 'btn', id: 'ed-cancel', onclick: () => cancelDraft(d)}, 'Cancel'),
+      h('button', {type: 'submit', class: 'btn primary', id: 'ed-save'}, isNew ? 'Create card' : 'Save changes')));
+  counter('ct-title', f.title.length, LIM.title); counter('ct-description', f.description.length, LIM.text); counter('ct-notes', f.notes.length, LIM.text);
+  renderEditorAlerts(d); updateEditorControls();
+}
+function threadPanel(d) {
+  d.threadInputs ||= {};
+  const root = h('section', {id:'thread-panel'}, h('h3', {text:'Thread'}));
+  const list = h('div', {id:'thread-list'}), error = h('div', {class:'err', role:'alert'});
+  const author = h('input', {id:'thread-author', type:'text', maxlength:'120', value:d.threadAuthor || '', oninput:e => { d.threadAuthor = e.target.value; updateEditorControls(); }});
+  const body = h('textarea', {id:'thread-body', placeholder:'Write a comment or question', 'aria-label':'Thread message', maxlength:'20000', value:d.threadBody || '', oninput:e => { d.threadBody = e.target.value; updateEditorControls(); }});
+  async function send(entry, changes, clearSent) {
+    if (S.writing) return;
+    error.textContent = '';
+    S.writing = true;
+    try {
+      const live = S.snap.items.get(d.id) || d.base;
+      const written = await mutate(() => changes ? S.backend.editEntry(d.id, entry.id, live.revision, live.hash, changes) : S.backend.postEntry(d.id, live.revision, live.hash, entry));
+      const snap = normalizeSnapshot(await S.backend.load());
+      const latest = snap.items.get(d.id);
+      if (latest && latest.revision === written.revision && (!fieldDirty(d) || sameNonThreadFields(d.base, latest))) {
+        d.base = latest;
+        d.conflict = null;
+        d.refreshed = false;
+      }
+      clearSent(changes || entry);
+      applySnapshot(snap);
+      list.refreshEntries();
+      const current = S.snap.items.get(d.id) || d.base;
+      const activeEditor = currentDraft() === d && editor().open ? editor() : null;
+      const meta = activeEditor?.querySelector('.meta-list');
+      const head = activeEditor?.querySelector('.ed-head .meta');
+      if (head) head.textContent = 'rev ' + current.revision;
+      if (meta) {
+        const values = meta.querySelectorAll('dd');
+        values[1].textContent = fmtTime(current.updatedAt);
+        values[2].textContent = String(current.revision);
+        values[3].textContent = current.hash ? current.hash.slice(0, 12) + '…' : 'none';
+      }
+      renderDrafts();
+    } catch (e) {
+      error.textContent = e.message || 'Could not update thread';
+      if (e.kind === 'conflict') { await pollFresh(); error.textContent = 'Card changed; your entry is kept. ' + e.message; }
+    } finally {
+      S.writing = false;
+      renderBusy();
+      updateEditorControls();
+    }
+  }
+  function renderEntries() {
+    const entries = (S.snap.items.get(d.id) || d.base).thread;
+    const open = new Set(openQuestions({thread:entries}).map(e => e.id));
+    for (const e of entries) {
+      let item = [...list.children].find(node => node.dataset.entryId === e.id);
+      if (item) {
+        item.querySelector('strong').textContent = e.kind + (e.kind === 'question' ? (open.has(e.id) ? ' · open' : ' · answered') : '');
+        item.querySelector('span').textContent = ' — ' + (e.author || 'anonymous') + ' · ' + fmtTime(e.createdAt);
+        item.querySelector('p').textContent = e.body;
+        const answer = [...item.querySelectorAll('button')].find(button => button.textContent === 'Answer');
+        if (answer && !open.has(e.id)) answer.remove();
+        continue;
+      }
+      item = h('article', {class:'thread-entry', 'data-entry-id':e.id}, h('strong', {text:e.kind + (e.kind === 'question' ? (open.has(e.id) ? ' · open' : ' · answered') : '')}),
+        h('span', {text:' — ' + (e.author || 'anonymous') + ' · ' + fmtTime(e.createdAt)}),
+        e.replyTo ? h('div', {text:'re: ' + e.replyTo}) : null,
+        h('p', {style:'white-space:pre-wrap;overflow-wrap:anywhere', text:e.body}));
+      const controls = h('div');
+      const showAnswer = () => {
+        const saved = d.threadInputs['answer:' + e.id] ||= {body:''};
+        const reply = h('textarea', {placeholder:'Answer', 'aria-label':'Answer question ' + e.id, maxlength:'20000', value:saved.body, oninput:ev => { saved.body = ev.target.value; updateEditorControls(); }});
+        const postAnswer = () => send(
+          {kind:'answer', body:reply.value, author:author.value.trim() || null, replyTo:e.id}, null,
+          sent => {
+            if (reply.value === sent.body) { delete d.threadInputs['answer:' + e.id]; item.remove(); }
+          });
+        controls.replaceChildren(reply, h('button', {type:'button', class:'btn small', 'aria-label':'Post answer to ' + e.id, onclick:postAnswer}, 'Post answer'));
+      };
+      const showEdit = () => {
+        const current = (S.snap.items.get(d.id) || d.base).thread.find(entry => entry.id === e.id) || e;
+        const saved = d.threadInputs['edit:' + e.id] ||= {body:current.body, author:current.author || ''};
+        const editBody = h('textarea', {value:saved.body, 'aria-label':'Edit body of ' + e.id, maxlength:'20000', oninput:ev => { saved.body = ev.target.value; updateEditorControls(); }});
+        const editAuthor = h('input', {value:saved.author, 'aria-label':'Edit author of ' + e.id, maxlength:'120', placeholder:'Author (optional)', oninput:ev => { saved.author = ev.target.value; updateEditorControls(); }});
+        const saveEntry = () => send(e, {body:editBody.value, author:editAuthor.value.trim() || null}, submitted => {
+          if (editBody.value === submitted.body && (editAuthor.value.trim() || null) === submitted.author) {
+            delete d.threadInputs['edit:' + e.id];
+            item.remove();
+          }
+        });
+        controls.replaceChildren(editAuthor, editBody, h('button', {type:'button', class:'btn small', 'aria-label':'Save entry ' + e.id, onclick:saveEntry}, 'Save entry'));
+      };
+      if (e.kind === 'question' && open.has(e.id)) controls.append(h('button', {type:'button', class:'btn small', 'aria-label':'Answer question ' + e.id, onclick:showAnswer}, 'Answer'));
+      controls.append(h('button', {type:'button', class:'btn small', 'aria-label':'Edit entry ' + e.id, onclick:showEdit}, 'Edit'));
+      item.append(controls);
+      list.append(item);
+      if (d.threadInputs['answer:' + e.id]) showAnswer();
+      else if (d.threadInputs['edit:' + e.id]) showEdit();
+    }
+  }
+  list.refreshEntries = renderEntries;
+  renderEntries();
+  const clearBody = sent => { if (body.value === sent.body) { body.value = ''; d.threadBody = ''; } };
+  root.append(list, h('label', {for:'thread-author', text:'Author (optional)'}), author, body,
+    h('button', {type:'button', class:'btn small', onclick:() => send({kind:'comment', body:body.value, author:author.value.trim() || null}, null, clearBody)}, 'Post comment'),
+    h('button', {type:'button', class:'btn small', onclick:() => send({kind:'question', body:body.value, author:author.value.trim() || null}, null, clearBody)}, 'Post question'), error);
+  return root;
+}
+function counter(id, n, max) { const el = $('#' + id); if (!el) return; el.textContent = `${n.toLocaleString()} / ${max.toLocaleString()}`; el.classList.toggle('near', n > max * .9); }
+function clearErr(name) { const e = $('#err-' + name), i = $('#ed-' + name); if (e) e.textContent = ''; if (i) i.removeAttribute('aria-invalid'); }
+
+function labelsField(d) {
+  const f = d.fields, list = h('ul', {class: 'chips-ed', id: 'ed-label-list', 'aria-label': 'Labels'});
+  const input = h('input', {type: 'text', id: 'ed-labels', list: 'dl-labels', placeholder: 'Add a label, press Enter', autocomplete: 'off', value: d.pendingLabel, 'aria-describedby': 'err-labels'});
+  const render = () => clear(list) || list.append(...f.labels.map((l, i) => h('li', {class: 'chip'}, h('span', {title: l, text: l}), h('button', {type: 'button', 'aria-label': 'Remove label ' + l, onclick: () => { f.labels.splice(i, 1); render(); d.saveError = ''; updateEditorControls(); input.focus(); }}, '×'))));
+  const commit = () => {
+    const parts = input.value.split(',').map(s => s.trim()).filter(Boolean); let dup = 0;
+    for (const p of parts) { if (f.labels.includes(p)) dup++; else f.labels.push(p); }
+    input.value = ''; d.pendingLabel = ''; render(); updateEditorControls();
+    if (dup) announce(dup === 1 ? 'That label is already on the card.' : 'Duplicate labels were ignored.');
+  };
+  input.addEventListener('input', () => { d.pendingLabel = input.value; clearErr('labels'); updateEditorControls(); });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } });
+  render();
+  return h('div', {class: 'field'}, h('label', {for: 'ed-labels'}, 'Labels'), list,
+    h('div', {class: 'inline-add'}, input, h('button', {type: 'button', class: 'btn', onclick: () => { commit(); input.focus(); }}, 'Add')),
+    h('div', {class: 'err', id: 'err-labels'}), h('span', {class: 'help', text: 'Unique, up to 50 labels of up to 80 characters. Comma also adds.'}));
+}
+function criteriaField(d) {
+  const f = d.fields, ul = h('ul', {class: 'crit-list', id: 'ed-crit-list'}), sumEl = h('span', {class: 'muted', id: 'ed-crit-sum'});
+  const addInput = h('input', {type: 'text', id: 'ed-crit-new', placeholder: 'Add acceptance criterion, press Enter', autocomplete: 'off', value: d.pendingCriterion, 'aria-label': 'New acceptance criterion'});
+  const sum = () => { const n = f.criteria.length, k = f.criteria.filter(c => c.done).length; sumEl.textContent = n ? `${k} of ${n} done` : 'none yet'; };
+  const change = () => { d.saveError = ''; sum(); updateEditorControls(); };
+  const render = (focusSel) => {
+    clear(ul);
+    f.criteria.forEach((c, i) => {
+      const cb = h('input', {type: 'checkbox', checked: c.done, 'aria-label': `Criterion ${i + 1} done`, onchange: () => { c.done = cb.checked; change(); }});
+      const tx = h('input', {type: 'text', value: c.text, 'aria-label': `Criterion ${i + 1} text`, 'aria-describedby': 'err-crit-' + i, oninput: () => { c.text = tx.value; const er = $('#err-crit-' + i); if (er) er.textContent = ''; tx.removeAttribute('aria-invalid'); change(); }, onkeydown: e => { if (e.key === 'Enter') e.preventDefault(); }});
+      const swap = (j) => { [f.criteria[i], f.criteria[j]] = [f.criteria[j], f.criteria[i]]; render(`#ed-crit-list li:nth-child(${j + 1}) .crit-text-btn-${j < i ? 'up' : 'down'}`); change(); };
+      ul.append(h('li', {class: 'crit-row'}, cb, tx,
+        h('span', {class: 'crit-btns'},
+          h('button', {type: 'button', class: 'crit-text-btn-up', 'aria-label': `Move criterion ${i + 1} up`, disabled: i === 0, onclick: () => swap(i - 1)}, '↑'),
+          h('button', {type: 'button', class: 'crit-text-btn-down', 'aria-label': `Move criterion ${i + 1} down`, disabled: i === f.criteria.length - 1, onclick: () => swap(i + 1)}, '↓'),
+          h('button', {type: 'button', 'aria-label': `Remove criterion ${i + 1}`, onclick: () => { f.criteria.splice(i, 1); render(); change(); addInput.focus(); }}, '×')),
+        h('div', {class: 'err', id: 'err-crit-' + i})));
+    });
+    if (focusSel) { const el = $(focusSel); if (el && !el.disabled) el.focus(); else { const alt = $(focusSel.replace(/-(up|down)$/, m => m === '-up' ? '-down' : '-up')); if (alt && !alt.disabled) alt.focus(); } }
+    sum();
+  };
+  const add = () => { const t = addInput.value.trim(); if (!t) return; f.criteria.push({text: t, done: false}); addInput.value = ''; d.pendingCriterion = ''; render(); change(); addInput.focus(); };
+  addInput.addEventListener('input', () => { d.pendingCriterion = addInput.value; updateEditorControls(); });
+  addInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  render();
+  return h('div', {class: 'field', role: 'group', 'aria-labelledby': 'crit-lbl'}, h('div', {class: 'lbl', id: 'crit-lbl'}, 'Acceptance criteria ', sumEl), ul,
+    h('div', {class: 'inline-add'}, addInput, h('button', {type: 'button', class: 'btn', onclick: add}, 'Add')),
+    h('div', {class: 'err', id: 'err-criteria'}));
+}
+
+function currentDraft() { return S.editing ? S.drafts.get(S.editing) : null; }
+function updateEditorControls() {
+  const d = currentDraft(); if (!d || !editor().open) return;
+  const save = $('#ed-save'), note = $('#ed-note'), cancel = $('#ed-cancel'), copy = $('#ed-copy');
+  if (!save) return;
+  const dirty = isDirty(d);
+  const blocked = !!d.conflict;
+  save.disabled = S.writing || blocked || (!!d.id && !fieldDirty(d));
+  save.textContent = S.writing ? 'Saving…' : d.id ? 'Save changes' : 'Create card';
+  copy.hidden = !dirty;
+  cancel.textContent = dirty ? 'Discard draft' : 'Cancel';
+  note.textContent = blocked ? 'Saving is disabled while this card is in conflict.' : S.conn.state === 'error' ? 'Offline: saving resumes when the connection returns. Your draft is kept.' : dirty ? 'Unsaved changes. “×” keeps the draft; “Discard draft” deletes it.' : d.id ? 'No changes yet.' : '';
+}
+function renderEditorAlerts(d) {
+  const box = $('#ed-alerts'); if (!box) return; clear(box);
+  if (d.conflict) box.append(conflictBanner(d));
+  if (d.refreshed) box.append(alertBox('info', '', 'This card was changed on the board while you had no edits, so the form now shows the latest version.'));
+  if (d.saveError) box.append(alertBox('error', 'Could not save', d.saveError));
+}
+function onEditorSync() {
+  const d = currentDraft(); if (!d || !editor().open) return;
+  if ($('#thread-list')) $('#thread-list').refreshEntries();
+  if (S.writing) { renderEditorAlerts(d); updateEditorControls(); return; }
+  if (d.refreshed && $('#thread-panel') && ($('#thread-panel').contains(document.activeElement) || [...$('#thread-panel').querySelectorAll('textarea, input')].some(t => t.value || t.closest('.thread-entry')))) {
+    const panel = $('#thread-panel');
+    const active = panel.contains(document.activeElement) ? document.activeElement : null;
+    const start = active?.selectionStart, end = active?.selectionEnd;
+    const y = $('.ed-body').scrollTop;
+    buildEditor(d);
+    $('#thread-panel').replaceWith(panel);
+    $('.ed-body').scrollTop = y;
+    if (active) {
+      active.focus();
+      if (start != null && end != null) active.setSelectionRange(start, end);
+    }
+    return;
+  }
+  if (d.refreshed) { const y = $('.ed-body') ? $('.ed-body').scrollTop : 0; buildEditor(d); if ($('.ed-body')) $('.ed-body').scrollTop = y; announce('This card was updated on the board; the editor now shows the latest version.'); }
+  else { renderEditorAlerts(d); updateEditorControls(); if (d.conflict && !d.conflict.ack) announce(d.conflict.kind === 'deleted' ? 'Conflict: this card was removed from the board. Your draft is kept.' : 'Conflict: this card changed on the board while you were editing. Your draft is kept and nothing was saved.'); }
+}
+function conflictBanner(d) {
+  const c = d.conflict, copyBtn = h('button', {type: 'button', class: 'btn small', onclick: async () => { const ok = await copyText(draftText(d)); toast(ok ? 'Draft copied to clipboard.' : 'Clipboard unavailable — open “Show draft as text” and copy it from there.', {kind: ok ? 'ok' : 'error'}); }}, 'Copy draft');
+  const ta = h('textarea', {readOnly: true, rows: 8, 'aria-label': 'Draft as text', id: 'draft-text'}); ta.value = draftText(d);
+  const details = h('details', {class: 'draft-text'}, h('summary', {text: 'Show draft as text'}), ta);
+  if (c.ack) return h('div', {class: 'alert error', role: 'alert', id: 'conflict-banner'}, h('span', {class: 'a-icon', 'aria-hidden': 'true'}, '⚠'),
+    h('div', {class: 'a-body'}, h('h3', {text: 'Conflict — saving is disabled'}),
+      h('p', {text: 'This card changed on the board after you started editing. Your draft is kept; nothing has been overwritten.'}),
+      h('div', {class: 'a-actions'}, h('button', {type: 'button', class: 'btn small', id: 'cf-review', onclick: () => { c.ack = false; renderEditorAlerts(d); const b = $('#cf-keep'); if (b) b.focus(); }}, 'Review options'), copyBtn), details));
+  let heading, text;
+  if (c.kind === 'deleted') { heading = 'This card is no longer on the board'; text = 'Its file was removed while you were editing. Your draft is kept.'; }
+  else if (c.kind === 'server') { heading = 'The save was rejected: the card changed elsewhere'; text = 'The server refused the save (HTTP 409) because the card was modified after you opened it. Your whole draft is kept and nothing was saved.'; }
+  else { heading = 'This card changed while you were editing'; text = `Someone or something updated it on the board (revision ${d.base.revision} → ${c.live.revision}). Your whole draft is kept and nothing was saved.`; }
+  const names = c.live ? changedFieldNames(d.base, c.live) : [];
+  const keep = h('button', {type: 'button', class: 'btn small primary', id: 'cf-keep', onclick: () => { c.ack = true; renderEditorAlerts(d); renderDrafts(); const t = $('#ed-title'); if (t) t.focus(); }}, 'Keep editing my draft');
+  const reload = c.kind === 'deleted'
+    ? h('button', {type: 'button', class: 'btn small danger', id: 'cf-reload', onclick: async () => { if (await confirmDialog({title: 'Discard draft and close?', message: `This permanently discards your unsaved draft for ${d.id}.`, confirmLabel: 'Discard draft', cancelLabel: 'Keep draft'})) { S.drafts.delete(d.key); closeEditorUi(); } }}, 'Discard draft and close')
+    : h('button', {type: 'button', class: 'btn small danger', id: 'cf-reload', onclick: () => reloadCurrent(d)}, 'Reload current card…');
+  return h('div', {class: 'alert error', role: 'alert', id: 'conflict-banner'}, h('span', {class: 'a-icon', 'aria-hidden': 'true'}, '⚠'),
+    h('div', {class: 'a-body'}, h('h3', {text: heading}), h('p', {text}),
+      names.length ? h('p', {class: 'muted', text: 'Changed on the board: ' + names.join(', ') + '. Version 1 does not merge or diff automatically; compare by hand.'}) : h('p', {class: 'muted', text: 'Version 1 does not merge or diff automatically.'}),
+      h('div', {class: 'a-actions'}, keep, reload, copyBtn), details));
+}
+async function reloadCurrent(d) {
+  if (!await confirmDialog({title: 'Discard your draft?', message: `Reloading shows the current version of ${d.id} and permanently discards your unsaved changes. Copy the draft first if you want to keep them.`, confirmLabel: 'Discard draft and reload', cancelLabel: 'Keep my draft'})) { const b = $('#cf-reload'); if (b) b.focus(); return; }
+  if (!await pollFresh().catch(() => false) && !S.snap.items.get(d.id)) return toast('Cannot reach the board; your draft is kept.', {kind: 'error'});
+  const live = S.snap.items.get(d.id);
+  if (!live) { d.conflict = {kind: 'deleted', live: null, ack: false}; renderEditorAlerts(d); return; }
+  d.threadBody = ''; d.threadAuthor = ''; d.threadInputs = {};
+  d.base = live; d.fields = fieldsFrom(live); d.pendingLabel = ''; d.pendingCriterion = ''; d.conflict = null; d.refreshed = false; d.saveError = '';
+  buildEditor(d); renderDrafts(); renderBoard(); announce('Loaded the current version of the card; your draft was discarded.');
+  const t = $('#ed-title'); if (t) t.focus();
+}
+async function cancelDraft(d) {
+  if (isDirty(d) && !await confirmDialog({title: 'Discard draft?', message: d.id ? `Your unsaved changes to ${d.id} will be lost.` : 'This new card has not been created. Its contents will be lost.', confirmLabel: 'Discard draft', cancelLabel: 'Keep editing'})) return;
+  d.threadBody = ''; d.threadAuthor = ''; d.threadInputs = {};
+  S.drafts.delete(d.key); closeEditorUi();
+}
+
+function showFieldErrors(e) {
+  const set = (name, msg) => { const er = $('#err-' + name), inp = $('#ed-' + name); if (er) er.textContent = msg; if (inp) inp.setAttribute('aria-invalid', 'true'); };
+  let first = null;
+  for (const k of ['title', 'status', 'priority', 'assignee', 'labels', 'description', 'criteria', 'notes']) if (e[k]) { set(k, e[k]); first = first || $(k === 'criteria' ? '#ed-crit-new' : '#ed-' + k); }
+  for (const [i, msg] of Object.entries(e.crit)) { const er = $('#err-crit-' + i), inp = er && er.parentElement.querySelector('input[type=text]'); if (er) er.textContent = msg; if (inp) { inp.setAttribute('aria-invalid', 'true'); first = first || inp; } }
+  if (first) first.focus();
+}
+function commitPending(d) {
+  const l = d.pendingLabel.split(',').map(s => s.trim()).filter(Boolean);
+  for (const x of l) if (!d.fields.labels.includes(x)) d.fields.labels.push(x);
+  d.pendingLabel = '';
+  const c = d.pendingCriterion.trim(); if (c) d.fields.criteria.push({text: c, done: false}); d.pendingCriterion = '';
+  buildEditor(d);
+}
+async function saveDraft(d) {
+  if (S.writing || d.conflict) return;
+  if (d.pendingLabel.trim() || d.pendingCriterion.trim()) commitPending(d);
+  const errs = validateDraft(d);
+  if (hasErrors(errs)) { showFieldErrors(errs); return; }
+  const f = d.fields, key = d.key;
+  S.writing = true; d.saveError = ''; renderBusy(); renderEditorAlerts(d);
+  try {
+    await ensureFresh();
+    let createdId = null;
+    if (d.id) {
+      const live = S.snap.items.get(d.id);
+      if (!live) { d.conflict = {kind: 'deleted', live: null, ack: false}; renderEditorAlerts(d); onEditorSync(); return; }
+      if (live.hash !== d.base.hash || live.revision !== d.base.revision) { syncDraft(d); renderEditorAlerts(d); renderDrafts(); announce('Conflict: this card changed on the board. Your draft is kept; nothing was saved.'); return; }
+      const changes = computeChanges(d);
+      if (!Object.keys(changes).length) {
+        if (!isDirty(d)) S.drafts.delete(key);
+        closeEditorUi();
+        return;
+      }
+      await mutate(() => S.backend.patch(d.id, d.base.revision, d.base.hash, changes));
+    } else {
+      const values = {title: f.title.trim(), status: f.status, priority: f.priority, assignee: f.assignee.trim() || null, labels: f.labels.slice(), description: f.description, acceptanceCriteria: f.criteria.map(c => ({text: c.text.trim(), done: c.done})), notes: f.notes, feature: f.feature};
+      createdId = (await createCard(values)).id;
+    }
+    S.needsFresh = true; await pollFresh();
+    if (d.id && (d.threadBody || d.threadAuthor || Object.keys(d.threadInputs || {}).length)) {
+      const live = S.snap.items.get(d.id);
+      if (live) { d.base = live; d.fields = fieldsFrom(live); d.conflict = null; }
+    } else S.drafts.delete(key);
+    S.returnFocus = (createdId || d.id) + ':title';
+    if (S.editing === key) closeEditorUi();
+    const msg = createdId ? `Created ${createdId}.` : `Saved ${d.id}.`;
+    toast(msg, {kind: 'ok'}); announce(msg);
+  } catch (e) {
+    if (conflictFromError(e) && d.id) {
+      // Warn immediately; the fresh snapshot (fetched in the background) then fills in what changed via syncDraft().
+      d.conflict = {kind: 'server', live: null, ack: false}; d.saveError = '';
+      S.needsFresh = true; pollFresh().catch(() => {});
+      renderEditorAlerts(d); renderDrafts(); updateEditorControls(); announce('Save rejected: the card changed on the board. Your draft is kept; nothing was saved.');
+    } else {
+      d.saveError = (e.message || 'Unexpected error') + ' Your draft is kept.';
+      renderEditorAlerts(d);
+    }
+  } finally { S.writing = false; renderBusy(); }
+}
+
+/* ====================================================================
+ * Mode selection & wiring
+ * ==================================================================== */
+async function pickFolder() {
+  let handle;
+  try { handle = await window.showDirectoryPicker({id: 'agentboard', mode: 'readwrite'}); }
+  catch (e) { if (e && e.name === 'AbortError') return; S.launchNote = 'Could not open the folder: ' + (e && e.message || e); renderBoard(); return; }
+  try {
+    const backend = await directBackend(handle);
+    clearTimeout(pollTimer); S.backend = backend; S.mode = 'direct'; S.snap = null; S.launchNote = '';
+    S.conn = {state: 'connecting', failures: 0, lastOk: 0, message: '', kind: '', nextAt: 0};
+    renderAll(); poll();
+  } catch (e) { S.launchNote = e.message || 'Could not open that folder.'; S.mode = 'launch'; renderAll(); }
+}
+function startFromHash() {
+  const raw = new URLSearchParams(location.hash.replace(/^#/, '')).get('token');
+  if (raw === null) { S.mode = 'launch'; return false; }
+  if (!TOKEN_RE.test(raw)) { S.mode = 'launch'; S.launchNote = 'The #token in this URL looks malformed. Copy the complete URL printed by “serve”.'; return false; }
+  S.backend = bridgeBackend(raw); S.mode = 'bridge';
+  return true;
+}
+
+function wire() {
+  for (const view of ['board', 'features']) $('#view-' + view).addEventListener('click', () => { S.view = view; renderAll(); });
+  $('#new-feature').addEventListener('click', () => openFeature());
+  $('#feature-archived').addEventListener('change', e => { S.showArchivedFeatures = e.target.checked; renderBoard(); });
+  $('#skip').addEventListener('click', () => $('#board').focus());
+  $('#new-card').addEventListener('click', () => openEditor('new', {returnFocus: 'new-card'}));
+  $('#conn-retry').addEventListener('click', () => pollNow());
+  const q = $('#q');
+  q.addEventListener('input', () => { S.filters.q = q.value; renderBoard(); $('#f-clear').hidden = !(filtersActive() || S.filters.archived !== 'hide'); });
+  for (const [id, k] of [['f-priority', 'priority'], ['f-assignee', 'assignee'], ['f-label', 'label'], ['f-feature', 'feature'], ['f-archived', 'archived']])
+    $('#' + id).addEventListener('change', e => { S.filters[k] = e.target.value; renderToolbar(); renderBoard(); });
+  $('#f-clear').addEventListener('click', () => { clearFilters(); q.focus(); });
+  $('#ed-form').addEventListener('submit', e => { e.preventDefault(); const d = currentDraft(); if (d) saveDraft(d); });
+  editor().addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); const d = currentDraft(); if (d) saveDraft(d); } });
+  editor().addEventListener('close', () => {
+    const key = S.editing; S.editing = null;
+    const d = key && S.drafts.get(key);
+    if (d && !isDirty(d)) S.drafts.delete(key);
+    renderDrafts(); renderBoard();
+    if (!focusFk(S.returnFocus)) { const n = S.returnFocus === 'new-card' ? $('#new-card') : null; (n || $('#board')).focus(); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.querySelector('dialog[open]')) return;
+    const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    if (typing) { if (e.key === 'Escape' && t.id === 'q' && t.value) { t.value = ''; S.filters.q = ''; renderBoard(); } return; }
+    if (e.key === '/' && S.snap && S.view === 'board') { e.preventDefault(); $('#q').focus(); }
+    else if (e.key === 'n' && S.snap) { e.preventDefault(); openEditor('new', {returnFocus: 'new-card'}); }
+  });
+  window.addEventListener('focus', pollNow);
+  window.addEventListener('online', pollNow);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollNow(); });
+  window.addEventListener('hashchange', () => {
+    const raw = new URLSearchParams(location.hash.replace(/^#/, '')).get('token');
+    if (raw !== null && S.mode !== 'direct') location.reload();
+  });
+  window.addEventListener('beforeunload', e => { if ([...S.drafts.values()].some(isDirty)) { e.preventDefault(); e.returnValue = ''; } });
+  setInterval(() => { if (S.conn.state === 'error') renderConn(); }, 1000);
+}
+
+wire();
+if (startFromHash()) { renderAll(); poll(); } else renderAll();
+})();
+</script>
+</body>
+</html>

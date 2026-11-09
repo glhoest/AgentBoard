@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "legacy",
+  "columns": [
+    {
+      "id": "backlog",
+      "name": "Backlog"
+    },
+    {
+      "id": "todo",
+      "name": "To do"
+    },
+    {
+      "id": "in-progress",
+      "name": "In progress"
+    },
+    {
+      "id": "blocked",
+      "name": "Blocked"
+    },
+    {
+      "id": "done",
+      "name": "Done"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-EB1BC3B93D1F",
+  "revision": 1,
+  "title": "setup: pin LF line endings for .agentboard in target repos",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "setup",
+    "compat"
+  ],
+  "description": "HANDOVER §3.4: with core.autocrlf=true, .agentboard JSON can be checked out with CRLF; hashes differ from what the tool writes and edits rewrite to LF. Have setup add /.agentboard/** eol=lf (or -text) to the target's .gitattributes.",
+  "acceptanceCriteria": [
+    {
+      "text": "setup adds the rule idempotently, preserving existing .gitattributes content",
+      "done": false
+    },
+    {
+      "text": "setup test covers it",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T21:11:09.096Z",
+  "updatedAt": "2026-10-31T21:11:09.096Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

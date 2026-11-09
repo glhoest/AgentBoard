@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-B42A0A8980B4",
+  "revision": 1,
+  "title": "Webhook notification for new open questions",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "feature",
+    "threads"
+  ],
+  "description": "Raised in grilling (HANDOVER §4). For tooling that supports it (e.g. T3 webhook tasks): POST to a URL configured in board.json when a question is posted. The stderr notice and questions command cover the base case. Depends on Q&A.",
+  "acceptanceCriteria": [
+    {
+      "text": "Design grilled (config, payload, secret/signing, failure handling)",
+      "done": false
+    },
+    {
+      "text": "CLI and bridge post on new questions; tests",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T22:14:51.449Z",
+  "updatedAt": "2026-10-31T22:14:51.449Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

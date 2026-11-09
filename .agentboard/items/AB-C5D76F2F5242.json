@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-C5D76F2F5242",
+  "revision": 2,
+  "title": "posixLock spins forever on a persistent flock error",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "bug",
+    "lock"
+  ],
+  "description": "Found while fixing withLock. posixLock retries flock(LOCK_EX) on any non-zero result, so a lasting error (e.g. EBADF) hangs instead of failing. Retry only on EWOULDBLOCK/EINTR or use blocking flock and check errno. Pairs with AB-3CBF11179470 (POSIX testing).",
+  "acceptanceCriteria": [
+    {
+      "text": "Persistent flock errors fail with a 'Cannot lock' error",
+      "done": false
+    },
+    {
+      "text": "Verified on Linux/macOS",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T21:27:51.369Z",
+  "updatedAt": "2026-11-01T12:59:55.634Z",
+  "archived": false,
+  "feature": "FT-B8F9877ED6CB",
+  "thread": []
+}

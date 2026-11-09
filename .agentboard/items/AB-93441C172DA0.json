@@ -1,0 +1,38 @@
+{
+  "version": "1.1.0",
+  "id": "AB-93441C172DA0",
+  "revision": 6,
+  "title": "Features: a Kanban on top of the Kanban",
+  "status": "done",
+  "priority": "medium",
+  "assignee": "claude",
+  "labels": [
+    "feature",
+    "features"
+  ],
+  "description": "HANDOVER §4 Features. One concept (no milestones). .agentboard/features/FT-<12 hex>.json at 1.0.0; card field feature: FT-… | null (card 1.1.0, at most one). Status set by hand from board.json featureColumns (planned/active/done, added by the board.json 1.1.0 upgrade); progress = done/total of linked non-archived cards. No feature Q&A for now. Depends on versioning.",
+  "acceptanceCriteria": [
+    {
+      "text": "Feature files with validation; CLI to create/edit/move/list features and set/clear a card feature",
+      "done": true
+    },
+    {
+      "text": "Progress shown; hint when all cards are done on an active feature",
+      "done": true
+    },
+    {
+      "text": "UI: features view as its own Kanban with progress bars; board filter by feature",
+      "done": true
+    },
+    {
+      "text": "Tests incl. browser suite; README and SKILL.md updated",
+      "done": true
+    }
+  ],
+  "notes": "Done 2026-11-01. Stage A (files, CLI, bridge) 04e84b7, stage B (UI) fd1e730; implemented by Terra (low), independently reviewed 3 times by Sonnet (medium), 182 tests pass. Known minor leftovers are on the 'Features UI polish' card.",
+  "createdAt": "2026-10-31T21:11:08.938Z",
+  "updatedAt": "2026-11-01T13:00:07.951Z",
+  "archived": false,
+  "feature": "FT-FA5430587366",
+  "thread": []
+}

@@ -1,0 +1,26 @@
+{
+  "version": "1.1.0",
+  "id": "AB-6BDB2C32709D",
+  "revision": 2,
+  "title": "Test direct File System Access mode with the real folder picker",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "test",
+    "ui"
+  ],
+  "description": "HANDOVER §3.3: direct mode in board.html is only tested with an OPFS handle.",
+  "acceptanceCriteria": [
+    {
+      "text": "Manual or automated check with showDirectoryPicker on a real folder: read, create, edit, archive",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T21:11:09.307Z",
+  "updatedAt": "2026-11-01T12:59:55.865Z",
+  "archived": false,
+  "feature": "FT-26B365FDB846",
+  "thread": []
+}

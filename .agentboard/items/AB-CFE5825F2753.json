@@ -1,0 +1,31 @@
+{
+  "version": "1.1.0",
+  "id": "AB-CFE5825F2753",
+  "revision": 8,
+  "title": "Update installed AgentBoard from published releases",
+  "status": "done",
+  "priority": "medium",
+  "assignee": "codex",
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [
+    {
+      "text": "Find and safely install the latest published release without changing existing board data.",
+      "done": true
+    },
+    {
+      "text": "Document the update workflow and cover failure and compatibility cases with tests.",
+      "done": true
+    },
+    {
+      "text": "Automatically check for releases, notify on stderr, and install only when requested.",
+      "done": true
+    }
+  ],
+  "notes": "The installed CLI checks for published releases, caches results, and reports updates on stderr; installation remains explicit. bun test: 191 pass, 0 fail. Live GitHub release update remains unverified until a release is published.",
+  "createdAt": "2026-11-09T00:27:25.811Z",
+  "updatedAt": "2026-11-09T00:37:56.641Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

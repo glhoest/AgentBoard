@@ -1,0 +1,18 @@
+{
+  "version": "1.1.0",
+  "id": "AB-0000000000C3",
+  "revision": 1,
+  "title": "Plain todo",
+  "status": "todo",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-01-02T03:04:09.010Z",
+  "updatedAt": "2026-01-02T03:04:09.010Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

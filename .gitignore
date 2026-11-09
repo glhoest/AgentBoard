@@ -1,0 +1,7 @@
+node_modules/
+/.agentboard.lock
+*.log
+.DS_Store
+# Dogfood install of this skill into its own repository; regenerate with `bun scripts/agentboard.ts setup .`
+/.agents/
+/.claude/skills/agentboard/

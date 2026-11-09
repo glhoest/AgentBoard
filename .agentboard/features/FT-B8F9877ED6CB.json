@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "id": "FT-B8F9877ED6CB",
+  "revision": 1,
+  "title": "Concurrency and robustness",
+  "status": "active",
+  "description": "Edit locks, reconciliation of conflicting edits, lock and write hardening.",
+  "createdAt": "2026-11-01T12:59:54.495Z",
+  "updatedAt": "2026-11-01T12:59:54.495Z",
+  "archived": false
+}

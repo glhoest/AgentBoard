@@ -1,0 +1,58 @@
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 7,
+  "title": "Write the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:13.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000003",
+      "kind": "question",
+      "author": "agent-a",
+      "body": "Which flag syntax?",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:11.000Z",
+      "updatedAt": "2026-02-03T04:05:11.000Z"
+    },
+    {
+      "id": "TH-000000000004",
+      "kind": "comment",
+      "author": null,
+      "body": "Context: argparse style today.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:12.000Z",
+      "updatedAt": "2026-02-03T04:05:12.000Z"
+    },
+    {
+      "id": "TH-000000000005",
+      "kind": "answer",
+      "author": "alice",
+      "body": "Use --opt=value.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:13.000Z",
+      "updatedAt": "2026-02-03T04:05:13.000Z"
+    }
+  ]
+}

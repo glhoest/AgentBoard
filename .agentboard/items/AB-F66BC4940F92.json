@@ -1,0 +1,34 @@
+{
+  "version": "1.1.0",
+  "id": "AB-F66BC4940F92",
+  "revision": 2,
+  "title": "Bridge maps server bugs and lock failures to 400 invalid",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "bug",
+    "bridge"
+  ],
+  "description": "Found while fixing withLock (AB-04B20E2A368C). In serve.ts errorResponse, an error without a code property (TypeError/RangeError/ReferenceError, i.e. a server bug) falls through to 400 invalid, and a lock that cannot be acquired (BoardError 'Cannot lock') is also 400 invalid, though both are server-side failures. Also dead code there: try { JSON.parse } catch (e) { throw e; } and an unused const bytes.",
+  "acceptanceCriteria": [
+    {
+      "text": "Unexpected errors and lock failures answer 500 (code decided and documented in README Bridge section)",
+      "done": false
+    },
+    {
+      "text": "Client errors (bad JSON, validation) still answer 400 invalid",
+      "done": false
+    },
+    {
+      "text": "Dead code removed; tests cover each mapping",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T21:27:51.289Z",
+  "updatedAt": "2026-11-01T12:59:55.548Z",
+  "archived": false,
+  "feature": "FT-B8F9877ED6CB",
+  "thread": []
+}

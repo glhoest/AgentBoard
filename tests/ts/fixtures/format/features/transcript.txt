@@ -1,0 +1,198 @@
+$ agentboard --json feature-create Release --description "First release"
+[exit 0]
+--- stdout
+{"version": "1.0.0", "id": "FT-000000000001", "revision": 1, "title": "Release", "status": "planned", "description": "First release", "createdAt": "2026-02-03T04:05:06.000Z", "updatedAt": "2026-02-03T04:05:06.000Z", "archived": false}
+
+$ agentboard feature-edit FT-000000000001 --title "Release one"
+[exit 0]
+--- stdout
+{
+  "version": "1.0.0",
+  "id": "FT-000000000001",
+  "revision": 2,
+  "title": "Release one",
+  "status": "planned",
+  "description": "First release",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:07.000Z",
+  "archived": false
+}
+
+$ agentboard feature-move FT-000000000001 active
+[exit 0]
+--- stdout
+{
+  "version": "1.0.0",
+  "id": "FT-000000000001",
+  "revision": 3,
+  "title": "Release one",
+  "status": "active",
+  "description": "First release",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:08.000Z",
+  "archived": false
+}
+
+$ agentboard --json create Linked --feature FT-000000000001
+[exit 0]
+--- stdout
+{"version": "1.1.0", "id": "AB-000000000002", "revision": 1, "title": "Linked", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:09.000Z", "updatedAt": "2026-02-03T04:05:09.000Z", "archived": false, "feature": "FT-000000000001", "thread": []}
+
+$ agentboard --json create Later
+[exit 0]
+--- stdout
+{"version": "1.1.0", "id": "AB-000000000003", "revision": 1, "title": "Later", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:10.000Z", "updatedAt": "2026-02-03T04:05:10.000Z", "archived": false, "feature": null, "thread": []}
+
+$ agentboard edit AB-000000000003 --feature FT-000000000001
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000003",
+  "revision": 2,
+  "title": "Later",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:10.000Z",
+  "updatedAt": "2026-02-03T04:05:11.000Z",
+  "archived": false,
+  "feature": "FT-000000000001",
+  "thread": []
+}
+
+$ agentboard list --feature FT-000000000001
+[exit 0]
+--- stdout
+[
+  {
+    "version": "1.1.0",
+    "id": "AB-000000000002",
+    "revision": 1,
+    "title": "Linked",
+    "status": "backlog",
+    "priority": "medium",
+    "assignee": null,
+    "labels": [],
+    "description": "",
+    "acceptanceCriteria": [],
+    "notes": "",
+    "createdAt": "2026-02-03T04:05:09.000Z",
+    "updatedAt": "2026-02-03T04:05:09.000Z",
+    "archived": false,
+    "feature": "FT-000000000001",
+    "thread": []
+  },
+  {
+    "version": "1.1.0",
+    "id": "AB-000000000003",
+    "revision": 2,
+    "title": "Later",
+    "status": "backlog",
+    "priority": "medium",
+    "assignee": null,
+    "labels": [],
+    "description": "",
+    "acceptanceCriteria": [],
+    "notes": "",
+    "createdAt": "2026-02-03T04:05:10.000Z",
+    "updatedAt": "2026-02-03T04:05:11.000Z",
+    "archived": false,
+    "feature": "FT-000000000001",
+    "thread": []
+  }
+]
+
+$ agentboard feature-show FT-000000000001
+[exit 0]
+--- stdout
+{
+  "version": "1.0.0",
+  "id": "FT-000000000001",
+  "revision": 3,
+  "title": "Release one",
+  "status": "active",
+  "description": "First release",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:08.000Z",
+  "archived": false,
+  "progress": {
+    "done": 0,
+    "total": 2
+  },
+  "counts": {
+    "backlog": 2,
+    "needs-grilling": 0,
+    "todo": 0,
+    "in-progress": 0,
+    "blocked": 0,
+    "done": 0
+  },
+  "cards": [
+    {
+      "id": "AB-000000000002",
+      "title": "Linked",
+      "status": "backlog",
+      "archived": false
+    },
+    {
+      "id": "AB-000000000003",
+      "title": "Later",
+      "status": "backlog",
+      "archived": false
+    }
+  ]
+}
+
+$ agentboard features
+[exit 0]
+--- stdout
+{
+  "features": [
+    {
+      "id": "FT-000000000001",
+      "title": "Release one",
+      "status": "active",
+      "archived": false,
+      "progress": {
+        "done": 0,
+        "total": 2
+      },
+      "counts": {
+        "backlog": 2,
+        "needs-grilling": 0,
+        "todo": 0,
+        "in-progress": 0,
+        "blocked": 0,
+        "done": 0
+      }
+    }
+  ],
+  "dangling": []
+}
+
+$ agentboard edit AB-000000000003 --clear-feature
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000003",
+  "revision": 3,
+  "title": "Later",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:10.000Z",
+  "updatedAt": "2026-02-03T04:05:12.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

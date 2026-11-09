@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-0000000000A1",
+  "revision": 3,
+  "title": "Ship the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "v1"
+  ],
+  "description": "Line one\nUnicode: é 漢 😀 </script> \"quoted\"",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-01-02T03:04:05.006Z",
+  "updatedAt": "2026-01-02T03:04:06.007Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

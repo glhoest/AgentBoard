@@ -1,0 +1,31 @@
+{
+  "version": "1.1.0",
+  "id": "AB-C49A09664AEE",
+  "revision": 6,
+  "title": "Add CI and manual release workflows",
+  "status": "in-progress",
+  "priority": "medium",
+  "assignee": "codex",
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [
+    {
+      "text": "CI runs the full Bun test suite including browser tests.",
+      "done": false
+    },
+    {
+      "text": "Manual release runs tests and creates a tagged GitHub release.",
+      "done": false
+    },
+    {
+      "text": "Workflows are excluded from vendored skill and documented.",
+      "done": false
+    }
+  ],
+  "notes": "CI has separate CLI and library and Chrome end-to-end jobs. Manual release requires both. Full bun test: 182 pass, 0 fail; standalone CLI and library job: 118 pass, 0 fail. GitHub Actions execution awaits publication.",
+  "createdAt": "2026-11-09T00:23:12.828Z",
+  "updatedAt": "2026-11-09T00:26:46.095Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

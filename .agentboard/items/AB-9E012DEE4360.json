@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-9E012DEE4360",
+  "revision": 1,
+  "title": "Features UI polish (review leftovers)",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "ui",
+    "features"
+  ],
+  "description": "Minor/nit findings from the stage B review that were not fixed: (1) the same-column-drop test only fails if BOTH deferred-render flushes (drop and dragend) are removed; (2) dialog.onclose focus return falls back to opener.isConnected, so focus is lost if a poll re-renders the opener (column '+' buttons have no data-fk); (3) the dangling chip's aria-label sits on a plain span with no role (give it role=img or visually hidden text); (4) conflict text says 'Your draft is kept' next to 'Reload current feature', which discards it; (5) feature card polish: the Archived badge stretches to card width, the progress bar is a fixed ~140 px, feature drags have no .dragging/.drop-ok feedback, the card editor's Feature select still shows an archived feature under its normal title; (6) remaining dense one-liners (archive handler, linked-cards list, #ed-feature select, patchFeature validation, filtersActive/clearFilters); (7) tests missing for direct patchFeature without a features/ dir, direct featureColumns shape errors, repeated view toggling, and try/finally around Page.close in the direct creation test.",
+  "acceptanceCriteria": [
+    {
+      "text": "Each item fixed or consciously dropped with a note",
+      "done": false
+    },
+    {
+      "text": "bun test passes",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-01T13:00:08.044Z",
+  "updatedAt": "2026-11-01T13:00:08.044Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

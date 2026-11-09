@@ -1,0 +1,28 @@
+{
+  "version": "1.1.0",
+  "id": "AB-000000000002",
+  "revision": 4,
+  "title": "Pick a license",
+  "status": "needs-grilling",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:07.000Z",
+  "updatedAt": "2026-02-03T04:05:16.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000006",
+      "kind": "question",
+      "author": "env-agent",
+      "body": "MIT or Apache-2.0?\nThe answer decides the header.",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:14.000Z",
+      "updatedAt": "2026-02-03T04:05:15.000Z"
+    }
+  ]
+}

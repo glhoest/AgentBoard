@@ -1,0 +1,37 @@
+{
+  "version": "1.1.0",
+  "id": "AB-119A3E4CF55D",
+  "revision": 7,
+  "title": "Prepare public release onboarding and license",
+  "status": "done",
+  "priority": "medium",
+  "assignee": "release-agent",
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [
+    {
+      "text": "Document public clone, setup and first-use commands.",
+      "done": true
+    },
+    {
+      "text": "Add MIT license and review tracked content and history for disclosure risks.",
+      "done": true
+    }
+  ],
+  "notes": "Added public clone/setup/first-use/update instructions and environment/privacy limitations in README, MIT license attributed to Gaston Lhoest, and a generic install path in HANDOVER. setup . refreshed the vendored skill and license. Reviewed all tracked paths and 101 reachable commits for common credential signatures: no hits. Sanitized unrelated project names, local paths and external project status in publication files. Old history is retained only on local branches; the proposed public commit is parentless and uses a public noreply identity for both author and committer. bun test: 182 pass, 0 fail across 14 files including the real browser suite, 1261 assertions, 109.36 seconds. git diff --check clean. No commit or push.",
+  "createdAt": "2026-11-09T00:04:13.848Z",
+  "updatedAt": "2026-11-09T00:22:11.610Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-1543AEF25E36",
+      "kind": "comment",
+      "author": "release-agent",
+      "body": "Sanitized publication snapshot: removed unrelated project names, local installation and backup paths, and external project status from documentation and board records through the CLI. Replaced personal fixture author with alice and updated matching format snapshots. Publication-file email/path scan found no remaining personal email or private path references. Verified bun test: 182 pass, 0 fail across 14 files including browser suite, 1261 assertions, 109.36 seconds. Existing history remains local and unchanged; a parentless publication commit must use a public noreply author and committer identity.",
+      "replyTo": null,
+      "createdAt": "2026-11-09T00:18:45.193Z",
+      "updatedAt": "2026-11-09T00:18:45.193Z"
+    }
+  ]
+}

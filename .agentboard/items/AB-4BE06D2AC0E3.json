@@ -1,0 +1,27 @@
+{
+  "version": "1.1.0",
+  "id": "AB-4BE06D2AC0E3",
+  "revision": 4,
+  "title": "Update a legacy installation to the Bun version of AgentBoard",
+  "status": "done",
+  "priority": "low",
+  "assignee": null,
+  "labels": [],
+  "description": "Re-run setup for an existing installation while preserving its board, then verify the format upgrade and remove the obsolete Python CLI.",
+  "acceptanceCriteria": [
+    {
+      "text": "Upgrade authorized for the existing installation",
+      "done": true
+    },
+    {
+      "text": "setup re-run; its AGENTS.md uses the bun CLI; its board lists unchanged",
+      "done": true
+    }
+  ],
+  "notes": "Completed. The existing board upgraded to 1.1.0 with card content preserved, and board.json gained needs-grilling and featureColumns. The obsolete Python CLI was removed.",
+  "createdAt": "2026-10-31T21:11:09.529Z",
+  "updatedAt": "2026-11-09T00:22:11.672Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

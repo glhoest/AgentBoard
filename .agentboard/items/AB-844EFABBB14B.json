@@ -1,0 +1,87 @@
+{
+  "version": "1.1.0",
+  "id": "AB-844EFABBB14B",
+  "revision": 12,
+  "title": "Card dependencies and ready work",
+  "status": "needs-grilling",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "feature"
+  ],
+  "description": "Agents need explicit card dependencies to find ready work and work blockers-first; prose references cannot be queried or validated. Keep scope to card-to-card dependencies within one board.",
+  "acceptanceCriteria": [
+    {
+      "text": "Create and edit dependency links through CLI and UI; expose them through the bridge and direct mode.",
+      "done": false
+    },
+    {
+      "text": "Show blockers and dependents on cards and provide a machine-readable way to identify ready work.",
+      "done": false
+    },
+    {
+      "text": "Reject invalid, self-referential and cyclic links, including concurrent writes where locking applies.",
+      "done": false
+    },
+    {
+      "text": "Define completion, archive and enforcement semantics before implementation.",
+      "done": false
+    },
+    {
+      "text": "Preserve existing boards via the documented version upgrade path; update contract, skill and tests including browser coverage.",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-04T14:40:07.803Z",
+  "updatedAt": "2026-11-09T00:22:11.547Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-146D57D84E95",
+      "kind": "question",
+      "author": "product-manager",
+      "body": "Should dependencies only inform readiness, or prevent claiming or moving blocked cards into progress? Recommendation: advisory readiness, with no hard workflow enforcement.",
+      "replyTo": null,
+      "createdAt": "2026-11-04T14:40:13.681Z",
+      "updatedAt": "2026-11-04T14:40:13.681Z"
+    },
+    {
+      "id": "TH-C219F0579E33",
+      "kind": "question",
+      "author": "product-manager",
+      "body": "When is a dependency satisfied, and what happens if it is archived or missing? Recommendation: only done satisfies it; archived unfinished or missing references remain visible and block readiness.",
+      "replyTo": null,
+      "createdAt": "2026-11-04T14:40:13.751Z",
+      "updatedAt": "2026-11-04T14:40:13.751Z"
+    },
+    {
+      "id": "TH-4AC1F1887021",
+      "kind": "comment",
+      "author": "product-manager",
+      "body": "Product decisions on readiness and enforcement are needed before implementation; recommendations are recorded in the questions.",
+      "replyTo": null,
+      "createdAt": "2026-11-04T14:40:13.821Z",
+      "updatedAt": "2026-11-04T14:40:13.821Z"
+    },
+    {
+      "id": "TH-11D1573C5B0B",
+      "kind": "comment",
+      "author": "product-manager",
+      "body": "Independent onboarding feedback from a board with 24 active cards and 4 features: prose dependencies are hard to query. A ready view might also consider status, assignment and open questions; these rules need explicit design rather than assuming every question blocks work. Existing plans require human/agent audit; old checkboxes cannot establish completion.",
+      "replyTo": null,
+      "createdAt": "2026-11-08T03:42:51.416Z",
+      "updatedAt": "2026-11-09T00:22:11.484Z"
+    },
+    {
+      "id": "TH-AE11BD7308EC",
+      "kind": "comment",
+      "author": "product-manager",
+      "body": "An independent onboarding report corroborates the need for dependency links; descriptions are the current workaround.",
+      "replyTo": null,
+      "createdAt": "2026-11-08T03:46:36.508Z",
+      "updatedAt": "2026-11-09T00:22:11.547Z"
+    }
+  ]
+}

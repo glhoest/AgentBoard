@@ -1,0 +1,62 @@
+{
+  "version": "1.1.0",
+  "id": "AB-BC7519ADB047",
+  "revision": 6,
+  "title": "Visual edit locks on cards",
+  "status": "needs-grilling",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "feature",
+    "concurrency"
+  ],
+  "description": "Raised in grilling (HANDOVER §4). An agent, or the CLI automatically on edit, marks a card as being edited; the mark lasts 1 minute after the last change and the UI shows it. Advisory, to reduce conflicts now that Q&A posts bump the card. Ties into diff-based reconciliation. Not designed yet: needs its own grilling (storage, who sets it, UI behavior).",
+  "acceptanceCriteria": [
+    {
+      "text": "Design grilled and recorded",
+      "done": false
+    },
+    {
+      "text": "CLI sets/refreshes the mark on edit; expires 1 minute after last change",
+      "done": false
+    },
+    {
+      "text": "UI shows locked cards; tests",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T22:14:51.273Z",
+  "updatedAt": "2026-11-01T12:59:55.255Z",
+  "archived": false,
+  "feature": "FT-B8F9877ED6CB",
+  "thread": [
+    {
+      "id": "TH-9A53F4523154",
+      "kind": "question",
+      "author": "claude",
+      "body": "Where is the lock state stored: a field on the card file (bumps revision), a separate runtime file next to .agentboard.lock (never committed), or in-memory in the bridge only?",
+      "replyTo": null,
+      "createdAt": "2026-11-01T00:55:01.567Z",
+      "updatedAt": "2026-11-01T00:55:01.567Z"
+    },
+    {
+      "id": "TH-35800C453D34",
+      "kind": "question",
+      "author": "claude",
+      "body": "Who sets it: only the CLI automatically on every write command, or can agents also take and release it explicitly (e.g. 'lock ID' / 'unlock ID') for longer edits?",
+      "replyTo": null,
+      "createdAt": "2026-11-01T00:55:01.855Z",
+      "updatedAt": "2026-11-01T00:55:01.855Z"
+    },
+    {
+      "id": "TH-2D9C639ECE2C",
+      "kind": "question",
+      "author": "claude",
+      "body": "Is the lock advisory (UI warns, writes still allowed) or does it reject writes from other actors while held? What happens when a lock holder dies: just the 1-minute expiry?",
+      "replyTo": null,
+      "createdAt": "2026-11-01T00:55:01.966Z",
+      "updatedAt": "2026-11-01T00:55:01.966Z"
+    }
+  ]
+}

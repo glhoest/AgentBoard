@@ -1,0 +1,46 @@
+{
+  "version": "1.1.0",
+  "id": "AB-43A44A87E9E0",
+  "revision": 7,
+  "title": "Q&A thread inside the card (card 1.1.0)",
+  "status": "done",
+  "priority": "high",
+  "assignee": "claude",
+  "labels": [
+    "feature",
+    "threads"
+  ],
+  "description": "HANDOVER §4 Q&A. thread array inside the card file; entries {id, kind: comment|question|answer, author: string|null, body, replyTo, createdAt, updatedAt}; editable, never deleted; a question is open until an answer replies to it. Posting bumps the card revision (accepted). Ships with the feature field as card 1.1.0. Depends on the versioning card.",
+  "acceptanceCriteria": [
+    {
+      "text": "Card 1.1.0 with thread (default []); validation and limits (proposed: 500 entries, 20,000 chars/body)",
+      "done": true
+    },
+    {
+      "text": "CLI: ask, answer, comment, edit an entry, thread ID, questions (--json)",
+      "done": true
+    },
+    {
+      "text": "Every CLI call prints a stderr notice with open-question count and card IDs; --quiet suppresses; stdout unchanged",
+      "done": true
+    },
+    {
+      "text": "Bridge endpoints to post/edit entries; threads arrive with cards in GET /api/board",
+      "done": true
+    },
+    {
+      "text": "UI: thread panel in the card editor, open-question badge on cards",
+      "done": true
+    },
+    {
+      "text": "README contract/API and SKILL.md workflow updated; tests incl. browser suite",
+      "done": true
+    }
+  ],
+  "notes": "Done 2026-11-01. CLI + bridge in 82426d2, UI in d611cdc. Skipped optional UI extras: open-questions filter, author persistence.",
+  "createdAt": "2026-10-31T21:11:08.738Z",
+  "updatedAt": "2026-11-01T12:59:54.864Z",
+  "archived": false,
+  "feature": "FT-FA5430587366",
+  "thread": []
+}

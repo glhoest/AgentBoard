@@ -1,0 +1,508 @@
+$ agentboard --json create "Write the parser" --priority high --label parser --description "Flags and errors.\nUnicode: é 漢 😀" --criterion "Parses flags" --criterion "Reports errors"
+[exit 0]
+--- stdout
+{"version": "1.1.0", "id": "AB-000000000001", "revision": 1, "title": "Write the parser", "status": "backlog", "priority": "high", "assignee": null, "labels": ["parser"], "description": "Flags and errors.\nUnicode: é 漢 😀", "acceptanceCriteria": [{"text": "Parses flags", "done": false}, {"text": "Reports errors", "done": false}], "notes": "", "createdAt": "2026-02-03T04:05:06.000Z", "updatedAt": "2026-02-03T04:05:06.000Z", "archived": false, "feature": null, "thread": []}
+
+$ agentboard --json create "Pick a license" --status todo
+[exit 0]
+--- stdout
+{"version": "1.1.0", "id": "AB-000000000002", "revision": 1, "title": "Pick a license", "status": "todo", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:07.000Z", "updatedAt": "2026-02-03T04:05:07.000Z", "archived": false, "feature": null, "thread": []}
+
+$ agentboard edit AB-000000000001 --notes Started --labels-json "[\"parser\",\"cli\"]"
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 2,
+  "title": "Write the parser",
+  "status": "backlog",
+  "priority": "high",
+  "assignee": null,
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:08.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}
+
+$ agentboard move AB-000000000001 in-progress
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 3,
+  "title": "Write the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": null,
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:09.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}
+
+$ agentboard claim AB-000000000001 agent-a
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 4,
+  "title": "Write the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:10.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}
+
+$ agentboard --json ask AB-000000000001 "Which flag syntax?" --author agent-a
+[exit 0]
+--- stdout
+{"version": "1.1.0", "id": "AB-000000000001", "revision": 5, "title": "Write the parser", "status": "in-progress", "priority": "high", "assignee": "agent-a", "labels": ["parser", "cli"], "description": "Flags and errors.\nUnicode: é 漢 😀", "acceptanceCriteria": [{"text": "Parses flags", "done": false}, {"text": "Reports errors", "done": false}], "notes": "Started", "createdAt": "2026-02-03T04:05:06.000Z", "updatedAt": "2026-02-03T04:05:11.000Z", "archived": false, "feature": null, "thread": [{"id": "TH-000000000003", "kind": "question", "author": "agent-a", "body": "Which flag syntax?", "replyTo": null, "createdAt": "2026-02-03T04:05:11.000Z", "updatedAt": "2026-02-03T04:05:11.000Z"}]}
+--- stderr
+1 open question on AB-000000000001 — run "questions"
+
+$ agentboard comment AB-000000000001 "Context: argparse style today." --reply-to TH-000000000003
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 6,
+  "title": "Write the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:12.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000003",
+      "kind": "question",
+      "author": "agent-a",
+      "body": "Which flag syntax?",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:11.000Z",
+      "updatedAt": "2026-02-03T04:05:11.000Z"
+    },
+    {
+      "id": "TH-000000000004",
+      "kind": "comment",
+      "author": null,
+      "body": "Context: argparse style today.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:12.000Z",
+      "updatedAt": "2026-02-03T04:05:12.000Z"
+    }
+  ]
+}
+--- stderr
+1 open question on AB-000000000001 — run "questions"
+
+$ agentboard answer AB-000000000001 TH-000000000003 "Use --opt=value." --author alice
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 7,
+  "title": "Write the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:13.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000003",
+      "kind": "question",
+      "author": "agent-a",
+      "body": "Which flag syntax?",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:11.000Z",
+      "updatedAt": "2026-02-03T04:05:11.000Z"
+    },
+    {
+      "id": "TH-000000000004",
+      "kind": "comment",
+      "author": null,
+      "body": "Context: argparse style today.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:12.000Z",
+      "updatedAt": "2026-02-03T04:05:12.000Z"
+    },
+    {
+      "id": "TH-000000000005",
+      "kind": "answer",
+      "author": "alice",
+      "body": "Use --opt=value.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:13.000Z",
+      "updatedAt": "2026-02-03T04:05:13.000Z"
+    }
+  ]
+}
+
+$ agentboard --json ask AB-000000000002 "MIT or Apache-2.0?"
+[exit 0]
+--- stdout
+{"version": "1.1.0", "id": "AB-000000000002", "revision": 2, "title": "Pick a license", "status": "todo", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:07.000Z", "updatedAt": "2026-02-03T04:05:14.000Z", "archived": false, "feature": null, "thread": [{"id": "TH-000000000006", "kind": "question", "author": "env-agent", "body": "MIT or Apache-2.0?", "replyTo": null, "createdAt": "2026-02-03T04:05:14.000Z", "updatedAt": "2026-02-03T04:05:14.000Z"}]}
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard edit-entry AB-000000000002 TH-000000000006 --body "MIT or Apache-2.0?\nThe answer decides the header."
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000002",
+  "revision": 3,
+  "title": "Pick a license",
+  "status": "todo",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:07.000Z",
+  "updatedAt": "2026-02-03T04:05:15.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000006",
+      "kind": "question",
+      "author": "env-agent",
+      "body": "MIT or Apache-2.0?\nThe answer decides the header.",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:14.000Z",
+      "updatedAt": "2026-02-03T04:05:15.000Z"
+    }
+  ]
+}
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard show AB-000000000001
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000001",
+  "revision": 7,
+  "title": "Write the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "cli"
+  ],
+  "description": "Flags and errors.\nUnicode: é 漢 😀",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "Started",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:13.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000003",
+      "kind": "question",
+      "author": "agent-a",
+      "body": "Which flag syntax?",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:11.000Z",
+      "updatedAt": "2026-02-03T04:05:11.000Z"
+    },
+    {
+      "id": "TH-000000000004",
+      "kind": "comment",
+      "author": null,
+      "body": "Context: argparse style today.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:12.000Z",
+      "updatedAt": "2026-02-03T04:05:12.000Z"
+    },
+    {
+      "id": "TH-000000000005",
+      "kind": "answer",
+      "author": "alice",
+      "body": "Use --opt=value.",
+      "replyTo": "TH-000000000003",
+      "createdAt": "2026-02-03T04:05:13.000Z",
+      "updatedAt": "2026-02-03T04:05:13.000Z"
+    }
+  ]
+}
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard --json list
+[exit 0]
+--- stdout
+[{"version": "1.1.0", "id": "AB-000000000001", "revision": 7, "title": "Write the parser", "status": "in-progress", "priority": "high", "assignee": "agent-a", "labels": ["parser", "cli"], "description": "Flags and errors.\nUnicode: é 漢 😀", "acceptanceCriteria": [{"text": "Parses flags", "done": false}, {"text": "Reports errors", "done": false}], "notes": "Started", "createdAt": "2026-02-03T04:05:06.000Z", "updatedAt": "2026-02-03T04:05:13.000Z", "archived": false, "feature": null, "thread": [{"id": "TH-000000000003", "kind": "question", "author": "agent-a", "body": "Which flag syntax?", "replyTo": null, "createdAt": "2026-02-03T04:05:11.000Z", "updatedAt": "2026-02-03T04:05:11.000Z"}, {"id": "TH-000000000004", "kind": "comment", "author": null, "body": "Context: argparse style today.", "replyTo": "TH-000000000003", "createdAt": "2026-02-03T04:05:12.000Z", "updatedAt": "2026-02-03T04:05:12.000Z"}, {"id": "TH-000000000005", "kind": "answer", "author": "alice", "body": "Use --opt=value.", "replyTo": "TH-000000000003", "createdAt": "2026-02-03T04:05:13.000Z", "updatedAt": "2026-02-03T04:05:13.000Z"}]}, {"version": "1.1.0", "id": "AB-000000000002", "revision": 3, "title": "Pick a license", "status": "todo", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:07.000Z", "updatedAt": "2026-02-03T04:05:15.000Z", "archived": false, "feature": null, "thread": [{"id": "TH-000000000006", "kind": "question", "author": "env-agent", "body": "MIT or Apache-2.0?\nThe answer decides the header.", "replyTo": null, "createdAt": "2026-02-03T04:05:14.000Z", "updatedAt": "2026-02-03T04:05:15.000Z"}]}]
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard thread AB-000000000001
+[exit 0]
+--- stdout
+[
+  {
+    "id": "TH-000000000003",
+    "kind": "question",
+    "author": "agent-a",
+    "body": "Which flag syntax?",
+    "replyTo": null,
+    "createdAt": "2026-02-03T04:05:11.000Z",
+    "updatedAt": "2026-02-03T04:05:11.000Z"
+  },
+  {
+    "id": "TH-000000000004",
+    "kind": "comment",
+    "author": null,
+    "body": "Context: argparse style today.",
+    "replyTo": "TH-000000000003",
+    "createdAt": "2026-02-03T04:05:12.000Z",
+    "updatedAt": "2026-02-03T04:05:12.000Z"
+  },
+  {
+    "id": "TH-000000000005",
+    "kind": "answer",
+    "author": "alice",
+    "body": "Use --opt=value.",
+    "replyTo": "TH-000000000003",
+    "createdAt": "2026-02-03T04:05:13.000Z",
+    "updatedAt": "2026-02-03T04:05:13.000Z"
+  }
+]
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard questions
+[exit 0]
+--- stdout
+[
+  {
+    "item": "AB-000000000002",
+    "title": "Pick a license",
+    "status": "todo",
+    "question": {
+      "id": "TH-000000000006",
+      "kind": "question",
+      "author": "env-agent",
+      "body": "MIT or Apache-2.0?\nThe answer decides the header.",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:14.000Z",
+      "updatedAt": "2026-02-03T04:05:15.000Z"
+    }
+  }
+]
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard --json questions
+[exit 0]
+--- stdout
+[{"item": "AB-000000000002", "title": "Pick a license", "status": "todo", "question": {"id": "TH-000000000006", "kind": "question", "author": "env-agent", "body": "MIT or Apache-2.0?\nThe answer decides the header.", "replyTo": null, "createdAt": "2026-02-03T04:05:14.000Z", "updatedAt": "2026-02-03T04:05:15.000Z"}}]
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard move AB-000000000002 needs-grilling
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000002",
+  "revision": 4,
+  "title": "Pick a license",
+  "status": "needs-grilling",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:07.000Z",
+  "updatedAt": "2026-02-03T04:05:16.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000006",
+      "kind": "question",
+      "author": "env-agent",
+      "body": "MIT or Apache-2.0?\nThe answer decides the header.",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:14.000Z",
+      "updatedAt": "2026-02-03T04:05:15.000Z"
+    }
+  ]
+}
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard grill
+[exit 0]
+--- stdout
+Grilling brief: 1 card in Needs grilling
+
+## AB-000000000002: Pick a license
+Status: needs-grilling | Priority: medium | Assignee: none
+
+Description:
+  (none)
+
+Acceptance criteria:
+  (none)
+
+Open questions (1):
+  - TH-000000000006 (env-agent):
+      MIT or Apache-2.0?
+      The answer decides the header.
+
+Answer each question with: answer CARD_ID QUESTION_ID "answer"
+When a card has no open questions left: move CARD_ID todo
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard --json grill AB-000000000002
+[exit 0]
+--- stdout
+[{"id": "AB-000000000002", "title": "Pick a license", "status": "needs-grilling", "priority": "medium", "assignee": null, "description": "", "acceptanceCriteria": [], "openQuestions": [{"id": "TH-000000000006", "kind": "question", "author": "env-agent", "body": "MIT or Apache-2.0?\nThe answer decides the header.", "replyTo": null, "createdAt": "2026-02-03T04:05:14.000Z", "updatedAt": "2026-02-03T04:05:15.000Z"}]}]
+--- stderr
+1 open question on AB-000000000002 — run "questions"
+
+$ agentboard --quiet show AB-000000000002
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-000000000002",
+  "revision": 4,
+  "title": "Pick a license",
+  "status": "needs-grilling",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:07.000Z",
+  "updatedAt": "2026-02-03T04:05:16.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-000000000006",
+      "kind": "question",
+      "author": "env-agent",
+      "body": "MIT or Apache-2.0?\nThe answer decides the header.",
+      "replyTo": null,
+      "createdAt": "2026-02-03T04:05:14.000Z",
+      "updatedAt": "2026-02-03T04:05:15.000Z"
+    }
+  ]
+}

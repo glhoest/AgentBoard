@@ -1,0 +1,53 @@
+{
+  "version": "1.1.0",
+  "id": "AB-CEA814902F1C",
+  "revision": 5,
+  "title": "Diff-based reconciliation of conflicting edits",
+  "status": "needs-grilling",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "feature",
+    "concurrency"
+  ],
+  "description": "Raised in grilling (HANDOVER §4). When a write is stale (409 / exit 2), reconcile field-wise (and per thread entry) against the base revision instead of only rejecting, surfacing true conflicts to the human. Ties into visual edit locks. Not designed yet.",
+  "acceptanceCriteria": [
+    {
+      "text": "Design grilled and recorded",
+      "done": false
+    },
+    {
+      "text": "Non-overlapping concurrent edits merge automatically in CLI and UI",
+      "done": false
+    },
+    {
+      "text": "Overlapping edits surface a clear conflict; tests",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T22:14:51.354Z",
+  "updatedAt": "2026-11-01T12:59:55.384Z",
+  "archived": false,
+  "feature": "FT-B8F9877ED6CB",
+  "thread": [
+    {
+      "id": "TH-F4E8D08228BB",
+      "kind": "question",
+      "author": "claude",
+      "body": "What is the merge unit: whole fields only (title, description, labels as whole arrays), or text-level merging inside description/notes and per-element merging of labels, criteria and thread entries?",
+      "replyTo": null,
+      "createdAt": "2026-11-01T00:55:02.071Z",
+      "updatedAt": "2026-11-01T00:55:02.071Z"
+    },
+    {
+      "id": "TH-7121D165CFDE",
+      "kind": "question",
+      "author": "claude",
+      "body": "When two edits touch the same field, who decides in the UI: block and show both versions (as today), or offer a per-field pick/merge? And for the CLI: fail with exit 2, or auto-merge when non-overlapping?",
+      "replyTo": null,
+      "createdAt": "2026-11-01T00:55:02.178Z",
+      "updatedAt": "2026-11-01T00:55:02.178Z"
+    }
+  ]
+}

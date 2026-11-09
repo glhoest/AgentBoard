@@ -1,0 +1,110 @@
+$ agentboard show AB-0000000000A1
+[exit 0]
+--- stdout
+{
+  "version": "1.1.0",
+  "id": "AB-0000000000A1",
+  "revision": 3,
+  "title": "Ship the parser",
+  "status": "in-progress",
+  "priority": "high",
+  "assignee": "agent-a",
+  "labels": [
+    "parser",
+    "v1"
+  ],
+  "description": "Line one\nUnicode: é 漢 😀 </script> \"quoted\"",
+  "acceptanceCriteria": [
+    {
+      "text": "Parses flags",
+      "done": false
+    },
+    {
+      "text": "Reports errors",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-01-02T03:04:05.006Z",
+  "updatedAt": "2026-01-02T03:04:06.007Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}
+
+$ agentboard --json list --all
+[exit 0]
+--- stdout
+[{"version": "1.1.0", "id": "AB-0000000000A1", "revision": 3, "title": "Ship the parser", "status": "in-progress", "priority": "high", "assignee": "agent-a", "labels": ["parser", "v1"], "description": "Line one\nUnicode: é 漢 😀 </script> \"quoted\"", "acceptanceCriteria": [{"text": "Parses flags", "done": false}, {"text": "Reports errors", "done": false}], "notes": "", "createdAt": "2026-01-02T03:04:05.006Z", "updatedAt": "2026-01-02T03:04:06.007Z", "archived": false, "feature": null, "thread": []}, {"version": "1.1.0", "id": "AB-0000000000B2", "revision": 2, "title": "Old archived idea", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "Superseded", "createdAt": "2026-01-02T03:04:07.008Z", "updatedAt": "2026-01-02T03:04:08.009Z", "archived": true, "feature": null, "thread": []}, {"version": "1.1.0", "id": "AB-0000000000C3", "revision": 1, "title": "Plain todo", "status": "todo", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-01-02T03:04:09.010Z", "updatedAt": "2026-01-02T03:04:09.010Z", "archived": false, "feature": null, "thread": []}]
+
+$ agentboard list --all
+[exit 0]
+--- stdout
+[
+  {
+    "version": "1.1.0",
+    "id": "AB-0000000000A1",
+    "revision": 3,
+    "title": "Ship the parser",
+    "status": "in-progress",
+    "priority": "high",
+    "assignee": "agent-a",
+    "labels": [
+      "parser",
+      "v1"
+    ],
+    "description": "Line one\nUnicode: é 漢 😀 </script> \"quoted\"",
+    "acceptanceCriteria": [
+      {
+        "text": "Parses flags",
+        "done": false
+      },
+      {
+        "text": "Reports errors",
+        "done": false
+      }
+    ],
+    "notes": "",
+    "createdAt": "2026-01-02T03:04:05.006Z",
+    "updatedAt": "2026-01-02T03:04:06.007Z",
+    "archived": false,
+    "feature": null,
+    "thread": []
+  },
+  {
+    "version": "1.1.0",
+    "id": "AB-0000000000B2",
+    "revision": 2,
+    "title": "Old archived idea",
+    "status": "backlog",
+    "priority": "medium",
+    "assignee": null,
+    "labels": [],
+    "description": "",
+    "acceptanceCriteria": [],
+    "notes": "Superseded",
+    "createdAt": "2026-01-02T03:04:07.008Z",
+    "updatedAt": "2026-01-02T03:04:08.009Z",
+    "archived": true,
+    "feature": null,
+    "thread": []
+  },
+  {
+    "version": "1.1.0",
+    "id": "AB-0000000000C3",
+    "revision": 1,
+    "title": "Plain todo",
+    "status": "todo",
+    "priority": "medium",
+    "assignee": null,
+    "labels": [],
+    "description": "",
+    "acceptanceCriteria": [],
+    "notes": "",
+    "createdAt": "2026-01-02T03:04:09.010Z",
+    "updatedAt": "2026-01-02T03:04:09.010Z",
+    "archived": false,
+    "feature": null,
+    "thread": []
+  }
+]

@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-FEA488539B1E",
+  "revision": 2,
+  "title": "Fill remaining test gaps for features and atomic-write retry",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "test",
+    "features"
+  ],
+  "description": "Left open after Features stage A review (Terra did not finish): feature-specific read-only/IO failure test (500 io_error, CLI exit 1), the full parser coverage in args.test.ts for the new commands/flags (currently in feature.test.ts), temporary-revert proof for the encoding-message, stray-file and dangling-via-list tests, and a test that every feature write holds the lock. Also: PATCH of a well-formed but missing feature id answers 400 (same as cards) while README says missing routes are 404.",
+  "acceptanceCriteria": [
+    {
+      "text": "Each listed gap has a test that can fail",
+      "done": false
+    },
+    {
+      "text": "Decide and document 400 vs 404 for a missing card/feature id on PATCH",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-01T02:34:48.786Z",
+  "updatedAt": "2026-11-01T12:59:55.963Z",
+  "archived": false,
+  "feature": "FT-26B365FDB846",
+  "thread": []
+}

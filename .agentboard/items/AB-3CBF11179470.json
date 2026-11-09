@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-3CBF11179470",
+  "revision": 2,
+  "title": "Test the POSIX flock lock path on macOS/Linux",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "test",
+    "lock"
+  ],
+  "description": "HANDOVER §3.2: flock via libc is implemented but never run.",
+  "acceptanceCriteria": [
+    {
+      "text": "bun test passes on Linux and on macOS",
+      "done": false
+    },
+    {
+      "text": "Concurrent claim/create and killed-holder lock tests pass there",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T21:11:09.172Z",
+  "updatedAt": "2026-11-01T12:59:55.781Z",
+  "archived": false,
+  "feature": "FT-26B365FDB846",
+  "thread": []
+}

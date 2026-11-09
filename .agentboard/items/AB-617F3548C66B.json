@@ -1,0 +1,43 @@
+{
+  "version": "1.1.0",
+  "id": "AB-617F3548C66B",
+  "revision": 6,
+  "title": "Compact CLI board overview",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [
+    "feature"
+  ],
+  "description": "Onboarding feedback from a board with 24 active cards and 4 features found full list records costly to inspect. Provide an opt-in concise overview; token savings are not yet benchmarked. Do not change existing list JSON by default.",
+  "acceptanceCriteria": [
+    {
+      "text": "Offer a concise machine-readable overview with full ID, title, status, priority, feature and open-question summary; full show remains available.",
+      "done": false
+    },
+    {
+      "text": "Coordinate blocker information with AB-844EFABBB14B when dependencies exist; do not imply unsupported readiness rules.",
+      "done": false
+    },
+    {
+      "text": "Document the output and verify existing list output remains compatible.",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-08T03:42:50.651Z",
+  "updatedAt": "2026-11-09T00:22:11.417Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-D702C0477DCA",
+      "kind": "comment",
+      "author": "product-manager",
+      "body": "An independent onboarding report: full list output was truncated at 34 cards. Include assignee and an open-question count in the compact view; make it readable to humans as well as usable by agents, retaining show for full details and descriptive command names. Separately, concise mutation acknowledgments were requested again; consider only after the list view, retaining full output and clear errors.",
+      "replyTo": null,
+      "createdAt": "2026-11-08T03:46:36.265Z",
+      "updatedAt": "2026-11-09T00:22:11.417Z"
+    }
+  ]
+}

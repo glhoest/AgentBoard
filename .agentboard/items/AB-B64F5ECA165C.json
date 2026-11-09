@@ -1,0 +1,25 @@
+{
+  "version": "1.1.0",
+  "id": "AB-B64F5ECA165C",
+  "revision": 1,
+  "title": "Tidy dense code in store.ts, serve.ts and lock.ts",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "chore"
+  ],
+  "description": "HANDOVER §3.5: match the readable multi-line style of args.ts, setup.ts and agentboard.ts. Tidy when touching these files.",
+  "acceptanceCriteria": [
+    {
+      "text": "No behavior change; bun test passes",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-10-31T21:11:09.403Z",
+  "updatedAt": "2026-10-31T21:11:09.403Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

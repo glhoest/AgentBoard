@@ -1,0 +1,38 @@
+{
+  "version": "1.1.0",
+  "id": "AB-40D7D9037326",
+  "revision": 7,
+  "title": "Needs grilling column and grill command",
+  "status": "done",
+  "priority": "medium",
+  "assignee": "claude",
+  "labels": [
+    "feature",
+    "grilling"
+  ],
+  "description": "HANDOVER §4 Needs grilling. Column needs-grilling after backlog. Asking never moves a card; agents move a card there explicitly when blocked on the human. The grilling session answers via the CLI and moves the card to todo when no questions remain open. init adds the column; existing boards get it once via the board.json 1.1.0 upgrade-on-read. Depends on Q&A and versioning.",
+  "acceptanceCriteria": [
+    {
+      "text": "init creates needs-grilling; board.json 1.1.0 upgrade inserts it once (after backlog, else first) and is not re-added if removed",
+      "done": true
+    },
+    {
+      "text": "grill [ID] prints cards in the column with their open questions as a grilling brief",
+      "done": true
+    },
+    {
+      "text": "SKILL.md: when agents move cards to Needs grilling; grilling answers via CLI and moves cards to todo",
+      "done": true
+    },
+    {
+      "text": "Tests cover the command, column and upgrade",
+      "done": true
+    }
+  ],
+  "notes": "Done 2026-11-01 (82426d2 + d611cdc).",
+  "createdAt": "2026-10-31T21:11:08.858Z",
+  "updatedAt": "2026-11-01T12:59:54.946Z",
+  "archived": false,
+  "feature": "FT-FA5430587366",
+  "thread": []
+}

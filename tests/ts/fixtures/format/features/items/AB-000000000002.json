@@ -1,0 +1,18 @@
+{
+  "version": "1.1.0",
+  "id": "AB-000000000002",
+  "revision": 1,
+  "title": "Linked",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:09.000Z",
+  "updatedAt": "2026-02-03T04:05:09.000Z",
+  "archived": false,
+  "feature": "FT-000000000001",
+  "thread": []
+}

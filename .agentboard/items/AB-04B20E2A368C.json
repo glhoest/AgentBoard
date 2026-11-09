@@ -1,0 +1,38 @@
+{
+  "version": "1.1.0",
+  "id": "AB-04B20E2A368C",
+  "revision": 5,
+  "title": "Fix withLock wrapping errors from the locked callback",
+  "status": "done",
+  "priority": "high",
+  "assignee": "claude-lock-agent",
+  "labels": [
+    "bug",
+    "lock"
+  ],
+  "description": "withLock (scripts/lib/lock.ts) catches every error thrown by its callback and rethrows non-BoardErrors as BoardError('Cannot lock <root>: …'). A disk error inside a write gets a misleading message, the bridge answers 400 invalid instead of 500 io_error, and the CLI exit reason is wrong. See HANDOVER §3.1.",
+  "acceptanceCriteria": [
+    {
+      "text": "Only errors from acquiring/releasing the lock are wrapped; errors from fn() propagate unchanged",
+      "done": true
+    },
+    {
+      "text": "Test: a non-BoardError thrown inside withLock reaches the caller unchanged; bridge answers 500 io_error",
+      "done": true
+    },
+    {
+      "text": "Unused imports (EXCLUSIVE, suffix) removed from lock.ts",
+      "done": true
+    },
+    {
+      "text": "bun test passes",
+      "done": true
+    }
+  ],
+  "notes": "Fixed 2026-10-31. lock.ts split into acquire() (wrapped as 'Cannot lock') and fn() (propagates unchanged). If fn throws, a release failure is swallowed so it cannot mask it; if fn succeeds, a release failure is a lock error. Also fixed a double close of the lock fd on Windows acquire failure. lock.ts rewritten readable (HANDOVER §3.5 for this file). New tests: lock.test.ts (callback errors pass through; acquire failures wrapped) and bridge.test.ts (read-only item -> bridge 500 io_error, CLI exit 1). bun test: 63 pass, 0 fail. POSIX branch of the bridge test not yet run.",
+  "createdAt": "2026-10-31T21:11:08.557Z",
+  "updatedAt": "2026-11-01T12:59:55.715Z",
+  "archived": false,
+  "feature": "FT-B8F9877ED6CB",
+  "thread": []
+}

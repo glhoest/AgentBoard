@@ -1,0 +1,30 @@
+{
+  "version": "1.1.0",
+  "id": "AB-AFCE6C8F8F3E",
+  "revision": 2,
+  "title": "Page scrolls horizontally at 1024 px (pre-existing)",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "bug",
+    "ui"
+  ],
+  "description": "Found in stage 2 review: at a 1024 px viewport documentElement.scrollWidth exceeds the viewport (1113 px now; 1413 px at the commit before stage 2). Terra traced it to absolutely positioned screen-reader-only text escaping the board's clipping context. Not a regression, left unchanged.",
+  "acceptanceCriteria": [
+    {
+      "text": "documentElement.scrollWidth <= viewport width at 1400, 1200, 1024 and 390 px",
+      "done": false
+    },
+    {
+      "text": "Browser test asserts it",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-01T00:54:37.555Z",
+  "updatedAt": "2026-11-01T12:59:56.054Z",
+  "archived": false,
+  "feature": "FT-26B365FDB846",
+  "thread": []
+}

@@ -1,0 +1,33 @@
+{
+  "version": "1.1.0",
+  "id": "AB-6E3E18C1B444",
+  "revision": 5,
+  "title": "Grill the open design questions for grilling, Q&A threads and features",
+  "status": "done",
+  "priority": "high",
+  "assignee": "claude",
+  "labels": [
+    "design"
+  ],
+  "description": "Run the grilling skill over the open questions in HANDOVER §4 (column vs flag, thread entry mutability, threads in GET /api/board, features C1 vs C2, feature status, feature Q&A, upgrade explicitness, grilling writing answers via CLI). Blocks the feature cards.",
+  "acceptanceCriteria": [
+    {
+      "text": "Every open question in HANDOVER §4 has a recorded decision",
+      "done": true
+    },
+    {
+      "text": "HANDOVER.md design section updated with the decisions",
+      "done": true
+    },
+    {
+      "text": "Feature cards on this board updated to match",
+      "done": true
+    }
+  ],
+  "notes": "Grilled 2026-10-31 in 4 rounds (22 questions). Decisions in HANDOVER §4. Notable changes vs the proposal: Q&A inside the card file (not separate files), editable entries, optional author, no resolve-without-answer, semver per file with upgrade-on-read instead of an explicit upgrade command. Three new cards: edit locks, diff reconciliation, question webhook.",
+  "createdAt": "2026-10-31T21:11:08.662Z",
+  "updatedAt": "2026-11-01T12:59:55.099Z",
+  "archived": false,
+  "feature": "FT-FA5430587366",
+  "thread": []
+}

@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "id": "FT-26B365FDB846",
+  "revision": 1,
+  "title": "Test and platform coverage",
+  "status": "planned",
+  "description": "POSIX lock testing, real folder picker, remaining test gaps.",
+  "createdAt": "2026-11-01T12:59:54.617Z",
+  "updatedAt": "2026-11-01T12:59:54.617Z",
+  "archived": false
+}

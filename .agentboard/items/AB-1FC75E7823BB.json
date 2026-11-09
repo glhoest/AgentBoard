@@ -1,0 +1,43 @@
+{
+  "version": "1.1.0",
+  "id": "AB-1FC75E7823BB",
+  "revision": 4,
+  "title": "Incremental CLI updates for labels and criteria",
+  "status": "backlog",
+  "priority": "low",
+  "assignee": null,
+  "labels": [
+    "feature"
+  ],
+  "description": "Onboarding feedback: replacing entire JSON arrays requires quoting and read-modify-write for small label and acceptance-criterion changes. Investigate narrowly scoped operations; avoid introducing a general patch language.",
+  "acceptanceCriteria": [
+    {
+      "text": "Add and remove labels and add or update criteria without replacing the entire array in the CLI.",
+      "done": false
+    },
+    {
+      "text": "Define unambiguous criterion targeting and duplicate or missing-item behavior; retain validation and revision conflict checks under the lock.",
+      "done": false
+    },
+    {
+      "text": "Document and test operations and existing whole-array behavior.",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-08T03:42:51.271Z",
+  "updatedAt": "2026-11-09T00:22:11.283Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-54A3123C1C54",
+      "kind": "comment",
+      "author": "product-manager",
+      "body": "An independent onboarding report corroborates targeted checklist edits: replacing a whole criteria array is cumbersome and risks overwriting unrelated criteria.",
+      "replyTo": null,
+      "createdAt": "2026-11-08T03:46:36.417Z",
+      "updatedAt": "2026-11-09T00:22:11.283Z"
+    }
+  ]
+}

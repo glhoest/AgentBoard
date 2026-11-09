@@ -1,0 +1,47 @@
+{
+  "version": "1.1.0",
+  "id": "AB-DD2386041E73",
+  "revision": 7,
+  "title": "Semver file versions, upgrade-on-read and format snapshot tests",
+  "status": "done",
+  "priority": "high",
+  "assignee": "claude",
+  "labels": [
+    "feature",
+    "compat",
+    "versioning"
+  ],
+  "description": "Foundation for Q&A and features (HANDOVER §4 Versioning). Cards, board.json and feature files carry a semver string; missing or integer 1 = 1.0.0. Readers reject newer versions. CLI, bridge and board.html (incl. direct mode) upgrade older files on read, under the lock, and always write the current version. No explicit upgrade command. Old vendored copies fail loudly on touched boards (accepted).",
+  "acceptanceCriteria": [
+    {
+      "text": "Version parsing/comparison; 1 and missing read as 1.0.0; newer versions rejected loudly",
+      "done": true
+    },
+    {
+      "text": "Upgrade-on-read in CLI and bridge (under the lock) and in board.html incl. direct mode; always writes the current version",
+      "done": true
+    },
+    {
+      "text": "Upgrade steps are a per-version pipeline so a later major can add a transform",
+      "done": true
+    },
+    {
+      "text": "Format snapshot tests: chosen CLI commands on a fixed board compared to verified output and file bytes",
+      "done": true
+    },
+    {
+      "text": "README contract and SKILL.md updated (versioning rules, update vendored copies before new code touches a shared board)",
+      "done": true
+    },
+    {
+      "text": "bun test passes incl. browser suite",
+      "done": true
+    }
+  ],
+  "notes": "Done 2026-11-01 (commit 82426d2 + d611cdc). Implemented by agents, independently reviewed; live board upgraded via setup + upgrade-on-read.",
+  "createdAt": "2026-10-31T21:11:09.019Z",
+  "updatedAt": "2026-11-01T12:59:55.020Z",
+  "archived": false,
+  "feature": "FT-FA5430587366",
+  "thread": []
+}
