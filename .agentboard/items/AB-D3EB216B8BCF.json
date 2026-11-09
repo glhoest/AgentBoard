@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
   "id": "AB-D3EB216B8BCF",
-  "revision": 8,
+  "revision": 11,
   "title": "Watch board changes and trigger local actions",
   "status": "done",
   "priority": "medium",
@@ -18,9 +18,9 @@
       "done": true
     }
   ],
-  "notes": "Full bun test: 203 pass, 0 fail, including UI; two Opus reviews completed. Local process and webhook verified; T3 end-to-end remains untested. Follow-up AB-C8A90D1C7747 tracks lock interruption and EPIPE regression coverage.",
+  "notes": "Full bun test: 203 pass, 0 fail, including UI; two Opus reviews completed. Local process and local T3 webhook task verified end to end; public T3 Connect and signed delivery untested. Follow-up AB-C8A90D1C7747 tracks lock interruption and EPIPE regression coverage.",
   "createdAt": "2026-11-09T12:58:34.746Z",
-  "updatedAt": "2026-11-09T13:37:12.761Z",
+  "updatedAt": "2026-11-09T13:57:06.125Z",
   "archived": false,
   "feature": null,
   "thread": [
@@ -41,6 +41,24 @@
       "replyTo": null,
       "createdAt": "2026-11-09T13:29:54.111Z",
       "updatedAt": "2026-11-09T13:29:54.111Z"
+    },
+    {
+      "id": "TH-DA02DF92C554",
+      "kind": "comment",
+      "author": "codex",
+      "body": "Live T3 webhook verification: card update triggered from the vendored watcher.",
+      "replyTo": null,
+      "createdAt": "2026-11-09T13:56:00.496Z",
+      "updatedAt": "2026-11-09T13:56:00.496Z"
+    },
+    {
+      "id": "TH-BFD8C90477E7",
+      "kind": "comment",
+      "author": "codex",
+      "body": "Verified live locally: vendored watcher POSTed card.updated to a temporary T3 webhook task; T3 accepted the event and its agent returned the matching JSON. Temporary task removed. Public T3 Connect and signed delivery were not tested.",
+      "replyTo": null,
+      "createdAt": "2026-11-09T13:57:06.086Z",
+      "updatedAt": "2026-11-09T13:57:06.086Z"
     }
   ]
 }
