@@ -21,6 +21,7 @@ export type Command =
   | { cmd: 'thread'; id: string }
   | { cmd: 'questions' }
   | { cmd: 'grill'; id: string | null }
+  | { cmd: 'update'; force: boolean }
   | { cmd: 'serve'; port: number; ui: string | null };
 export type ParseResult = { kind: 'ok'; args: Common & Command } | { kind: 'help'; text: string } | { kind: 'error'; text: string };
 
@@ -47,6 +48,7 @@ const specs: Record<string, [string, string][]> = {
   thread: [['id', 'pos']],
   questions: [],
   grill: [['id', 'pos']],
+  update: [['force', 'bool']],
   serve: [['port', 'int'], ['ui', 'str']],
 };
 // Commands whose positional is optional: init/setup default to '.', grill to all cards in Needs grilling.
@@ -80,7 +82,7 @@ function helpText(command?: string): string {
     const lines = Object.entries(summaries).map(([name, text]) => `    ${name.padEnd(20)}${text}`);
     return `${usage}\n\nFile-backed agent board. Bun runtime.\n\npositional arguments:\n  {${commands.join(',')}}\n${lines.join('\n')}\n\n` +
       'options:\n  -h, --help            show this help message and exit\n  --root ROOT           Project root (otherwise discover upward)\n' +
-      '  --json                Machine-readable output\n  --quiet               Do not print the open-questions notice on stderr';
+      '  --json                Machine-readable output\n  --quiet               Suppress notices and automatic update checks';
   }
   const args = specs[command];
   const positional = args.filter(([, type]) => type === 'pos').map(([key]) => optionalPositional.has(command) ? `[${key}]` : key);

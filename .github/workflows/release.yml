@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.0'
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,4 +48,20 @@ jobs:
           fi
           printf '{"version":"%s"}\n' "$RELEASE_TAG" > .agentboard-release.json
           tar -czf agentboard.tar.gz .agentboard-release.json SKILL.md README.md LICENSE agents assets scripts
-          gh release create "$RELEASE_TAG" agentboard.tar.gz --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes
+          mkdir -p no-update
+          cp -r .agentboard-release.json SKILL.md README.md LICENSE agents assets scripts no-update/
+          rm -f no-update/scripts/lib/update.ts no-update/scripts/lib/update-check.ts
+          touch no-update/.agentboard-no-update
+          sed -i '1i> **No-update build:** self-update and automatic network checks are unavailable.' no-update/README.md
+          sed -i '/^# AgentBoard$/a This is the no-update build: self-update and automatic network checks are unavailable.' no-update/SKILL.md
+          # The CLI retains its board functionality; replace the static notice import with a no-op.
+          printf "export async function updateNotice() { return null; }\n" > no-update/scripts/lib/update-check.ts
+          tar -czf agentboard-no-update.tar.gz -C no-update .
+          mkdir -p smoke
+          tar -xzf agentboard-no-update.tar.gz -C smoke
+          bun smoke/scripts/agentboard.ts --help | grep -q 'no-update build'
+          mkdir smoke-project
+          bun smoke/scripts/agentboard.ts setup smoke-project
+          bun smoke-project/.agents/skills/agentboard/scripts/agentboard.ts --root smoke-project list
+          if bun smoke-project/.agents/skills/agentboard/scripts/agentboard.ts update; then exit 1; fi
+          gh release create "$RELEASE_TAG" agentboard.tar.gz agentboard-no-update.tar.gz --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes
