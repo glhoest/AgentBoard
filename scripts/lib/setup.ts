@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { BoardError } from './types';
 import { config, init } from './store';
@@ -42,6 +42,18 @@ export function setup(target: string, skillDirectory: string) {
 
   const destination = join(root, '.agents', 'skills', 'agentboard');
   if (source !== resolve(destination)) {
+    // Remove obsolete executable updater and files excluded from the selected build.
+    const obsolete = ['scripts/update.ts'];
+    if (!existsSync(join(source, '.agentboard-release.json'))) obsolete.push('.agentboard-release.json');
+    if (existsSync(join(source, '.agentboard-no-update'))) obsolete.push('scripts/lib/update.ts');
+    else obsolete.push('.agentboard-no-update');
+    for (const name of obsolete) {
+      const path = join(destination, name);
+      if (existsSync(path)) {
+        rmSync(path);
+        changed.push(relative(root, path).split(sep).join('/'));
+      }
+    }
     for (const path of files(source)) {
       put(join(destination, relative(source, path)), readFileSync(path));
     }

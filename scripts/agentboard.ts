@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseArgs } from './lib/args';
 import { withLock } from './lib/lock';
@@ -283,7 +284,19 @@ if (import.meta.main) {
   const argv = process.argv.slice(2);
   const parsed = parseArgs(argv);
   const skill = dirname(dirname(import.meta.path));
-  if (parsed.kind === 'ok' && !parsed.args.quiet && skill.endsWith(join('.agents', 'skills', 'agentboard'))) {
+  const noUpdate = existsSync(join(skill, '.agentboard-no-update'));
+  if (noUpdate && parsed.kind === 'help') console.log('AgentBoard no-update build: self-update and automatic checks are unavailable.');
+  if (parsed.kind === 'ok' && parsed.args.cmd === 'update') {
+    if (noUpdate) { console.error('This AgentBoard build does not support updates.'); process.exit(1); }
+    if (!skill.endsWith(join('.agents', 'skills', 'agentboard'))) { console.error('Update requires an installed AgentBoard copy.'); process.exit(1); }
+    try {
+      const { updateInstallation } = await import('./lib/update');
+      const result = await updateInstallation(skill, fetch, parsed.args.force);
+      console.log(parsed.args.json ? JSON.stringify(result) : result.changed ? `Updated AgentBoard to ${result.version}.` : `AgentBoard is already at ${result.version} or newer.`);
+      process.exit(0);
+    } catch (error) { console.error(`Update failed: ${error instanceof Error ? error.message : String(error)}`); process.exit(1); }
+  }
+  if (parsed.kind === 'ok' && !noUpdate && !parsed.args.quiet && skill.endsWith(join('.agents', 'skills', 'agentboard'))) {
     const notice = await updateNotice(skill);
     if (notice) console.error(notice);
   }

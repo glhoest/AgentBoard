@@ -29,7 +29,8 @@ test('a newer published artifact produces a notice, cached for one day', async (
   const { skill, cache } = fixture('v1.2.3');
   const mock = latest('v1.3.0');
   expect(await updateNotice(skill, cache, mock.fetcher, 1000)).toContain('v1.3.0');
-  expect(await updateNotice(skill, cache, mock.fetcher, 2000)).toContain('update.ts');
+  expect(await updateNotice(skill, cache, mock.fetcher, 2000)).toContain('seven days');
+  expect(await updateNotice(skill, cache, mock.fetcher, 2000)).toContain('update --force');
   expect(mock.calls()).toBe(1);
   expect(await updateNotice(skill, cache, mock.fetcher, 1000 + 86400000)).toContain('v1.3.0');
   expect(mock.calls()).toBe(2);
@@ -57,7 +58,9 @@ test('offline failures and releases without artifacts are silent and retried lat
   expect(await updateNotice(skill, cache, offline, 2000)).toBeNull();
   expect(calls).toBe(1);
   const missing = latest('v2.0.0', false);
-  expect(await updateNotice(skill, cache, missing.fetcher, 1000 + 3600000)).toBeNull();
+  expect(await updateNotice(skill, cache, missing.fetcher, 1000 + 86399999)).toBeNull();
+  expect(missing.calls()).toBe(0);
+  expect(await updateNotice(skill, cache, missing.fetcher, 1000 + 86400000)).toBeNull();
   expect(missing.calls()).toBe(1);
 });
 

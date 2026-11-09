@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { withLock } from './lock';
 
 const latestReleaseUrl = 'https://api.github.com/repos/glhoest/AgentBoard/releases/latest';
 const day = 24 * 60 * 60 * 1000;
-const failureRetry = 60 * 60 * 1000;
 const stableVersion = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 type CheckCache = { checkedAt: number; latest: string | null };
@@ -43,15 +43,26 @@ export async function updateNotice(skill: string, cachePath = updateCachePath(sk
   } catch { /* A source installation has no release version. */ }
 
   let cache: CheckCache | null = null;
+  let shouldCheck = false;
   try {
-    if (existsSync(cachePath)) {
-      const value = JSON.parse(readFileSync(cachePath, 'utf8'));
-      if (typeof value.checkedAt === 'number' && Number.isFinite(value.checkedAt) && value.checkedAt <= now &&
-          (value.latest === null || versionParts(value.latest))) cache = value;
-    }
-  } catch { /* Ignore a damaged cache. */ }
+    // Reserve the check before networking, so concurrent processes and failures share the limit.
+    withLock(tmpdir(), () => {
+      try {
+        if (existsSync(cachePath)) {
+          const value = JSON.parse(readFileSync(cachePath, 'utf8'));
+          if (typeof value.checkedAt === 'number' && Number.isFinite(value.checkedAt) && value.checkedAt <= now &&
+              (value.latest === null || versionParts(value.latest))) cache = value;
+        }
+      } catch { /* Treat damaged cache as missing. */ }
+      if (!cache || now - cache.checkedAt >= day) {
+        cache = { checkedAt: now, latest: null };
+        writeFileSync(cachePath, JSON.stringify(cache));
+        shouldCheck = true;
+      }
+    });
+  } catch { return null; } // Without durable reservation, do not make a network request.
 
-  if (!cache || now - cache.checkedAt >= (cache.latest === null ? failureRetry : day)) {
+  if (shouldCheck) {
     let latest: string | null = null;
     try {
       const response = await fetcher(latestReleaseUrl, {
@@ -65,10 +76,10 @@ export async function updateNotice(skill: string, cachePath = updateCachePath(sk
       }
     } catch { /* Network failures are non-fatal. */ }
     cache = { checkedAt: now, latest };
-    try { writeFileSync(cachePath, JSON.stringify(cache)); } catch { /* Cache is optional. */ }
+    try { withLock(tmpdir(), () => writeFileSync(cachePath, JSON.stringify(cache))); } catch { /* The reservation remains valid. */ }
   }
   if (!cache.latest) return null;
-  if (installed === null) return `Latest AgentBoard release: ${cache.latest} (installed version unknown); from the project root, run bun .agents/skills/agentboard/scripts/update.ts to update.`;
+  if (installed === null) return `Latest AgentBoard release: ${cache.latest} (installed version unknown); use setup from a known source to update.`;
   if (!newer(cache.latest, installed)) return null;
-  return `AgentBoard ${cache.latest} is available (installed ${installed}); from the project root, run bun .agents/skills/agentboard/scripts/update.ts to update.`;
+  return `AgentBoard ${cache.latest} is published (installed ${installed}). Updates normally require seven days of release age; run bun .agents/skills/agentboard/scripts/agentboard.ts update --force to allow newer releases.`;
 }

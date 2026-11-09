@@ -29,15 +29,19 @@ bun .agents/skills/agentboard/scripts/agentboard.ts serve
 
 Open the printed URL to use the board. Keep that terminal running and the URL private. Stop the bridge with Ctrl+C. Review and commit the generated board, skill and guide changes to share them with collaborators. If your repository ignores `.agents/`, decide whether to track the vendored skill or have each collaborator run setup.
 
-When you run the installed CLI, it checks GitHub for a published release and reports an available update on stderr. Successful checks are cached for 24 hours; failed checks retry after one hour. Offline failures do not stop the CLI, and `--quiet` suppresses the check and notice. Copies installed from a source checkout have no release version, so the notice identifies the latest release and says the installed version is unknown. No files are updated automatically.
+The standard build checks for releases when the installed CLI runs. Checks, including failures, are cached for 24 hours; `--quiet` suppresses them. The check does not install anything.
 
-To update an installed copy, run this command from the project root:
+To update the installed skill, run:
 
 ```sh
-bun .agents/skills/agentboard/scripts/update.ts
+bun .agents/skills/agentboard/scripts/agentboard.ts update
 ```
 
-It fetches the latest stable GitHub release, verifies the artifact's SHA-256 digest, and replaces the vendored skill. It does not change the board. This replaces the entire vendored skill directory, so keep local customizations elsewhere. If your installed copy predates the updater, first pull this source clone and run `setup` once. Update every copy used with a shared board before newer code reads it, because reads can upgrade the file format. See [Versioning](#versioning). The updater requires network access and a published release with an `agentboard.tar.gz` asset; it reports an error without changing the installation if no suitable release exists.
+The command checks immediately and installs the newest stable release published at least seven days ago. Add `--force` to allow a newer stable release regardless of age. Neither mode downgrades an installed version. If the installed version is unknown, use setup from a known source; the updater refuses to risk a downgrade. The artifact is verified by size and SHA-256 before replacing the skill; the board is untouched. Network errors and the absence of an eligible release leave the installation unchanged. Local skill customizations are replaced; keep them elsewhere. Update all copies before newer code upgrades a shared board.
+
+Each release also includes `agentboard-no-update.tar.gz`, a clearly marked build without self-update or automatic network checks. Extract it and run its CLI `setup` to install it. Its board commands work normally; its `update` command reports that updates are unavailable. Install a newer build manually when required.
+
+If an existing copy has the older standalone `scripts/update.ts`, run `setup` from a newer source copy once to migrate it to the CLI update command.
 
 ## Use
 
@@ -122,7 +126,7 @@ CLI and bridge coordinate writes using an OS lock on `.agentboard.lock` (byte-ra
 
 GitHub Actions runs separate CLI and library tests (`bun test tests/ts`) and Chrome end-to-end tests (`bun test tests/ui.test.ts`) on Windows for pushes and pull requests. Chrome is required so the browser suite cannot be skipped. You can also run CI manually from the Actions tab.
 
-To publish a release, run the **Release** workflow on `main` from the Actions tab and enter a new stable tag such as `v1.0.0`. It runs the full test suite first, then creates a GitHub release and tag at the selected commit with generated release notes. The release includes `agentboard.tar.gz`, used by installed copies for updates, in addition to GitHub source archives. The workflow requires Actions to be enabled and permission to create repository contents.
+To publish a release, run the **Release** workflow on `main` from the Actions tab and enter a new stable tag such as `v1.0.0`. It runs the full test suite first, then creates a GitHub release and tag at the selected commit with generated release notes. The release includes `agentboard.tar.gz` and `agentboard-no-update.tar.gz`, in addition to GitHub source archives. The workflow requires Actions to be enabled and permission to create repository contents.
 See [CONTRIBUTING.md](https://github.com/glhoest/AgentBoard/blob/main/CONTRIBUTING.md) for pull requests, commit titles and testing.
 
 ## Developing the skill
