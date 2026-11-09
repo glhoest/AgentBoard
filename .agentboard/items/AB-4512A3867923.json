@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
   "id": "AB-4512A3867923",
-  "revision": 4,
+  "revision": 5,
   "title": "Fix update notice test failure on GitHub CI",
   "status": "in-progress",
   "priority": "medium",
@@ -18,9 +18,9 @@
       "done": false
     }
   ],
-  "notes": "Reproduced the missing notice by varying Windows path casing. Normalized cache keys; targeted regression and full bun test pass (191 pass, 0 fail). GitHub CI verification pending.",
+  "notes": "CI diagnostic showed Windows short and long paths resolve to different cache keys. Canonicalized paths and added a junction regression. Local bun test: 192 pass, 0 fail; hosted CI pending.",
   "createdAt": "2026-11-09T00:54:58.595Z",
-  "updatedAt": "2026-11-09T00:57:42.230Z",
+  "updatedAt": "2026-11-09T01:13:21.688Z",
   "archived": false,
   "feature": null,
   "thread": []

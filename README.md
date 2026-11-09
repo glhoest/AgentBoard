@@ -123,6 +123,8 @@ CLI and bridge coordinate writes using an OS lock on `.agentboard.lock` (byte-ra
 GitHub Actions runs separate CLI and library tests (`bun test tests/ts`) and Chrome end-to-end tests (`bun test tests/ui.test.ts`) on Windows for pushes and pull requests. Chrome is required so the browser suite cannot be skipped. You can also run CI manually from the Actions tab.
 
 To publish a release, run the **Release** workflow on `main` from the Actions tab and enter a new stable tag such as `v1.0.0`. It runs the full test suite first, then creates a GitHub release and tag at the selected commit with generated release notes. The release includes `agentboard.tar.gz`, used by installed copies for updates, in addition to GitHub source archives. The workflow requires Actions to be enabled and permission to create repository contents.
+See [CONTRIBUTING.md](https://github.com/glhoest/AgentBoard/blob/main/CONTRIBUTING.md) for pull requests, commit titles and testing.
+
 ## Developing the skill
 
 This folder is the source. `tests/` and `docs/` stay here and are not vendored. Run `bun test` from this folder (Chrome/Chromium is needed for the browser suite, which is skipped if missing; `CHROME_PATH` overrides detection, `AB_SHOTS=<dir>` keeps screenshots, `AB_CLI` overrides the CLI command under test).

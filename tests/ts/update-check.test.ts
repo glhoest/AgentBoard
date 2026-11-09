@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { updateCachePath, updateNotice } from '../../scripts/lib/update-check';
 
 const roots: string[] = [];
@@ -79,20 +79,15 @@ test('installed CLI keeps JSON output intact and quiet suppresses update notices
     expect(normal.exitCode).toBe(0);
     expect(normal.stdout.toString()).toBe(quiet.stdout.toString());
     expect(JSON.parse(normal.stdout.toString())).toEqual([]);
-    if (!normal.stderr.toString().includes('v2.0.0')) {
-      const probe = join(skill, 'scripts', 'ci-probe.ts');
-      writeFileSync(probe, `import { dirname, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { existsSync } from 'node:fs';
-import { updateCachePath } from './lib/update-check';
-const skill = dirname(dirname(import.meta.path));
-console.log(JSON.stringify({ skill, tmp: tmpdir(), cache: updateCachePath(skill), cacheExists: existsSync(updateCachePath(skill)), installed: skill.endsWith(join('.agents', 'skills', 'agentboard')) }));`);
-      const output = Bun.spawnSync(['bun', probe]);
-      console.error('CI diagnosis:', JSON.stringify({ expectedSkill: skill, expectedCache: cache, child: output.stdout.toString(), error: output.stderr.toString() }));
-    }
     expect(normal.stderr.toString()).toContain('v2.0.0');
     expect(quiet.stderr.toString()).toBe('');
   } finally {
     rmSync(cache, { force: true });
   }
+});
+test('alternate filesystem paths to an installation share a cache key', () => {
+  const { skill } = fixture('v1.0.0');
+  const alias = join(dirname(skill), 'alias');
+  symlinkSync(skill, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  expect(updateCachePath(alias)).toBe(updateCachePath(skill));
 });

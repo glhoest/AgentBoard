@@ -15,6 +15,7 @@ test('setup vendors the skill, is idempotent, and works from the vendored copy',
     }
     writeFileSync(join(bundle, 'SKILL.md'), '---\nname: agentboard\ndescription: Test board skill.\n---\nbody\n');
     writeFileSync(join(bundle, 'README.md'), 'contract');
+    writeFileSync(join(bundle, 'CONTRIBUTING.md'), 'development only');
     for (const name of ['tests', 'docs', '.github']) {
       mkdirSync(join(bundle, name));
       writeFileSync(join(bundle, name, 'ignored'), 'ignored');
@@ -39,6 +40,7 @@ test('setup vendors the skill, is idempotent, and works from the vendored copy',
       expect(existsSync(join(vendor, path))).toBe(true);
     }
     for (const name of ['tests', 'docs', '.github']) expect(existsSync(join(vendor, name))).toBe(false);
+    expect(existsSync(join(vendor, 'CONTRIBUTING.md'))).toBe(false);
     const pointer = '.claude/skills/agentboard/SKILL.md';
     expect(readFileSync(join(repo, pointer), 'utf8')).toContain('description: Test board skill.');
     const vendoredCli = join(vendor, 'scripts', 'agentboard.ts');
