@@ -10,6 +10,7 @@ const FILE_ATTRIBUTE_NORMAL = 0x80;
 const INVALID_HANDLE = -1n;
 const LOCK_EX = 2;
 const LOCK_UN = 8;
+const LOCK_NB = 4;
 const RETRY_MS = 50;
 
 type Release = () => void;
@@ -19,7 +20,7 @@ type Release = () => void;
  * On failure everything opened here is closed again; `fd` stays owned by the caller.
  * On success the returned release function unlocks and closes the handle and `fd`.
  */
-function windowsLock(path: string, fd: number): Release {
+function windowsLock(path: string, fd: number, nonblocking = false): Release | null {
   const dll = dlopen('kernel32.dll', {
     CreateFileW: {
       args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr],
@@ -38,6 +39,7 @@ function windowsLock(path: string, fd: number): Release {
 
   try {
     while (!dll.symbols.LockFile(handle, 0, 0, 1, 0)) {
+      if (nonblocking) { dll.symbols.CloseHandle(handle); dll.close(); return null; }
       Bun.sleepSync(RETRY_MS);
     }
   } catch (error) {
@@ -61,13 +63,14 @@ function windowsLock(path: string, fd: number): Release {
  * Takes an exclusive flock on `fd`, blocking until it is free.
  * `fd` stays owned by the caller on failure; the returned release function unlocks and closes it.
  */
-function posixLock(fd: number): Release {
+function posixLock(fd: number, nonblocking = false): Release | null {
   const libraries = process.platform === 'darwin' ? ['/usr/lib/libSystem.B.dylib', 'libc.dylib'] : ['libc.so.6'];
   let lastError: unknown;
   for (const name of libraries) {
     try {
       const api = dlopen(name, { flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 } });
-      while (api.symbols.flock(fd, LOCK_EX) !== 0) {
+      while (api.symbols.flock(fd, LOCK_EX | (nonblocking ? LOCK_NB : 0)) !== 0) {
+        if (nonblocking) { api.close(); return null; }
         Bun.sleepSync(RETRY_MS);
       }
       return () => {
@@ -90,13 +93,14 @@ function lockError(root: string, error: unknown): BoardError {
   return new BoardError(`Cannot lock ${root}: ${error instanceof Error ? error.message : String(error)}`);
 }
 
-function acquire(root: string): Release {
+function acquire(root: string, nonblocking = false): Release | null {
   let fd: number | undefined;
   try {
     mkdirSync(root, { recursive: true });
     const path = join(root, '.agentboard.lock');
     fd = openSync(path, 'a+');
-    const release = process.platform === 'win32' ? windowsLock(path, fd) : posixLock(fd);
+    const release = process.platform === 'win32' ? windowsLock(path, fd, nonblocking) : posixLock(fd, nonblocking);
+    if (!release) { closeSync(fd); fd = undefined; return null; }
     fd = undefined; // now owned by release
     return release;
   } catch (error) {
@@ -132,6 +136,7 @@ export function withLock<T>(root: string, fn: () => T): T {
   const key = resolve(root);
   if (held.has(key)) return fn();
   const release = acquire(root);
+  if (!release) throw lockError(root, new Error('Lock unavailable'));
   held.add(key);
   let result: T;
   try {
@@ -152,4 +157,15 @@ export function withLock<T>(root: string, fn: () => T): T {
     throw lockError(root, error);
   }
   return result;
+}
+
+/** Try once; a busy or unavailable lock never blocks the caller. */
+export function tryWithLock<T>(root: string, fn: () => T): T | null {
+  const key = resolve(root);
+  if (held.has(key)) return fn();
+  const release = acquire(root, true);
+  if (!release) return null;
+  held.add(key);
+  try { return fn(); }
+  finally { held.delete(key); release(); }
 }

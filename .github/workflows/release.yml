@@ -13,23 +13,23 @@ permissions:
 
 jobs:
   test:
-    uses: ./.github/workflows/ci.yml
+    uses: $/.github/workflows/ci.yml
 
-  release:
+  build:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.4.0'
-      - name: Create release
+      - name: Build and smoke-test release
         env:
-          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.version }}
         shell: bash
         run: |
@@ -64,4 +64,26 @@ jobs:
           bun smoke/scripts/agentboard.ts setup smoke-project
           bun smoke-project/.agents/skills/agentboard/scripts/agentboard.ts --root smoke-project list
           if bun smoke-project/.agents/skills/agentboard/scripts/agentboard.ts update; then exit 1; fi
-          gh release create "$RELEASE_TAG" agentboard.tar.gz agentboard-no-update.tar.gz --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-archives
+          path: |
+            agentboard.tar.gz
+            agentboard-no-update.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-archives
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.version }}
+        run: gh release create "$RELEASE_TAG" agentboard.tar.gz agentboard-no-update.tar.gz --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes
