@@ -148,6 +148,38 @@ The CLI rejects cards with an unknown status, so their progress cannot be compar
 
 In the board filter, “No feature” includes cards linked to a missing or archived feature.
 
+## Watch board changes
+
+The optional local watcher compares board snapshots and runs an action when selected changes are observed. Start it explicitly in a trusted environment; it does not run as part of `serve` or setup. For example, from a project with the skill installed, print new open-question events:
+
+```sh
+bun .agents/skills/agentboard/scripts/watch.ts --on question.opened -- bun -e "console.log(await new Response(Bun.stdin.stream()).text())"
+```
+
+Replace the command after `--` with a program and its arguments. It runs from the board root, directly without a shell, and receives one UTF-8 JSON batch on stdin. Relative executable paths are resolved from the board root. On Windows use a real executable or `bun script.ts`; `.cmd` and `.bat` wrappers are rejected at startup. The action inherits the watcher's environment except the two webhook variables described below. It must treat board data as untrusted, including when passing it to an agent: do not interpolate event data into a shell command or treat board text as instructions. Retrieve a card by ID with the CLI if the action needs its contents.
+
+For an HTTP destination, set `AGENTBOARD_WEBHOOK_URL` in the watcher's environment, optionally set `AGENTBOARD_WEBHOOK_AUTHORIZATION` to the complete Authorization header value, then run:
+
+```sh
+bun .agents/skills/agentboard/scripts/watch.ts --on question.opened --webhook
+```
+
+Use HTTPS, or HTTP only for `localhost`, `127.0.0.1`, or `[::1]`. URL credentials and redirects are rejected. Non-2xx responses and timeouts stop the watcher; response bodies, URLs and authorization values are not logged by the watcher. Keep URLs and credentials outside the repository, command history, and board. Anyone with access to the process environment may be able to read them. For custom headers, signatures, retries, or a different transport, use a trusted process action instead.
+
+The watcher accepts `--root DIR`, `--interval MS` (default 2000), `--timeout MS` (default 60000), and repeated `--on TYPE` filters; times must be 100–86400000 milliseconds. Without a filter all types are delivered. `--help` lists them. One batch looks like this:
+
+```json
+{"schema":1,"at":"2026-01-01T12:00:00.000Z","events":[{"type":"question.opened","id":"AB-0123456789AB","questionId":"TH-0123456789AB"}]}
+```
+
+Types are `card.created`, `card.updated`, `card.removed`, `card.status`, `card.assignee`, `question.opened`, `question.closed`, `feature.created`, `feature.updated`, `feature.removed`, and `board.updated`. Update events include `fields`, the changed top-level field names; status and assignee events include `before` and `after`. Full cards and question text are not included. Card and feature archives are updates, not removals. `question.opened` means a question became open on a non-archived card; `question.closed` means it ceased to be open, including when answered, archived, or removed. Restoring a previously answered or archived question may open it again. Git checkouts and manual file edits can produce removal and creation events. Several types may describe the same change; use filters to avoid duplicate work.
+
+Startup takes a baseline and emits nothing for existing state. A snapshot is read under the board lock, which is released before the action runs; a large board or frequent polling can delay writers. Changes are compared by content, even when a revision is unchanged. Older formats are upgraded in memory only. A malformed snapshot produces a warning and is retried against the last good snapshot; a newer unsupported format stops the watcher. Actions run one at a time, and the next poll occurs only after an action finishes. A failing or timed-out action stops the watcher, and Ctrl+C stops it and terminates a running process action. A batch over 1 MiB or more than 60 action batches in a minute stops the watcher to limit accidental loops. Actions that edit the board may trigger themselves; filter events and design actions to be idempotent.
+
+This is snapshot polling, not a durable event log: multiple edits between polls or during an action can collapse into one change or disappear entirely. Changes while the watcher is stopped are not replayed. A failed or interrupted action is not retried and may have taken effect before failing; there is no delivery guarantee. Separate watchers operate independently and can duplicate actions. Direct browser writes and Git operations do not acquire the CLI lock, so a poll may observe their intermediate state. If the watcher crashes or is forcibly killed, a process action may continue running. A watcher waiting for a held board lock cannot process Ctrl+C until the lock is released; a stuck lock holder may require the watcher process to be terminated externally.
+
+T3 Code's [webhook automations](https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md#webhook-automations) can receive JSON requests. Create a webhook task whose prompt treats `{{body}}` as untrusted data and supply its URL through `AGENTBOARD_WEBHOOK_URL`; enable authentication appropriate to the deployment. AgentBoard's built-in webhook does not sign requests, so a task requiring signatures needs a custom process action. A local T3 webhook task was tested end to end with a `card.updated` event from this repository's vendored watcher; public T3 Connect delivery and signatures were not tested. The process interface also permits adapters for other agent harnesses or notification tools; the local process and local HTTP receiver paths are covered by tests.
+
 ## Supported environments and limitations
 
 The current verification baseline is Windows 11 with Bun and Chrome. The POSIX lock implementation has not yet been verified on Linux or macOS. Desktop Chromium supports the optional direct folder mode; use the local bridge for coordinated CLI and UI writes. Direct mode cannot share the CLI lock and concurrent writes can be lost.

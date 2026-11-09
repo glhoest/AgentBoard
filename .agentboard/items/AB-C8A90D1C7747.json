@@ -1,0 +1,27 @@
+{
+  "version": "1.1.0",
+  "id": "AB-C8A90D1C7747",
+  "revision": 1,
+  "title": "Harden watcher lock interruption and EPIPE regression coverage",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "The watcher cannot process Ctrl+C while blocked in the synchronous board lock. The existing child-ignores-stdin test does not reliably force EPIPE; add a large-input regression test. Found in the second Opus review.",
+  "acceptanceCriteria": [
+    {
+      "text": "Make lock waits interruptible or provide an effective forced shutdown, and verify it.",
+      "done": false
+    },
+    {
+      "text": "Test an action that exits without reading enough stdin to force EPIPE.",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-09T13:37:04.616Z",
+  "updatedAt": "2026-11-09T13:37:04.616Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

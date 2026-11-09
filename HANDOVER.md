@@ -2,6 +2,10 @@
 
 Written 2026-10-31 at the end of the session that built this tool, for the first thread in this repository. Read `AGENTS.md` (rules) and `README.md` (file contract, concurrency, bridge API) alongside it.
 
+## Watcher update
+
+The optional `scripts/watch.ts` polls validated snapshots and dispatches filtered board changes to a process or webhook. See README “Watch board changes” for the event schema, safety and delivery limits. It uses an in-memory baseline, does not modify board files, and cannot recover intermediate changes. A local process action and a local T3 webhook task were dogfooded against this repository's card AB-D3EB216B8BCF; automated tests use a local webhook receiver. Public T3 Connect delivery and request signing remain untested.
+
 ## 1. What this is
 
 AgentBoard is a repository-backed Kanban for humans and AI agents, packaged as an agent skill:
