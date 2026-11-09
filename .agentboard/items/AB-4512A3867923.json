@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
   "id": "AB-4512A3867923",
-  "revision": 5,
+  "revision": 6,
   "title": "Fix update notice test failure on GitHub CI",
   "status": "in-progress",
   "priority": "medium",
@@ -18,9 +18,9 @@
       "done": false
     }
   ],
-  "notes": "CI diagnostic showed Windows short and long paths resolve to different cache keys. Canonicalized paths and added a junction regression. Local bun test: 192 pass, 0 fail; hosted CI pending.",
+  "notes": "Hosted CI uses a Windows 8.3 short path while Bun resolves the CLI to its long path. Bun realpathSync retains short names; realpathSync.native expands them. A real GetShortPathNameW regression failed before the fix and passes after. Full bun test: 193 pass, 0 fail. Hosted CI pending.",
   "createdAt": "2026-11-09T00:54:58.595Z",
-  "updatedAt": "2026-11-09T01:13:21.688Z",
+  "updatedAt": "2026-11-09T01:18:12.827Z",
   "archived": false,
   "feature": null,
   "thread": []

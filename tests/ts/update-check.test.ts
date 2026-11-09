@@ -91,3 +91,20 @@ test('alternate filesystem paths to an installation share a cache key', () => {
   symlinkSync(skill, alias, process.platform === 'win32' ? 'junction' : 'dir');
   expect(updateCachePath(alias)).toBe(updateCachePath(skill));
 });
+test.skipIf(process.platform !== 'win32')('Windows short and long paths share a cache key', async () => {
+  const { dlopen, FFIType, ptr } = await import('bun:ffi');
+  const { skill } = fixture('v1.0.0');
+  const api = dlopen('kernel32.dll', {
+    GetShortPathNameW: { args: [FFIType.ptr, FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+  });
+  try {
+    const input = Buffer.from(skill + '\0', 'utf16le');
+    const output = Buffer.alloc(65536);
+    const length = api.symbols.GetShortPathNameW(ptr(input), ptr(output), output.length / 2);
+    expect(length).toBeGreaterThan(0);
+    const short = output.toString('utf16le', 0, length * 2);
+    expect(updateCachePath(short)).toBe(updateCachePath(skill));
+  } finally {
+    api.close();
+  }
+});

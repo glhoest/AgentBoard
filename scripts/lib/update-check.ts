@@ -29,7 +29,7 @@ function newer(latest: string, installed: string): boolean {
 
 export function updateCachePath(skill: string): string {
   let path = resolve(skill);
-  try { path = realpathSync(path); } catch { /* Fall back if the installation is unavailable. */ }
+  try { path = realpathSync.native(path); } catch { /* Fall back if the installation is unavailable. */ }
   const key = createHash('sha256').update(process.platform === 'win32' ? path.toLowerCase() : path).digest('hex');
   return join(tmpdir(), `agentboard-update-check-${key}.json`);
 }
