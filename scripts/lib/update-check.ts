@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -28,7 +28,9 @@ function newer(latest: string, installed: string): boolean {
 }
 
 export function updateCachePath(skill: string): string {
-  const key = createHash('sha256').update(resolve(skill)).digest('hex');
+  let path = resolve(skill);
+  try { path = realpathSync.native(path); } catch { /* Fall back if the installation is unavailable. */ }
+  const key = createHash('sha256').update(process.platform === 'win32' ? path.toLowerCase() : path).digest('hex');
   return join(tmpdir(), `agentboard-update-check-${key}.json`);
 }
 

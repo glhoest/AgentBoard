@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   workflow_dispatch:
   workflow_call:
 
@@ -10,6 +11,21 @@ permissions:
   contents: read
 
 jobs:
+  conventional-title:
+    name: Conventional PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        shell: bash
+        run: |
+          if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9._/-]+\))?!?:[[:space:]][^[:space:]].*$ ]]; then
+            echo 'Use a conventional title, for example: fix: handle missing board' >&2
+            exit 1
+          fi
+
   test:
     name: CLI and library tests
     runs-on: windows-latest

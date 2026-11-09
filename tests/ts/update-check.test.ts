@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { updateCachePath, updateNotice } from '../../scripts/lib/update-check';
 
 const roots: string[] = [];
@@ -69,7 +69,8 @@ test('installed CLI keeps JSON output intact and quiet suppresses update notices
   expect(setup.exitCode).toBe(0);
   const skill = join(root, '.agents', 'skills', 'agentboard');
   const cli = join(skill, 'scripts', 'agentboard.ts');
-  const cache = updateCachePath(skill);
+  // Windows paths are case-insensitive, including when Bun reports different casing.
+  const cache = updateCachePath(process.platform === 'win32' ? skill.toUpperCase() : skill);
   try {
     writeFileSync(join(skill, '.agentboard-release.json'), JSON.stringify({ version: 'v1.0.0' }));
     writeFileSync(cache, JSON.stringify({ checkedAt: Date.now(), latest: 'v2.0.0' }));
@@ -82,5 +83,28 @@ test('installed CLI keeps JSON output intact and quiet suppresses update notices
     expect(quiet.stderr.toString()).toBe('');
   } finally {
     rmSync(cache, { force: true });
+  }
+});
+test('alternate filesystem paths to an installation share a cache key', () => {
+  const { skill } = fixture('v1.0.0');
+  const alias = join(dirname(skill), 'alias');
+  symlinkSync(skill, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  expect(updateCachePath(alias)).toBe(updateCachePath(skill));
+});
+test.skipIf(process.platform !== 'win32')('Windows short and long paths share a cache key', async () => {
+  const { dlopen, FFIType, ptr } = await import('bun:ffi');
+  const { skill } = fixture('v1.0.0');
+  const api = dlopen('kernel32.dll', {
+    GetShortPathNameW: { args: [FFIType.ptr, FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+  });
+  try {
+    const input = Buffer.from(skill + '\0', 'utf16le');
+    const output = Buffer.alloc(65536);
+    const length = api.symbols.GetShortPathNameW(ptr(input), ptr(output), output.length / 2);
+    expect(length).toBeGreaterThan(0);
+    const short = output.toString('utf16le', 0, length * 2);
+    expect(updateCachePath(short)).toBe(updateCachePath(skill));
+  } finally {
+    api.close();
   }
 });

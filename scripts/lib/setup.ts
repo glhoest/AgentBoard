@@ -5,7 +5,7 @@ import { config, init } from './store';
 
 // Development material of the skill repository itself; never vendored into target repositories.
 // '.agents' and '.claude' hold the repository's own dogfood install and agent settings (vendoring '.agents' would nest copies).
-const skipped = new Set(['tests', 'docs', '.github', '.git', 'node_modules', '.gitignore', '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'HANDOVER.md',
+const skipped = new Set(['tests', 'docs', '.github', '.git', 'node_modules', '.gitignore', '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'HANDOVER.md', 'CONTRIBUTING.md',
   '.agentboard', '.agentboard.lock', '.agents', '.claude']);
 const begin = '<!-- agentboard:begin -->';
 const end = '<!-- agentboard:end -->';

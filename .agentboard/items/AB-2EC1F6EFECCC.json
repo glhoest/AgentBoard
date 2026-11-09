@@ -1,0 +1,31 @@
+{
+  "version": "1.1.0",
+  "id": "AB-2EC1F6EFECCC",
+  "revision": 4,
+  "title": "Add contributor guide and conventional commit policy",
+  "status": "in-progress",
+  "priority": "medium",
+  "assignee": "codex",
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [
+    {
+      "text": "Contributor guidance describes PRs, tests and squash merges.",
+      "done": false
+    },
+    {
+      "text": "GitHub checks enforce conventional PR titles.",
+      "done": false
+    },
+    {
+      "text": "Development guidance is not vendored into projects.",
+      "done": false
+    }
+  ],
+  "notes": "Added contributor guide and conventional PR-title check. Squash-only and required checks configured on GitHub. Local bun test: 192 pass, 0 fail; hosted CI pending.",
+  "createdAt": "2026-11-09T01:00:55.727Z",
+  "updatedAt": "2026-11-09T01:13:21.772Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}
