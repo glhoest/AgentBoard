@@ -1,14 +1,16 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { withLock } from './lock';
+import { tryWithLock } from './lock';
 
 const latestReleaseUrl = 'https://api.github.com/repos/glhoest/AgentBoard/releases/latest';
 const day = 24 * 60 * 60 * 1000;
 const stableVersion = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-type CheckCache = { checkedAt: number; latest: string | null };
+type CheckCache = { checkedAt: number; latest: string | null; publishedAt?: number | null };
+
+export const updateLockRoot = join(homedir(), '.cache', 'agentboard', 'update-check');
 
 function versionParts(version: unknown): number[] | null {
   if (typeof version !== 'string') return null;
@@ -35,7 +37,7 @@ export function updateCachePath(skill: string): string {
 }
 
 /** A failed or offline check never stops a board command. */
-export async function updateNotice(skill: string, cachePath = updateCachePath(skill), fetcher: typeof fetch = fetch, now = Date.now()): Promise<string | null> {
+export async function updateNotice(skill: string, cachePath = updateCachePath(skill), fetcher: typeof fetch = fetch, now = Date.now(), lockRoot = updateLockRoot): Promise<string | null> {
   let installed: string | null = null;
   try {
     const marker = JSON.parse(readFileSync(join(skill, '.agentboard-release.json'), 'utf8'));
@@ -45,8 +47,9 @@ export async function updateNotice(skill: string, cachePath = updateCachePath(sk
   let cache: CheckCache | null = null;
   let shouldCheck = false;
   try {
+    mkdirSync(lockRoot, { recursive: true, mode: 0o700 });
     // Reserve the check before networking, so concurrent processes and failures share the limit.
-    withLock(tmpdir(), () => {
+    tryWithLock(lockRoot, () => {
       try {
         if (existsSync(cachePath)) {
           const value = JSON.parse(readFileSync(cachePath, 'utf8'));
@@ -64,22 +67,29 @@ export async function updateNotice(skill: string, cachePath = updateCachePath(sk
 
   if (shouldCheck) {
     let latest: string | null = null;
+    let publishedAt: number | null = null;
     try {
       const response = await fetcher(latestReleaseUrl, {
         headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AgentBoard' },
         signal: AbortSignal.timeout(2000),
       });
       if (response.ok) {
-        const release = await response.json() as { tag_name?: unknown; assets?: { name?: unknown }[] };
+        const release = await response.json() as { tag_name?: unknown; published_at?: unknown; assets?: { name?: unknown }[] };
         if (versionParts(release.tag_name) && Array.isArray(release.assets) &&
-            release.assets.some(asset => asset.name === 'agentboard.tar.gz')) latest = release.tag_name as string;
+            release.assets.some(asset => asset.name === 'agentboard.tar.gz')) {
+          latest = release.tag_name as string;
+          const time = typeof release.published_at === 'string' ? Date.parse(release.published_at) : NaN;
+          if (Number.isFinite(time) && time <= now) publishedAt = time;
+        }
       }
     } catch { /* Network failures are non-fatal. */ }
-    cache = { checkedAt: now, latest };
-    try { withLock(tmpdir(), () => writeFileSync(cachePath, JSON.stringify(cache))); } catch { /* The reservation remains valid. */ }
+    cache = { checkedAt: now, latest, publishedAt };
+    try { tryWithLock(lockRoot, () => writeFileSync(cachePath, JSON.stringify(cache))); } catch { /* The reservation remains valid. */ }
   }
-  if (!cache.latest) return null;
+  if (!cache?.latest) return null;
   if (installed === null) return `Latest AgentBoard release: ${cache.latest} (installed version unknown); use setup from a known source to update.`;
   if (!newer(cache.latest, installed)) return null;
-  return `AgentBoard ${cache.latest} is published (installed ${installed}). Updates normally require seven days of release age; run bun .agents/skills/agentboard/scripts/agentboard.ts update --force to allow newer releases.`;
+  const ageNotice = typeof cache.publishedAt === 'number' && cache.publishedAt <= now && now - cache.publishedAt < 7 * day
+    ? ' This release is less than seven days old; the default update waits until it reaches seven days.' : '';
+  return `AgentBoard ${cache.latest} is published (installed ${installed}).${ageNotice} Run bun .agents/skills/agentboard/scripts/agentboard.ts update to update.`;
 }

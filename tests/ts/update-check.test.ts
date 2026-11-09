@@ -16,11 +16,11 @@ function fixture(version?: string) {
   return { skill, cache: join(root, 'cache.json') };
 }
 
-function latest(version: string, includeAsset = true) {
+function latest(version: string, includeAsset = true, publishedAt = new Date(0).toISOString()) {
   let calls = 0;
   const fetcher = (async () => {
     calls++;
-    return Response.json({ tag_name: version, assets: includeAsset ? [{ name: 'agentboard.tar.gz' }] : [] });
+    return Response.json({ tag_name: version, published_at: publishedAt, assets: includeAsset ? [{ name: 'agentboard.tar.gz' }] : [] });
   }) as typeof fetch;
   return { fetcher, calls: () => calls };
 }
@@ -30,7 +30,7 @@ test('a newer published artifact produces a notice, cached for one day', async (
   const mock = latest('v1.3.0');
   expect(await updateNotice(skill, cache, mock.fetcher, 1000)).toContain('v1.3.0');
   expect(await updateNotice(skill, cache, mock.fetcher, 2000)).toContain('seven days');
-  expect(await updateNotice(skill, cache, mock.fetcher, 2000)).toContain('update --force');
+  expect(await updateNotice(skill, cache, mock.fetcher, 2000)).not.toContain('--force');
   expect(mock.calls()).toBe(1);
   expect(await updateNotice(skill, cache, mock.fetcher, 1000 + 86400000)).toContain('v1.3.0');
   expect(mock.calls()).toBe(2);
@@ -109,5 +109,41 @@ test.skipIf(process.platform !== 'win32')('Windows short and long paths share a 
     expect(updateCachePath(short)).toBe(updateCachePath(skill));
   } finally {
     api.close();
+  }
+});
+
+
+test('age notice appears only before seven-day boundary', async () => {
+  const now = 10 * 86400000;
+  for (const [age, mentionsAge] of [[7 * 86400000 - 1, true], [7 * 86400000, false], [8 * 86400000, false]] as const) {
+    const { skill, cache } = fixture('v1.0.0');
+    const result = await updateNotice(skill, cache, latest('v2.0.0', true, new Date(now - age).toISOString()).fetcher, now);
+    expect(result).toContain('agentboard.ts update');
+    expect(result?.includes('seven days')).toBe(mentionsAge);
+    expect(result).not.toContain('--force');
+  }
+});
+
+
+test('a busy check lock skips the network without delaying a board command', async () => {
+  const { skill, cache } = fixture('v1.0.0');
+  const lockRoot = join(dirname(skill), 'lock');
+  const holder = Bun.spawn([process.execPath, 'tests/ts/lock-fixtures/hold.ts', lockRoot], { stdout: 'pipe', stderr: 'pipe' });
+  try {
+    const reader = holder.stdout.getReader();
+    let seen = '';
+    while (!seen.includes('locked')) {
+      const part = await reader.read();
+      if (part.done) throw new Error('holder exited early');
+      seen += new TextDecoder().decode(part.value);
+    }
+    const mock = latest('v2.0.0');
+    const start = Date.now();
+    expect(await updateNotice(skill, cache, mock.fetcher, Date.now(), lockRoot)).toBeNull();
+    expect(Date.now() - start).toBeLessThan(2000);
+    expect(mock.calls()).toBe(0);
+  } finally {
+    holder.kill();
+    await holder.exited;
   }
 });
