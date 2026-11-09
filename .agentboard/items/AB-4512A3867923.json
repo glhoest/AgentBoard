@@ -1,0 +1,27 @@
+{
+  "version": "1.1.0",
+  "id": "AB-4512A3867923",
+  "revision": 4,
+  "title": "Fix update notice test failure on GitHub CI",
+  "status": "in-progress",
+  "priority": "medium",
+  "assignee": "codex",
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [
+    {
+      "text": "Installed CLI detects cached notices regardless of Windows path casing.",
+      "done": false
+    },
+    {
+      "text": "The full test suite passes.",
+      "done": false
+    }
+  ],
+  "notes": "Reproduced the missing notice by varying Windows path casing. Normalized cache keys; targeted regression and full bun test pass (191 pass, 0 fail). GitHub CI verification pending.",
+  "createdAt": "2026-11-09T00:54:58.595Z",
+  "updatedAt": "2026-11-09T00:57:42.230Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

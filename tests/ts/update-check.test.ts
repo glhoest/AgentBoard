@@ -69,7 +69,8 @@ test('installed CLI keeps JSON output intact and quiet suppresses update notices
   expect(setup.exitCode).toBe(0);
   const skill = join(root, '.agents', 'skills', 'agentboard');
   const cli = join(skill, 'scripts', 'agentboard.ts');
-  const cache = updateCachePath(skill);
+  // Windows paths are case-insensitive, including when Bun reports different casing.
+  const cache = updateCachePath(process.platform === 'win32' ? skill.toUpperCase() : skill);
   try {
     writeFileSync(join(skill, '.agentboard-release.json'), JSON.stringify({ version: 'v1.0.0' }));
     writeFileSync(cache, JSON.stringify({ checkedAt: Date.now(), latest: 'v2.0.0' }));

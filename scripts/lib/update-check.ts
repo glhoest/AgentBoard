@@ -28,7 +28,8 @@ function newer(latest: string, installed: string): boolean {
 }
 
 export function updateCachePath(skill: string): string {
-  const key = createHash('sha256').update(resolve(skill)).digest('hex');
+  const path = resolve(skill);
+  const key = createHash('sha256').update(process.platform === 'win32' ? path.toLowerCase() : path).digest('hex');
   return join(tmpdir(), `agentboard-update-check-${key}.json`);
 }
 
