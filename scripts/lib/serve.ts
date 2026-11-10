@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { BoardError, Conflict } from './types';
+import { BoardError, Conflict, FeatureSyncError } from './types';
 import { encode, snapshot, hashItem, hashFeature, createFeature, updateFeature, create, update, addEntry, editEntry } from './store';
 import { withLock } from './lock';
 
@@ -116,6 +116,7 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
 
 function errorResponse(error: unknown): Response {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof FeatureSyncError) return response(500, { error: message, code: 'feature_sync_failed', itemId: error.itemId, featureIds: error.featureIds });
   if (error instanceof Conflict) return response(409, { error: message, code: 'conflict' });
   if (error instanceof BoardError || error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError) {
     return response(400, { error: message, code: 'invalid' });

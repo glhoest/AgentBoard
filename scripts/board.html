@@ -334,13 +334,13 @@ let writeGen = 0;          // bumped when a mutating request starts and ends; po
 
 /* ---------- small utilities ---------- */
 function announce(msg) { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 40); }
-function toast(message, {kind = 'info'} = {}) {
+function toast(message, {kind = 'info', persistent = false} = {}) {
   const box = $('#toasts');
   const t = h('div', {class: 'toast ' + kind, role: kind === 'error' ? 'alert' : 'status'},
     h('span', {class: 'toast-msg', text: message}),
     h('button', {type: 'button', class: 'toast-x', 'aria-label': 'Dismiss message', onclick: () => t.remove()}, '×'));
   box.append(t);
-  setTimeout(() => t.remove(), kind === 'error' ? 15000 : 5000);
+  if (!persistent) setTimeout(() => t.remove(), kind === 'error' ? 15000 : 5000);
   while (box.children.length > 4) box.firstChild.remove();
 }
 function fmtTime(iso) { const d = new Date(iso); return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString(); }
@@ -428,6 +428,11 @@ function bridgeBackend(token) {
     if (!res.ok) {
       const msg = isObj(data) && typeof data.error === 'string' ? data.error : `HTTP ${res.status}`;
       const kind = res.status === 409 ? 'conflict' : res.status === 403 ? 'forbidden' : res.status === 400 ? 'invalid' : res.status >= 500 ? 'server' : 'http';
+      if (isObj(data) && data.code === 'feature_sync_failed' && typeof data.itemId === 'string' && ID_RE.test(data.itemId)) {
+        const error = new ApiError('feature_sync_failed', msg, res.status);
+        error.itemId = data.itemId;
+        throw error;
+      }
       throw new ApiError(kind, msg, res.status);
     }
     if (data === null) throw new ApiError('data', 'The bridge returned a response that is not JSON.');
@@ -578,7 +583,70 @@ async function directBackend(picked) {
     validateFeature(feature, await readConfig());
     if (feature.archived) throw new ApiError('invalid', 'Feature is archived');
   }
-  return {
+  async function planFeatures(config, before, after) {
+    const ids = [...new Set([before?.feature, after.feature].filter(Boolean))];
+    if (!ids.length) return [];
+    const dir = await featureDir(), features = [];
+    for (const id of ids) {
+      if (!dir) continue;
+      try {
+        const feature = parse(await bytesOf(dir, id + '.json'), id);
+        validateFeature(feature, config);
+        if (feature.id !== id) throw new ApiError('data', 'Invalid feature filename');
+        if (!feature.archived) features.push(feature);
+      } catch (e) {
+        if (e.name === 'NotFoundError') continue;
+        if (id !== before?.feature || id === after.feature || !(e instanceof ApiError)) throw e;
+      }
+    }
+    if (!features.length) return [];
+    const items = [];
+    for await (const [name, handle] of itemsDir.entries()) {
+      if (handle.kind !== 'file' || name.startsWith('.tmp-') || !name.endsWith('.json')) continue;
+      const id = name.slice(0, -5);
+      if (!ID_RE.test(id)) throw new ApiError('data', 'Invalid item filename');
+      if (id === after.id) continue;
+      let item = parse(await bytesOf(itemsDir, name), name);
+      if (isObj(item) && (item.version === 1 || item.version === undefined || item.version === '1.0.0')) {
+        if ('feature' in item || 'thread' in item) throw new ApiError('data', 'Invalid item structure or version');
+        const {version, ...rest} = item;
+        item = {version:'1.1.0', ...rest, feature:null, thread:[]};
+      } else if (isObj(item)) checkVersion(item.version, 'Card');
+      validateStrict(item, config);
+      if (item.id !== id) throw new ApiError('data', 'Item ID does not match filename');
+      items.push(item);
+    }
+    items.push(after);
+    const updates = [];
+    for (const feature of features) {
+      const linked = items.filter(item => item.feature === feature.id && !item.archived);
+      if (!linked.length) continue;
+      const last = config.columns.length - 1;
+      const unfinished = linked.map(item => config.columns.findIndex(c => c.id === item.status)).filter(index => index !== last);
+      const index = unfinished.length
+        ? Math.floor(Math.max(...unfinished) * (config.featureColumns.length - 1) / last)
+        : config.featureColumns.length - 1;
+      const status = config.featureColumns[index].id;
+      if (feature.status === status) continue;
+      feature.status = status;
+      feature.revision++;
+      feature.updatedAt = new Date().toISOString();
+      updates.push(feature);
+    }
+    return updates;
+  }
+  async function writeFeatureUpdates(itemId, updates) {
+    try {
+      const dir = await featureDir();
+      for (const feature of updates) await write(dir, feature.id + '.json', feature, false);
+    } catch (e) {
+      const ids = updates.map(feature => feature.id).join(', ');
+      const error = new ApiError('feature_sync_failed', `Card ${itemId} was saved, but feature status update failed for ${ids}: ${e.message || e}. Reload the board; inspect the listed features and set their statuses manually. For a non-archived card, reapplying its saved status with the CLI move command recalculates its current feature. For an archived card, status retries do not recalculate; manually correct each listed feature. Do not repeat create.`);
+      error.itemId = itemId;
+      throw error;
+    }
+  }
+  const api = {
     kind: 'direct',
     async createFeature(values) {
       try {
@@ -680,7 +748,9 @@ async function directBackend(picked) {
           if (exists) continue;
           const x = Object.assign({version: '1.1.0', id, revision: 1, title: '', status: config.columns[0].id, priority: 'medium', assignee: null, labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false, feature: null, thread: []}, values);
           validateStrict(x, config);
+          const updates = x.archived ? [] : await planFeatures(config, null, x);
           await write(itemsDir, id + '.json', x, true);
+          await writeFeatureUpdates(x.id, updates);
           return x;
         }
         throw new ApiError('conflict', 'ID collision; retry');
@@ -698,11 +768,15 @@ async function directBackend(picked) {
         if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
         const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
         validateStrict(x, config);
+        const updates = (!item.archived || !x.archived) && (item.feature !== x.feature || item.status !== x.status || item.archived !== x.archived || 'status' in changes)
+          ? await planFeatures(config, item, x) : [];
         await write(itemsDir, name, x, false);
+        await writeFeatureUpdates(x.id, updates);
         return x;
       } catch (e) { wrapPerm(e); }
     },
   };
+  return api;
 }
 
 /* ---------- polling ---------- */
@@ -875,6 +949,9 @@ function syncDraft(d) {
   if (!d.id) return false;
   const live = S.snap.items.get(d.id);
   if (!live) { if (d.conflict && d.conflict.kind === 'deleted') return false; d.conflict = {kind: 'deleted', live: null, ack: false}; return true; }
+  if (d.savedItemId && (live.hash !== d.base.hash || live.revision !== d.base.revision)) {
+    d.base = live; d.fields = fieldsFrom(live); d.conflict = null; d.refreshed = true; d.savedItemId = null; return true;
+  }
   if (live.hash === d.base.hash && live.revision === d.base.revision) { if (d.conflict) { d.conflict = null; return true; } return false; }
   if (!fieldDirty(d)) { d.base = live; d.fields = fieldsFrom(live); d.conflict = null; d.refreshed = true; return true; }
   if (!d.conflict || d.conflict.kind === 'deleted' || !d.conflict.live || d.conflict.live.hash !== live.hash) {
@@ -924,6 +1001,7 @@ async function quickPatch(id, changes, doneMsg) {
     return true;
   } catch (e) {
     if (conflictFromError(e)) { toast(`${id} changed elsewhere, so nothing was changed. The board is refreshing to the current card; review it and try again.`, {kind: 'error'}); S.needsFresh = true; pollFresh().catch(() => {}); }
+    else if (e.kind === 'feature_sync_failed') { S.needsFresh = true; pollFresh().catch(() => {}); toast(e.message, {kind: 'error', persistent: true}); }
     else toast(`Could not update ${id}: ${e.message}`, {kind: 'error'});
     return false;
   } finally { S.writing = false; renderBusy(); }
@@ -1168,7 +1246,7 @@ function renderFeatures(root) {
       feature.status === col.id && (S.showArchivedFeatures || !feature.archived));
     const body = h('ul', {class:'col-body'}, features.map(feature => {
       const linked = linkedByFeature.get(feature.id) || [];
-      const done = linked.filter(item => item.status === 'done').length;
+      const done = linked.filter(item => item.status === snap.config.columns.at(-1).id).length;
       const select = h('select', {
         class:'move', 'data-fk':'feature-move-' + feature.id,
         'aria-label':'Move ' + feature.title, disabled:S.writing,
@@ -1390,6 +1468,7 @@ function openEditor(key, opts = {}) {
     else { const live = S.snap.items.get(key); if (!live) return toast('That card no longer exists.', {kind: 'error'}); d = draftFor(live); }
     S.drafts.set(key, d);
   } else syncDraft(d);
+  d.keepThreadDraft = false;
   S.editing = key;
   if (opts.returnFocus !== undefined) S.returnFocus = opts.returnFocus;
   else if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.fk) S.returnFocus = document.activeElement.dataset.fk;
@@ -1397,6 +1476,7 @@ function openEditor(key, opts = {}) {
   d.refreshed = false;
   buildEditor(d);
   if (!editor().open) editor().showModal();
+  updateEditorControls();
   renderDrafts(); renderBoard();
   const first = $('#ed-title'); if (first) { first.focus(); }
 }
@@ -1606,12 +1686,12 @@ function updateEditorControls() {
   const save = $('#ed-save'), note = $('#ed-note'), cancel = $('#ed-cancel'), copy = $('#ed-copy');
   if (!save) return;
   const dirty = isDirty(d);
-  const blocked = !!d.conflict;
+  const blocked = !!d.conflict || !!d.savedItemId;
   save.disabled = S.writing || blocked || (!!d.id && !fieldDirty(d));
   save.textContent = S.writing ? 'Saving…' : d.id ? 'Save changes' : 'Create card';
   copy.hidden = !dirty;
   cancel.textContent = dirty ? 'Discard draft' : 'Cancel';
-  note.textContent = blocked ? 'Saving is disabled while this card is in conflict.' : S.conn.state === 'error' ? 'Offline: saving resumes when the connection returns. Your draft is kept.' : dirty ? 'Unsaved changes. “×” keeps the draft; “Discard draft” deletes it.' : d.id ? 'No changes yet.' : '';
+  note.textContent = d.savedItemId ? 'The card was saved; waiting to reload it before further edits.' : blocked ? 'Saving is disabled while this card is in conflict.' : S.conn.state === 'error' ? 'Offline: saving resumes when the connection returns. Your draft is kept.' : dirty ? 'Unsaved changes. “×” keeps the draft; “Discard draft” deletes it.' : d.id ? 'No changes yet.' : '';
 }
 function renderEditorAlerts(d) {
   const box = $('#ed-alerts'); if (!box) return; clear(box);
@@ -1693,7 +1773,7 @@ function commitPending(d) {
   buildEditor(d);
 }
 async function saveDraft(d) {
-  if (S.writing || d.conflict) return;
+  if (S.writing || d.conflict || d.savedItemId) return;
   if (d.pendingLabel.trim() || d.pendingCriterion.trim()) commitPending(d);
   const errs = validateDraft(d);
   if (hasErrors(errs)) { showFieldErrors(errs); return; }
@@ -1727,7 +1807,15 @@ async function saveDraft(d) {
     const msg = createdId ? `Created ${createdId}.` : `Saved ${d.id}.`;
     toast(msg, {kind: 'ok'}); announce(msg);
   } catch (e) {
-    if (conflictFromError(e) && d.id) {
+    if (e.kind === 'feature_sync_failed' && e.itemId) {
+      if (d.id && (d.threadBody || d.threadAuthor || Object.keys(d.threadInputs || {}).length)) { d.savedItemId = e.itemId; d.keepThreadDraft = true; }
+      else S.drafts.delete(key);
+      if (S.editing === key) closeEditorUi();
+      S.needsFresh = true;
+      pollFresh().catch(() => {});
+      toast(e.message, {kind: 'error', persistent: true});
+      announce(e.message);
+    } else if (conflictFromError(e) && d.id) {
       // Warn immediately; the fresh snapshot (fetched in the background) then fills in what changed via syncDraft().
       d.conflict = {kind: 'server', live: null, ack: false}; d.saveError = '';
       S.needsFresh = true; pollFresh().catch(() => {});
@@ -1778,7 +1866,7 @@ function wire() {
   editor().addEventListener('close', () => {
     const key = S.editing; S.editing = null;
     const d = key && S.drafts.get(key);
-    if (d && !isDirty(d)) S.drafts.delete(key);
+    if (d && !d.keepThreadDraft && !isDirty(d)) S.drafts.delete(key);
     renderDrafts(); renderBoard();
     if (!focusFk(S.returnFocus)) { const n = S.returnFocus === 'new-card' ? $('#new-card') : null; (n || $('#board')).focus(); }
   });

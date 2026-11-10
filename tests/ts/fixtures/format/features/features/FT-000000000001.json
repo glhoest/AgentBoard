@@ -1,11 +1,11 @@
 {
   "version": "1.0.0",
   "id": "FT-000000000001",
-  "revision": 3,
+  "revision": 4,
   "title": "Release one",
-  "status": "active",
+  "status": "planned",
   "description": "First release",
   "createdAt": "2026-02-03T04:05:06.000Z",
-  "updatedAt": "2026-02-03T04:05:08.000Z",
+  "updatedAt": "2026-02-03T04:05:10.000Z",
   "archived": false
 }
