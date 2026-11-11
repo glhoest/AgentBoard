@@ -1507,7 +1507,7 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
   test('direct card transitions update feature and custom-column progress', async () => {
     const feature = {version:'1.0.0', id:'FT-0123456789AB', revision:1, title:'Direct status', status:'planned', description:'', createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', archived:false};
     const config = JSON.parse(fixture['board.json']);
-    config.columns = [{id:'backlog',name:'Backlog'}, {id:'working',name:'Working'}, {id:'shipped',name:'Shipped'}];
+    config.columns = [{id:'backlog',name:'Backlog'}, {id:'in-progress',name:'In progress'}, {id:'review',name:'Review'}, {id:'shipped',name:'Shipped'}];
     const p = await chrome.newPage();
     try {
       await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, 'board.json':JSON.stringify(config), ['features/' + feature.id + '.json']:JSON.stringify(feature)})});
@@ -1516,7 +1516,7 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       await p.click('#pick-folder');
       await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
       await p.click('.card-title[title="Direct seed"]');
-      await p.eval(`document.querySelector('#ed-feature').value = 'FT-0123456789AB'; document.querySelector('#ed-feature').dispatchEvent(new Event('change', {bubbles:true})); document.querySelector('#ed-status').value = 'working'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.eval(`document.querySelector('#ed-feature').value = 'FT-0123456789AB'; document.querySelector('#ed-feature').dispatchEvent(new Event('change', {bubbles:true})); document.querySelector('#ed-status').value = 'in-progress'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
       await p.click('#ed-save');
       await p.waitFor(`!document.querySelector('#editor').open`);
       await p.click('#view-features');

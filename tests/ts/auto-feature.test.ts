@@ -48,6 +48,21 @@ test('custom columns, archives, empty features, and manual overrides', () => {
   } finally { rmSync(root, {recursive:true, force:true}); }
 });
 
+test('in-progress activates a feature on a custom board', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-custom-active-'));
+  try {
+    board.init(root);
+    const path = join(root, '.agentboard', 'board.json');
+    const config = JSON.parse(readFileSync(path, 'utf8'));
+    config.columns = ['todo', 'in-progress', 'review', 'done'].map(id => ({id, name:id}));
+    writeFileSync(path, JSON.stringify(config));
+    const feature = board.createFeature(root, {title:'Feature'});
+    const item = board.create(root, {title:'Work', feature:feature.id});
+    board.update(root, item.id, null, {status:'in-progress'});
+    expect(board.getFeature(root, feature.id).status).toBe('active');
+  } finally { rmSync(root, {recursive:true, force:true}); }
+});
+
 test('preflight prevents card writes and clearing a damaged feature remains possible', () => {
   const root = mkdtempSync(join(tmpdir(), 'ab-preflight-'));
   try {
