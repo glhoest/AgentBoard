@@ -287,3 +287,23 @@ test('item routes validate feature links and allow clearing', async () => {
   expect((await patch(item.id, { ...cur, changes: { feature: feature.id } })).status).toBe(400);
   expect((await patch(item.id, { ...cur, changes: { feature: null } })).status).toBe(200);
 });
+
+test('bridge reports a saved card and supports same-status repair after feature write failure', async () => {
+  const feature = store.createFeature(dir, {title:'Bridge failure'});
+  const old = store.seams.beforeFeatureWrite;
+  try {
+    store.seams.beforeFeatureWrite = () => { throw new Error('injected bridge failure'); };
+    const response = await fetch(`${base}/api/items`, {method:'POST', headers:json(), body:JSON.stringify({title:'Saved bridge card', feature:feature.id, status:'done'})});
+    expect(response.status).toBe(500);
+    const error: any = await response.json();
+    expect(error.code).toBe('feature_sync_failed');
+    expect(error.featureIds).toEqual([feature.id]);
+    expect(error.error).toContain(error.itemId);
+    expect(store.get(dir, error.itemId).title).toBe('Saved bridge card');
+    store.seams.beforeFeatureWrite = old;
+    const snap = await board();
+    const repaired = await patch(error.itemId, {revision:1, hash:snap.hashes[error.itemId], changes:{status:'done'}});
+    expect(repaired.status).toBe(200);
+    expect(store.getFeature(dir, feature.id).status).toBe('done');
+  } finally { store.seams.beforeFeatureWrite = old; }
+});

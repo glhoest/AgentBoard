@@ -3,7 +3,7 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { withLock } from './lock';
 import {
-  BoardError, Conflict, BOARD_KEYS, ENTRY_ID_RE, ENTRY_KEYS, ENTRY_KINDS, FEATURE_ID_RE, FEATURE_KEYS, FEATURE_WRITABLE, ID_RE, ITEM_KEYS, LIMITS,
+  BoardError, Conflict, FeatureSyncError, BOARD_KEYS, ENTRY_ID_RE, ENTRY_KEYS, ENTRY_KINDS, FEATURE_ID_RE, FEATURE_KEYS, FEATURE_WRITABLE, ID_RE, ITEM_KEYS, LIMITS,
   PRIORITIES, SLUG_RE, TIMESTAMP_RE, WRITABLE,
   type Board, type Feature, type FeatureChanges, type Changes, type Column, type Entry, type EntryChanges, type Item, type NewEntry, type Snapshot,
 } from './types';
@@ -17,6 +17,7 @@ import { CURRENT, DEFAULT_FEATURE_COLUMNS, NEEDS_GRILLING, upgrade, type FileKin
 export const seams = {
   now: (): string => new Date().toISOString(),
   randomHex: (bytes: number): string => randomBytes(bytes).toString('hex').toUpperCase(),
+  beforeFeatureWrite: (_feature: Feature): void => {},
   onUpgrade: (_path: string, _from: string, _to: string): void => {},
 };
 
@@ -275,7 +276,9 @@ export function create(root: string, values: Changes): Item {
     if (x.feature !== null) checkFeatureLink(root, x.feature, c);
     const p = itemPath(root, id);
     if (existsSync(p)) throw new Conflict('ID collision; retry');
+    const updates = x.archived ? [] : planFeatures(root, c, null, x);
     atomicWrite(p, x);
+    writeFeatureUpdates(root, x.id, updates);
     return x;
   });
 }
@@ -286,18 +289,22 @@ type WriteOptions = { expectedHash?: string | null };
  * The one write path for existing items: under the lock, reads (upgrading if needed), checks the
  * expected hash and revision, applies `change`, bumps revision and updatedAt, validates, writes atomically.
  */
-function mutate(root: string, id: string, revision: number | null, opts: WriteOptions, change: (x: Item, stamp: string) => void): Item {
+function mutate(root: string, id: string, revision: number | null, opts: WriteOptions & { recalculate?: boolean }, change: (x: Item, stamp: string) => void): Item {
   return withLock(root, () => {
     const c = config(root);
     const x = get(root, id, c);
     if (opts.expectedHash != null && hashItem(root, id) !== opts.expectedHash) throw new Conflict('Item file changed since it was read');
     if (revision !== null && (!isInt(revision) || revision !== x.revision)) throw new Conflict(`Revision mismatch; current revision is ${x.revision}`);
+    const before = { ...x };
     const stamp = now();
     change(x, stamp);
     x.revision++;
     x.updatedAt = stamp;
     validate(x, c);
+    const updates = (!before.archived || !x.archived) && (before.feature !== x.feature || before.status !== x.status || before.archived !== x.archived || opts.recalculate)
+      ? planFeatures(root, c, before, x) : [];
     atomicWrite(itemPath(root, id), x);
+    writeFeatureUpdates(root, x.id, updates);
     return x;
   });
 }
@@ -306,7 +313,7 @@ export function update(root: string, id: string, revision: number | null, change
   if (!isObject(changes) || Object.keys(changes).some(k => !allowed.has(k)) || !Object.keys(changes).length) {
     throw new BoardError('Invalid or empty changes');
   }
-  return mutate(root, id, revision, opts, x => {
+  return mutate(root, id, revision, {...opts, recalculate: 'status' in changes}, x => {
     if (opts.claim && x.assignee !== null && x.assignee !== changes.assignee) throw new Conflict(`Already claimed by ${x.assignee}`);
     if ('feature' in changes && changes.feature !== null) checkFeatureLink(root, changes.feature, config(root));
     Object.assign(x, changes);
@@ -470,10 +477,69 @@ export function updateFeature(root: string, id: string, revision: number | null,
   });
 }
 
+// Preflight all reads before committing the card. Older unrelated cards are upgraded in memory only.
+function planFeatures(root: string, cfg: Board, before: Item | null, after: Item): Feature[] {
+  const ids = [...new Set([before?.feature, after.feature].filter((id): id is string => !!id))];
+  if (!ids.length) return [];
+  const features: Feature[] = [];
+  for (const id of ids) {
+    if (!existsSync(featurePath(root, id))) continue;
+    try {
+      const feature = getFeature(root, id, cfg, {persist: false});
+      if (!feature.archived) features.push(feature);
+    } catch (error) {
+      // A broken old link must not prevent removing or replacing it.
+      if (id !== before?.feature || id === after.feature || !(error instanceof BoardError)) throw error;
+    }
+  }
+  if (!features.length) return [];
+  const dir = join(root, '.agentboard', 'items');
+  const items: Item[] = [];
+  for (const name of readdirSync(dir).filter(name => name.endsWith('.json') && !name.startsWith('.tmp-'))) {
+    const id = name.slice(0, -5);
+    if (!ID_RE.test(id)) throw new BoardError(`Invalid item filename: ${name}`);
+    if (id !== after.id) items.push(get(root, id, cfg, {persist: false}));
+  }
+  items.push(after);
+  const updates: Feature[] = [];
+  for (const feature of features) {
+    const linked = items.filter(item => item.feature === feature.id && !item.archived);
+    if (!linked.length) continue;
+    const last = cfg.columns.length - 1;
+    const unfinished = linked.map(item => cfg.columns.findIndex(column => column.id === item.status)).filter(index => index !== last);
+    let index = unfinished.length
+      ? Math.floor(Math.max(...unfinished) * (cfg.featureColumns.length - 1) / last)
+      : cfg.featureColumns.length - 1;
+    const inProgress = cfg.columns.findIndex(column => column.id === 'in-progress');
+    const active = cfg.featureColumns.findIndex(column => column.id === 'active');
+    if (unfinished.length && inProgress >= 0 && active > 0 && active < cfg.featureColumns.length - 1) {
+      index = Math.max(...unfinished) >= inProgress ? Math.max(index, active) : Math.min(index, active - 1);
+    }
+    const status = cfg.featureColumns[index].id;
+    if (feature.status === status) continue;
+    feature.status = status;
+    feature.revision++;
+    feature.updatedAt = now();
+    updates.push(feature);
+  }
+  return updates;
+}
+
+function writeFeatureUpdates(root: string, itemId: string, updates: Feature[]): void {
+  try {
+    for (const feature of updates) {
+      seams.beforeFeatureWrite(feature);
+      atomicWrite(featurePath(root, feature.id), feature);
+    }
+  } catch (error) {
+    throw new FeatureSyncError(itemId, updates.map(feature => feature.id), error instanceof Error ? error.message : String(error));
+  }
+}
+
 export function featureSummary(feature: Feature, items: Item[], columns: Column[]) {
   const linked = items.filter(item => item.feature === feature.id && !item.archived);
   const counts = Object.fromEntries(columns.map(column => [column.id, 0]));
   for (const item of linked) counts[item.status]++;
   return { id: feature.id, title: feature.title, status: feature.status, archived: feature.archived,
-    progress: { done: counts.done ?? 0, total: linked.length }, counts };
+    progress: { done: counts[columns[columns.length - 1].id] ?? 0, total: linked.length }, counts };
 }

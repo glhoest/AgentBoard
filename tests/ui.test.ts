@@ -397,7 +397,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     await page.waitFor(`document.querySelector(${JSON.stringify(cardSel(feature.id))})`);
     const summary = cliJson('features').features.find((f: Json) => f.id === feature.id);
     expect(await page.eval(`document.querySelector(${JSON.stringify(cardSel(feature.id))}).textContent`)).toContain(`${summary.progress.done} of ${summary.progress.total} cards done`);
-    expect(await page.eval(`document.querySelector(${JSON.stringify(cardSel(feature.id))}).textContent`)).toContain('All cards done');
+    expect(cliJson('features').features.find((f: Json) => f.id === feature.id).status).toBe('done');
     await page.click('#view-board');
     await openCard('Feature browser card');
     await page.eval(`document.querySelector('#ed-feature').value = ''; document.querySelector('#ed-feature').dispatchEvent(new Event('change', {bubbles:true}))`);
@@ -484,7 +484,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       cliJson('move', card.id, 'done');
       await page.waitFor(`document.querySelector(${JSON.stringify(cardSel(feature.id))}).textContent.includes('1 of 1 cards done')`);
       expect(cliJson('features').features.find((f: Json) => f.id === feature.id).progress).toEqual({done:1, total:1});
-      expect(await page.eval(`document.querySelector(${JSON.stringify(cardSel(feature.id))}).textContent`)).toContain('All cards done');
+      expect(cliJson('features').features.find((f: Json) => f.id === feature.id).status).toBe('done');
       await page.click('#view-board');
       await page.resize(390, 900);
       await shot('11-board-feature-chip-390');
@@ -1498,9 +1498,146 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       const feature = JSON.parse(String(result.stdout));
       expect(feature.title).toBe('Direct edited');
       expect(feature.description).toBe('Edited description');
-      expect(feature.status).toBe('active');
+      expect(feature.status).toBe('planned');
       expect(feature.archived).toBe(false);
       expect(Bun.spawnSync([...CLI!, '--root', check, 'list', '--all']).exitCode).toBe(0);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct card transitions update feature and custom-column progress', async () => {
+    const feature = {version:'1.0.0', id:'FT-0123456789AB', revision:1, title:'Direct status', status:'planned', description:'', createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', archived:false};
+    const config = JSON.parse(fixture['board.json']);
+    config.columns = [{id:'backlog',name:'Backlog'}, {id:'todo',name:'Todo'}, {id:'ready',name:'Ready'}, {id:'in-progress',name:'In progress'}, {id:'shipped',name:'Shipped'}];
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, 'board.json':JSON.stringify(config), ['features/' + feature.id + '.json']:JSON.stringify(feature)})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-feature').value = 'FT-0123456789AB'; document.querySelector('#ed-feature').dispatchEvent(new Event('change', {bubbles:true})); document.querySelector('#ed-status').value = 'ready'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      await p.click('#view-features');
+      await p.waitFor(`document.querySelector(${JSON.stringify(cardSel(feature.id))})?.closest('.col').dataset.col === 'planned'`);
+      await p.click('#view-board');
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-status').value = 'in-progress'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      await p.click('#view-features');
+      await p.waitFor(`document.querySelector(${JSON.stringify(cardSel(feature.id))})?.closest('.col').dataset.col === 'active'`);
+      await p.click('#view-board');
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-status').value = 'shipped'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      await p.click('#view-features');
+      await p.waitFor(`document.querySelector(${JSON.stringify(cardSel(feature.id))})?.closest('.col').dataset.col === 'done' && document.querySelector(${JSON.stringify(cardSel(feature.id))})?.textContent.includes('1 of 1 cards done')`);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct archived status edit preserves manually moved feature', async () => {
+    const feature = {version:'1.0.0', id:'FT-0123456789AB', revision:1, title:'Manual feature', status:'active', description:'', createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', archived:false};
+    const cardName = Object.keys(fixture).find(name => name.startsWith('AB-'))!;
+    const live = {...JSON.parse(fixture[cardName]), feature:feature.id};
+    const archived = {...live, id:'AB-FFFFFFFFFFFF', title:'Archived direct', archived:true};
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, [cardName]:JSON.stringify(live), [archived.id + '.json']:JSON.stringify(archived), ['features/' + feature.id + '.json']:JSON.stringify(feature)})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.eval(`document.querySelector('#f-archived').value = 'only'; document.querySelector('#f-archived').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('.card-title[title="Archived direct"]');
+      await p.eval(`document.querySelector('#ed-status').value = 'done'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      const saved = await p.eval<Json>(`(async () => { const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj'); const dir = await (await root.getDirectoryHandle('.agentboard')).getDirectoryHandle('features'); return JSON.parse(await (await (await dir.getFileHandle('FT-0123456789AB.json')).getFile()).text()); })()`);
+      expect(saved.status).toBe('active');
+      expect(saved.revision).toBe(1);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct feature sync failure preserves unsent thread draft after card edit', async () => {
+    const feature = {version:'1.0.0', id:'FT-0123456789AB', revision:1, title:'Fault feature', status:'planned', description:'', createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', archived:false};
+    const cardName = Object.keys(fixture).find(name => name.startsWith('AB-'))!;
+    const card = {...JSON.parse(fixture[cardName]), feature:feature.id};
+    card.thread = [{id:'TH-0123456789AB', kind:'question', author:null, body:'Question', replyTo:null, createdAt:feature.createdAt, updatedAt:feature.updatedAt}];
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, [cardName]:JSON.stringify(card), ['features/' + feature.id + '.json']:JSON.stringify(feature)})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.eval(`(() => { const original = FileSystemFileHandle.prototype.createWritable; FileSystemFileHandle.prototype.createWritable = function(...args) { if (this.name === 'FT-0123456789AB.json') throw new Error('injected failure'); return original.apply(this, args); }; })()`);
+      await p.click('.card-title[title="Direct seed"]');
+      await p.set('#thread-author', 'Draft author');
+      await p.set('#thread-body', 'Unsent comment');
+      await p.eval(`[...document.querySelectorAll('#thread-list button')].find(b => b.textContent === 'Answer').click()`);
+      await p.set('#thread-list textarea', 'Unsent answer');
+      await p.eval(`document.querySelector('#ed-status').value = 'done'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open && document.querySelector('#toasts').textContent.includes('was saved')`);
+      await p.waitFor(`document.querySelector('.card-title[title="Direct seed"]')?.closest('.col').dataset.col === 'done'`);
+      await p.click('.card-title[title="Direct seed"]');
+      expect(await p.eval(`document.querySelector('#thread-author').value`)).toBe('Draft author');
+      expect(await p.eval(`document.querySelector('#thread-body').value`)).toBe('Unsent comment');
+      expect(await p.eval(`document.querySelector('#thread-list textarea').value`)).toBe('Unsent answer');
+      expect(await p.eval(`document.querySelector('#ed-status').value`)).toBe('done');
+      expect(await p.eval(`document.querySelector('#ed-save').disabled`)).toBe(true);
+      await p.eval(`[...document.querySelectorAll('#thread-panel button')].find(b => b.textContent === 'Post comment').click()`);
+      await p.waitFor(`document.querySelector('#thread-list').textContent.includes('Unsent comment')`);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct feature write failure identifies saved create and prevents duplicate submission', async () => {
+    const feature = {version:'1.0.0', id:'FT-0123456789AB', revision:1, title:'Fault feature', status:'planned', description:'', createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', archived:false};
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, ['features/' + feature.id + '.json']:JSON.stringify(feature)})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.eval(`(() => { const original = FileSystemFileHandle.prototype.createWritable; FileSystemFileHandle.prototype.createWritable = function(...args) { if (this.name === 'FT-0123456789AB.json') throw new Error('injected failure'); return original.apply(this, args); }; })()`);
+      await p.click('#new-card');
+      await p.set('#ed-title', 'Saved despite failure');
+      await p.eval(`document.querySelector('#ed-feature').value = 'FT-0123456789AB'; document.querySelector('#ed-feature').dispatchEvent(new Event('change', {bubbles:true})); document.querySelector('#ed-status').value = 'done'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open && document.querySelector('#toasts').textContent.includes('Do not repeat create')`);
+      const message = await p.eval<string>(`document.querySelector('#toasts').textContent`);
+      expect(message).toMatch(/Card AB-[A-F0-9]{12} was saved/);
+      expect(message).toContain('FT-0123456789AB');
+      expect(message).toContain('For an archived card, status retries do not recalculate');
+      const cards = await p.eval<Json>(`(async () => { const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj'); const dir = await (await root.getDirectoryHandle('.agentboard')).getDirectoryHandle('items'); const found = []; for await (const [name, handle] of dir.entries()) { const item = JSON.parse(await (await handle.getFile()).text()); if (item.title === 'Saved despite failure') found.push(item.id); } return found; })()`);
+      expect(cards).toHaveLength(1);
+      expect(message).toContain(cards[0]);
+      await p.click('#new-card');
+      expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct preflight failure leaves the edited card unchanged', async () => {
+    const feature = {version:'1.0.0', id:'FT-0123456789AB', revision:1, title:'Direct failure', status:'planned', description:'', createdAt:'2026-01-01T00:00:00.000Z', updatedAt:'2026-01-01T00:00:00.000Z', archived:false};
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, ['features/' + feature.id + '.json']:JSON.stringify(feature)})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-feature').value = 'FT-0123456789AB'; document.querySelector('#ed-feature').dispatchEvent(new Event('change', {bubbles:true}));`);
+      await p.eval(`(async () => { const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj'); const ab = await root.getDirectoryHandle('.agentboard'); const dir = await ab.getDirectoryHandle('items'); const w = await (await dir.getFileHandle('AB-FFFFFFFFFFFF.json', {create:true})).createWritable(); await w.write('{'); await w.close(); })()`);
+      await p.click('#ed-save');
+      await p.waitFor(`document.querySelector('#ed-form').textContent.includes('not valid UTF-8 JSON')`);
+      const card = await p.eval<Json>(`(async () => { const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj'); const dir = await (await root.getDirectoryHandle('.agentboard')).getDirectoryHandle('items'); for await (const [name, handle] of dir.entries()) if (name !== 'AB-FFFFFFFFFFFF.json') return JSON.parse(await (await handle.getFile()).text()); })()`);
+      expect(card.feature).toBeNull();
+      expect(card.revision).toBe(1);
     } finally { await p.send('Page.close'); }
   });
 

@@ -41,7 +41,7 @@ $ agentboard --json create Linked --feature FT-000000000001
 $ agentboard --json create Later
 [exit 0]
 --- stdout
-{"version": "1.1.0", "id": "AB-000000000003", "revision": 1, "title": "Later", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:10.000Z", "updatedAt": "2026-02-03T04:05:10.000Z", "archived": false, "feature": null, "thread": []}
+{"version": "1.1.0", "id": "AB-000000000003", "revision": 1, "title": "Later", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:11.000Z", "updatedAt": "2026-02-03T04:05:11.000Z", "archived": false, "feature": null, "thread": []}
 
 $ agentboard edit AB-000000000003 --feature FT-000000000001
 [exit 0]
@@ -58,8 +58,8 @@ $ agentboard edit AB-000000000003 --feature FT-000000000001
   "description": "",
   "acceptanceCriteria": [],
   "notes": "",
-  "createdAt": "2026-02-03T04:05:10.000Z",
-  "updatedAt": "2026-02-03T04:05:11.000Z",
+  "createdAt": "2026-02-03T04:05:11.000Z",
+  "updatedAt": "2026-02-03T04:05:12.000Z",
   "archived": false,
   "feature": "FT-000000000001",
   "thread": []
@@ -99,8 +99,8 @@ $ agentboard list --feature FT-000000000001
     "description": "",
     "acceptanceCriteria": [],
     "notes": "",
-    "createdAt": "2026-02-03T04:05:10.000Z",
-    "updatedAt": "2026-02-03T04:05:11.000Z",
+    "createdAt": "2026-02-03T04:05:11.000Z",
+    "updatedAt": "2026-02-03T04:05:12.000Z",
     "archived": false,
     "feature": "FT-000000000001",
     "thread": []
@@ -113,12 +113,12 @@ $ agentboard feature-show FT-000000000001
 {
   "version": "1.0.0",
   "id": "FT-000000000001",
-  "revision": 3,
+  "revision": 4,
   "title": "Release one",
-  "status": "active",
+  "status": "planned",
   "description": "First release",
   "createdAt": "2026-02-03T04:05:06.000Z",
-  "updatedAt": "2026-02-03T04:05:08.000Z",
+  "updatedAt": "2026-02-03T04:05:10.000Z",
   "archived": false,
   "progress": {
     "done": 0,
@@ -156,7 +156,7 @@ $ agentboard features
     {
       "id": "FT-000000000001",
       "title": "Release one",
-      "status": "active",
+      "status": "planned",
       "archived": false,
       "progress": {
         "done": 0,
@@ -190,8 +190,8 @@ $ agentboard edit AB-000000000003 --clear-feature
   "description": "",
   "acceptanceCriteria": [],
   "notes": "",
-  "createdAt": "2026-02-03T04:05:10.000Z",
-  "updatedAt": "2026-02-03T04:05:12.000Z",
+  "createdAt": "2026-02-03T04:05:11.000Z",
+  "updatedAt": "2026-02-03T04:05:13.000Z",
   "archived": false,
   "feature": null,
   "thread": []

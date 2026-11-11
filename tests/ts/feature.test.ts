@@ -19,12 +19,12 @@ test('features validate, link, count, archive and preserve dangling links', () =
     store.create(root, { title: 'Archived', feature: feature.id, archived: true });
     const snap = store.snapshot(root);
     expect(store.featureSummary(feature, snap.items, snap.config.columns).progress).toEqual({ done: 1, total: 1 });
-    expect(() => store.updateFeature(root, feature.id, 2, { title: 'stale' })).toThrow(Conflict);
+    expect(() => store.updateFeature(root, feature.id, 1, { title: 'stale' })).toThrow(Conflict);
     const hash = store.hashFeature(root, feature.id);
     const path = store.featurePath(root, feature.id);
     writeFileSync(path, readFileSync(path, 'utf8') + ' ');
     expect(() => store.updateFeature(root, feature.id, 1, { title: 'stale' }, { expectedHash: hash })).toThrow(Conflict);
-    store.updateFeature(root, feature.id, 1, { archived: true });
+    store.updateFeature(root, feature.id, 2, { archived: true });
     expect(store.snapshot(root).items.find(item => item.id === card.id)?.feature).toBe(feature.id);
     expect(() => store.create(root, { title: 'bad', feature: feature.id })).toThrow('archived');
     expect(store.update(root, card.id, null, { feature: null }).feature).toBeNull();
@@ -135,7 +135,7 @@ test('progress counts only live cards and feature-show marks archived cards', ()
     expect(show.progress).toEqual({ done: 1, total: 2 });
     expect(show.counts).toMatchObject({ done: 1, todo: 1, backlog: 0 });
     expect(show.cards.find((c: any) => c.id === archived.id).archived).toBe(true);
-    store.updateFeature(root, f.id, 1, { archived: true });
+    store.updateFeature(root, f.id, null, { archived: true });
     expect(JSON.parse(cli(root, 'feature-show', f.id).out).progress).toEqual({ done: 1, total: 2 });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

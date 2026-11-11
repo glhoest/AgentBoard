@@ -23,7 +23,7 @@ To watch board changes, use the optional `<skill-directory>/scripts/watch.ts` ex
 
 ## Features
 
-Group related cards with `feature-create TITLE`, then link them with `create TITLE --feature FT-ID` or `edit CARD-ID --feature FT-ID`. Use `features` to inspect progress and dangling links, and `feature-show FT-ID` for linked cards. Set feature status by hand with `feature-move FT-ID STATUS`. Clear a link with `edit CARD-ID --clear-feature`. Never delete features; use `feature-edit FT-ID --archive` instead.
+Group related cards with `feature-create TITLE`, then link them with `create TITLE --feature FT-ID` or `edit CARD-ID --feature FT-ID`. Use `features` to inspect progress and dangling links, and `feature-show FT-ID` for linked cards. Feature status follows linked card changes; use `feature-move FT-ID STATUS` for a manual override until the next relevant card change. Clear a link with `edit CARD-ID --clear-feature`. Never delete features; use `feature-edit FT-ID --archive` instead.
 
 ## Questions and Needs grilling
 
