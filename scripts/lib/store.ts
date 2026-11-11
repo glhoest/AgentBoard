@@ -512,8 +512,8 @@ function planFeatures(root: string, cfg: Board, before: Item | null, after: Item
       : cfg.featureColumns.length - 1;
     const inProgress = cfg.columns.findIndex(column => column.id === 'in-progress');
     const active = cfg.featureColumns.findIndex(column => column.id === 'active');
-    if (unfinished.length && inProgress >= 0 && active > 0 && active < cfg.featureColumns.length - 1 && Math.max(...unfinished) >= inProgress) {
-      index = Math.max(index, active);
+    if (unfinished.length && inProgress >= 0 && active > 0 && active < cfg.featureColumns.length - 1) {
+      index = Math.max(...unfinished) >= inProgress ? Math.max(index, active) : Math.min(index, active - 1);
     }
     const status = cfg.featureColumns[index].id;
     if (feature.status === status) continue;

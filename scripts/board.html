@@ -628,8 +628,8 @@ async function directBackend(picked) {
         : config.featureColumns.length - 1;
       const inProgress = config.columns.findIndex(column => column.id === 'in-progress');
       const active = config.featureColumns.findIndex(column => column.id === 'active');
-      if (unfinished.length && inProgress >= 0 && active > 0 && active < config.featureColumns.length - 1 && Math.max(...unfinished) >= inProgress) {
-        index = Math.max(index, active);
+      if (unfinished.length && inProgress >= 0 && active > 0 && active < config.featureColumns.length - 1) {
+        index = Math.max(...unfinished) >= inProgress ? Math.max(index, active) : Math.min(index, active - 1);
       }
       const status = config.featureColumns[index].id;
       if (feature.status === status) continue;

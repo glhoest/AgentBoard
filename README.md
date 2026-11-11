@@ -146,7 +146,7 @@ Only edit `board.json` while no writers are running. Never remove a column that 
 
 Features live in `.agentboard/features/FT-<12 uppercase hex>.json`. The directory appears on the first feature write. A feature title is 1–300 characters, a description at most 100,000 characters, and the status must match a feature column. Feature files carry a revision and timestamps, the same as cards. Archive features instead of deleting them.
 
-You can only link a card to an existing, non-archived feature. Clearing a link always works. Archiving a feature leaves its card links in place. `dangling` lists the non-archived cards whose feature is missing or archived, and those links stay readable.
+You can only link a card to an existing, non-archived feature. Clearing a link always works. Archiving a feature leaves its card links in place. `dangling` lists the IDs of non-archived cards whose feature is missing or archived, and those links stay readable.
 
 Progress counts the linked non-archived cards in the last card column, out of all linked non-archived cards. It also reports a count per card status. Linked cards set the feature status, as described in [Automatic feature status](#automatic-feature-status).
 
@@ -158,7 +158,7 @@ A card's thread holds at most 500 entries, in the order they were added. You can
 - An `answer` replies to an earlier `question` on the same card.
 - A `comment` may reply to any earlier entry.
 
-A question is open until an `answer` replies to it, and nothing else closes it. A question can get more than one answer and stays closed after the first. The CLI and bridge refuse a question on an archived card, so unarchive the card first.
+A question is open until an `answer` replies to it, and nothing else closes it. A question can get more than one answer and stays closed after the first. The CLI, bridge and direct mode refuse a question on an archived card, so unarchive the card first.
 
 Every thread write is an ordinary item write. It increments `revision`, updates `updatedAt`, and is checked against `--revision` or the bridge hash. A new entry's timestamps, and an edited entry's `updatedAt`, equal the item's `updatedAt` from that write.
 
@@ -189,7 +189,7 @@ Old copies of AgentBoard reject upgraded files with an error. Update every vendo
 
 The CLI and bridge recalculate a feature's status whenever a linked card is created, moved, linked, unlinked, archived or restored. They only recalculate non-archived features.
 
-The last card column counts as done. If every linked non-archived card is done, the feature moves to its last column. Otherwise, the unfinished card in the furthest-right column sets the feature's column. The calculation maps that card column's position onto the feature columns proportionally and rounds down. As a result, done cards cannot move a feature forward while it still has backlog cards. Custom columns follow their configured order. When both `in-progress` and `active` columns exist, a card at or past `in-progress` moves its feature to at least `active`.
+The last card column counts as done. If every linked non-archived card is done, the feature moves to its last column. Otherwise, the unfinished card in the furthest-right column sets the feature's column. The calculation maps that card column's position onto the feature columns proportionally and rounds down. Done cards do not affect the status while any card remains unfinished. Custom columns follow their configured order. When `in-progress` exists and `active` is an intermediate feature column, cards before `in-progress` map before `active`; a card at or past it moves the feature to at least `active`.
 
 Some cases leave the status alone:
 

@@ -60,6 +60,14 @@ test('in-progress activates a feature on a custom board', () => {
     const item = board.create(root, {title:'Work', feature:feature.id});
     board.update(root, item.id, null, {status:'in-progress'});
     expect(board.getFeature(root, feature.id).status).toBe('active');
+    config.columns = ['backlog', 'needs-grilling', 'todo', 'in-progress', 'done'].map(id => ({id, name:id}));
+    writeFileSync(path, JSON.stringify(config));
+    board.update(root, item.id, null, {status:'todo'});
+    expect(board.getFeature(root, feature.id).status).toBe('planned');
+    config.columns = ['backlog', 'todo', 'ready', 'in-progress', 'done'].map(id => ({id, name:id}));
+    writeFileSync(path, JSON.stringify(config));
+    board.update(root, item.id, null, {status:'ready'});
+    expect(board.getFeature(root, feature.id).status).toBe('planned');
   } finally { rmSync(root, {recursive:true, force:true}); }
 });
 

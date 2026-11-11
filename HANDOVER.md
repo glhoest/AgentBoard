@@ -85,7 +85,7 @@ Requested by the user:
 **Features.**
 - One concept, "feature" (no separate milestones). Own files `.agentboard/features/FT-<12 hex>.json`: `{version: "1.0.0", id, revision, title, status, description, createdAt, updatedAt, archived}`.
 - A card has **at most one** feature: typed field `feature: "FT-…" | null` (card 1.1.0).
-- Feature status is set **by hand**, from `board.json` `featureColumns` (default planned / active / done, added by the `board.json` 1.1.0 upgrade). Progress (done / total of linked non-archived cards) is shown next to it; the UI may hint "all cards done" on an active feature.
+- Feature status follows linked cards automatically; manual moves last until a relevant card change. See README "Automatic feature status" for the current rules and recovery behavior. Progress counts linked non-archived cards in the last card column.
 - UI: a features view laid out as its own Kanban with progress bars; board filter by feature.
 - Features get no Q&A thread for now.
 
