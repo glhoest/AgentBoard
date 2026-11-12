@@ -788,7 +788,7 @@ async function directBackend(picked) {
         if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
         const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
         validateStrict(x, config);
-        if ('status' in changes) await guardIssueStatusWrite();
+        if ('status' in changes || (item.archived && changes.archived === false)) await guardIssueStatusWrite();
         const updates = (!item.archived || !x.archived) && (item.feature !== x.feature || item.status !== x.status || item.archived !== x.archived || 'status' in changes)
           ? await planFeatures(config, item, x) : [];
         await write(itemsDir, name, x, false);

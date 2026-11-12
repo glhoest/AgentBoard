@@ -229,7 +229,7 @@ The UI reads the token from the fragment and sends `Authorization: Bearer <token
 - `POST /api/issues` takes `{title, observed?, expected?, reproduction?}` and returns the created issue (201).
 - `PATCH /api/issues/<id>` takes `{revision, hash, changes}` and returns the updated issue (200). Writable fields are `title`, `status`, `observed`, `expected`, `reproduction`, `criteria`, `workItem`, `closureReason`, and `duplicateOf`.
 - `POST /api/issues/<id>/evidence` takes `{revision, hash, entry}` where `entry` is a string, and returns the updated issue (200). Both issue updates check revision and hash under the lock.
-- If issue files cannot be read, the snapshot includes an empty `issues` array and `issuesError` describing the problem. The UI reports that issue data is unavailable; repair the files before using the issue tracker. Work-card status changes are blocked until issue data is readable.
+- If issue files cannot be read, the UI reports the error. Repair the files before using the tracker or changing work-card status.
 - `POST /api/features` takes `{title, status?, description?}` and creates a feature (201).
 - `PATCH /api/features/<id>` takes `{revision, hash, changes:{title?,status?,description?,archived?}}` and updates a feature (200). It runs the same conflict checks as the card routes.
 - `POST /api/items` takes a JSON object of writable fields, which must include `title`, and returns 201 with the full item. Defaults are the first column, medium priority, a null assignee, empty arrays and text, and not archived.
@@ -281,7 +281,7 @@ This folder is the source. `tests/` and `docs/` stay here, and setup does not co
 
 Notes on direct mode and the UI:
 
-- When issue files exist, direct mode refuses work-card status changes, including drag-and-drop. Use the bridge so linked issues follow work completion and reopening. Issue submission and evidence also require the bridge.
+- When issue files exist, direct mode refuses work-card status changes and restoration of archived cards. Use the bridge so linked issues follow work completion and reopening. Issue submission and evidence also require the bridge.
 - Direct mode cannot create a feature file exclusively, because the browser file API has no atomic exclusive create. A second check that the file does not exist makes the race window smaller.
 - The CLI rejects cards with an unknown status, so you cannot compare their progress against CLI output.
 - The board's "No feature" filter includes cards linked to a missing or archived feature.
@@ -296,7 +296,7 @@ Each issue is a JSON file in `.agentboard/issues/`, named `IS-<12 uppercase hex>
 
 A missing issues directory means there are no issues, so existing boards remain readable. Older copies ignore the issue directory and cannot maintain issue synchronization when work changes; update all copies before using issues on a shared board. Issue changes use the board lock and revision checks; as with work cards, Git operations and direct browser writes do not share that lock.
 
-An agent can close a duplicate, invalid report, or non-defect with a reason and a link to the duplicate where applicable. Linked issues close when their work is completed and reopen when it is reopened. New evidence reopens a closed issue for triage even if its old work remains done; follow-up work or a triage resolution is required. Missing or archived work links remain visible for triage. Triage can be run by an external scheduler or triggered by watcher issue events; AgentBoard does not run a scheduler.
+An agent can close a duplicate, invalid report, or non-defect with a reason and a link to the duplicate where applicable. Linked issues close when their work is completed and reopen when it is reopened. Moving an issue back to triage keeps it following its linked work; use `issue-edit --clear-work-item` to stop following it. New evidence reopens a closed issue for triage even if its old work remains done; follow-up work or a triage resolution is required. Missing or archived work links remain visible for triage. Triage can be run by an external scheduler or triggered by watcher issue events; AgentBoard does not run a scheduler.
 
 ## Watch board changes
 

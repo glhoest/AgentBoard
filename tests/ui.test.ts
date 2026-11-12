@@ -1520,6 +1520,27 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
     } finally { await p.send('Page.close'); }
   });
 
+  test('direct mode refuses restoring work when issue data exists', async () => {
+    const p = await chrome.newPage();
+    const filename = Object.keys(fixture).find(name => name.startsWith('AB-'))!;
+    const item = JSON.parse(fixture[filename]);
+    item.archived = true;
+    item.status = 'done';
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {
+        source: picker({...fixture, [filename]: JSON.stringify(item), 'issues/IS-0123456789AB.json': '{}'}),
+      });
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.eval(`(() => { const s = document.querySelector('#f-archived'); s.value = 'only'; s.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+      await p.click(`${cardSel(item.id)} button[aria-label^="Restore"]`);
+      await p.waitFor(`document.body.innerText.includes('Use the local bridge to change work status')`);
+      expect(await p.eval(`!!document.querySelector(${JSON.stringify(cardSel(item.id))})`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
   test('direct feature lifecycle and card linking writes valid files', async () => {
     const p = await chrome.newPage();
     try {
