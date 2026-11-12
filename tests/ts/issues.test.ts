@@ -318,3 +318,17 @@ test('restoring done work synchronizes linked issues', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('manually reopening an issue clears its closure reason', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-reopen-'));
+  try {
+    store.init(root);
+    const issue = issues.createIssue(root, { title: 'Defect' });
+    issues.updateIssue(root, issue.id, null, { status: 'closed', closureReason: 'Invalid report' });
+    const reopened = issues.updateIssue(root, issue.id, null, { status: 'gathering-data' });
+    expect(reopened.closureReason).toBe('');
+    expect(reopened.closureKind).toBeNull();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
