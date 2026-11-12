@@ -235,6 +235,7 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
   <nav class="toolbar" aria-label="Views">
     <button type="button" class="btn" id="view-board" aria-pressed="true">Board</button>
     <button type="button" class="btn" id="view-features" aria-pressed="false">Features</button>
+    <button type="button" class="btn" id="view-issues" aria-pressed="false">Issues</button>
     <button type="button" class="btn primary" id="new-feature" hidden>+ New feature</button>
     <label id="feature-archive-label" hidden><input type="checkbox" id="feature-archived"> Show archived</label>
   </nav>
@@ -405,7 +406,7 @@ function normalizeSnapshot(raw) {
   const list = [...items.values()];
   return {
     config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns},
-    columns: all, items, list, features, problems,
+    columns: all, items, list, features, problems, issues: (raw.issues || []).map(issue => ({...issue, hash: raw.hashes[issue.id]})), issuesError: typeof raw.issuesError === 'string' ? raw.issuesError : '',
     cfgKey: JSON.stringify(raw.config),
     archivedCount: list.filter(i => i.archived).length,
   };
@@ -428,8 +429,8 @@ function bridgeBackend(token) {
     if (!res.ok) {
       const msg = isObj(data) && typeof data.error === 'string' ? data.error : `HTTP ${res.status}`;
       const kind = res.status === 409 ? 'conflict' : res.status === 403 ? 'forbidden' : res.status === 400 ? 'invalid' : res.status >= 500 ? 'server' : 'http';
-      if (isObj(data) && data.code === 'feature_sync_failed' && typeof data.itemId === 'string' && ID_RE.test(data.itemId)) {
-        const error = new ApiError('feature_sync_failed', msg, res.status);
+      if (isObj(data) && ['feature_sync_failed', 'issue_sync_failed'].includes(data.code) && typeof data.itemId === 'string' && ID_RE.test(data.itemId)) {
+        const error = new ApiError(data.code, msg, res.status);
         error.itemId = data.itemId;
         throw error;
       }
@@ -441,6 +442,8 @@ function bridgeBackend(token) {
   return {
     kind: 'bridge',
     load: () => call('api/board'),
+    createIssue: values => call('api/issues', {method:'POST', body:values}),
+    addEvidence: (id, revision, hash, entry) => call('api/issues/' + encodeURIComponent(id) + '/evidence', {method:'POST', body:{revision, hash, entry}}),
     createFeature: values => call('api/features', {method: 'POST', body: values}),
     patchFeature: (id, revision, hash, changes) => call('api/features/' + encodeURIComponent(id), {method: 'PATCH', body: {revision, hash, changes}}),
     create: values => call('api/items', {method: 'POST', body: values}),
@@ -572,6 +575,18 @@ async function directBackend(picked) {
   async function featureDir(create = false) {
     try { return await ab.getDirectoryHandle('features', {create}); }
     catch (e) { if (!create && e.name === 'NotFoundError') return null; throw e; }
+  }
+  // Direct mode cannot safely coordinate issue lifecycle writes with the CLI.
+  // Refuse status changes whenever issue files exist; the bridge performs both writes.
+  async function guardIssueStatusWrite() {
+    let dir;
+    try { dir = await ab.getDirectoryHandle('issues'); }
+    catch (e) { if (e.name === 'NotFoundError') return; throw e; }
+    for await (const [name, handle] of dir.entries()) {
+      if (handle.kind === 'file' && name.endsWith('.json') && !name.startsWith('.tmp-')) {
+        throw new ApiError('invalid', 'Issue tracker data exists. Use the local bridge to change work status so linked issues stay in sync.');
+      }
+    }
   }
   async function checkLink(id) {
     if (id === null || id === undefined) return;
@@ -773,6 +788,7 @@ async function directBackend(picked) {
         if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
         const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
         validateStrict(x, config);
+        if ('status' in changes || (item.archived && changes.archived === false)) await guardIssueStatusWrite();
         const updates = (!item.archived || !x.archived) && (item.feature !== x.feature || item.status !== x.status || item.archived !== x.archived || 'status' in changes)
           ? await planFeatures(config, item, x) : [];
         await write(itemsDir, name, x, false);
@@ -854,7 +870,7 @@ function applySnapshot(snap) {
     for (const id of prev.items.keys()) if (!snap.items.has(id)) changed.add(id);
   }
   const featureChanged = !prev || JSON.stringify([...prev.features.values()]) !== JSON.stringify([...snap.features.values()]);
-  const structural = featureChanged || !prev || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
+  const structural = featureChanged || !prev || prev.issuesError !== snap.issuesError || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
   let draftChanged = false;
   for (const d of S.drafts.values()) if (syncDraft(d)) draftChanged = true;
   if (structural) {
@@ -1006,7 +1022,7 @@ async function quickPatch(id, changes, doneMsg) {
     return true;
   } catch (e) {
     if (conflictFromError(e)) { toast(`${id} changed elsewhere, so nothing was changed. The board is refreshing to the current card; review it and try again.`, {kind: 'error'}); S.needsFresh = true; pollFresh().catch(() => {}); }
-    else if (e.kind === 'feature_sync_failed') { S.needsFresh = true; pollFresh().catch(() => {}); toast(e.message, {kind: 'error', persistent: true}); }
+    else if (e.kind === 'feature_sync_failed' || e.kind === 'issue_sync_failed') { S.needsFresh = true; pollFresh().catch(() => {}); toast(e.message, {kind: 'error', persistent: true}); }
     else toast(`Could not update ${id}: ${e.message}`, {kind: 'error'});
     return false;
   } finally { S.writing = false; renderBusy(); }
@@ -1027,6 +1043,7 @@ function moveItem(id, status, dragFrom) {
 function renderAll() {
   $('#view-board').setAttribute('aria-pressed', String(S.view === 'board'));
   $('#view-features').setAttribute('aria-pressed', String(S.view === 'features'));
+  $('#view-issues').setAttribute('aria-pressed', String(S.view === 'issues'));
   $('#new-feature').hidden = S.view !== 'features';
   $('#feature-archive-label').hidden = S.view !== 'features';
   renderConn();
@@ -1063,6 +1080,7 @@ function alertBox(kind, title, body, actions) {
 }
 function renderNotices() {
   const box = $('#notices'); clear(box);
+  if (S.snap && S.snap.issuesError) box.append(alertBox('error', 'Issue tracker could not be loaded', ['Issue data is unavailable: ' + S.snap.issuesError, 'Inspect and repair the issue files, then retry. Work-card status changes may also require repair.']));
   if (S.mode === 'direct') box.append(alertBox('warn', 'Direct file mode: concurrent updates can be lost',
     ['This page writes board files itself. It cannot take the advisory lock or do an atomic compare-and-swap, so if the CLI, the bridge, another tab, Git or another person writes the same card at nearly the same moment, one of the updates can be silently lost.',
      'The revision and file hash are re-checked just before each save, but that check is not a guarantee. Prefer the local bridge (bun agentboard.ts serve) whenever you can.']));
@@ -1159,6 +1177,7 @@ function renderBoard() {
     else { root.setAttribute('aria-busy', 'true'); root.append(h('div', {class: 'sr-only', role: 'status', text: 'Loading board…'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'})); }
     updateSummary(); return;
   }
+  if (S.view === 'issues') { renderIssues(root); return; }
   if (S.view === 'features') {
     renderFeatures(root);
     root.scrollLeft = scrollX;
@@ -1237,6 +1256,84 @@ function moveFeature(feature, status) {
   if (feature.status === status) return;
   return featureWrite(() => S.backend.patchFeature(feature.id, feature.revision, feature.hash, {status}));
 }
+function issueForm(title, fields, save, onConflict) {
+  const dialog = h('dialog', {class:'dlg'});
+  const form = h('form', {});
+  const inputs = {};
+  form.append(h('h2', {text:title}));
+  for (const [key, label, required] of fields) {
+    const input = h(key === 'title' ? 'input' : 'textarea', {name:key, required:!!required});
+    inputs[key] = input;
+    form.append(h('label', {class:'field'}, h('span', {text:label}), input));
+  }
+  const error = h('p', {role:'alert'});
+  const submit = h('button', {type:'submit', class:'btn primary'}, 'Save');
+  const cancel = h('button', {type:'button', class:'btn', onclick:() => dialog.close()}, 'Cancel');
+  form.append(error, h('div', {class:'dlg-actions'}, cancel, submit));
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); submit.disabled = true; error.textContent = '';
+    try {
+      await save(Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, input.value])));
+      dialog.close(); await pollFresh();
+    } catch (e) {
+      if (e.kind === 'conflict' && onConflict) {
+        try { error.textContent = await onConflict(); }
+        catch (refreshError) { error.textContent = 'Could not refresh the issue. Your evidence is kept; retry when the connection returns. ' + (refreshError.message || refreshError); }
+      } else error.textContent = e.message || String(e);
+    }
+    finally { submit.disabled = false; }
+  });
+  dialog.addEventListener('close', () => dialog.remove());
+  dialog.append(form); document.body.append(dialog); dialog.showModal();
+}
+
+function renderIssues(root) {
+  if (S.mode !== 'bridge') {
+    root.append(h('section', {class:'panel'}, h('h2', {text:'Issues'}), h('p', {text:'Use the local bridge to view and update issues.'})));
+    return;
+  }
+  if (S.snap.issuesError) {
+    root.append(h('section', {class:'panel'}, h('h2', {text:'Issues unavailable'}), h('p', {text:'Repair the issue files before submitting or updating issues.'})));
+    return;
+  }
+  const stages = [['new','New'], ['smoking-rack','Smoking rack'], ['gathering-data','Gathering data'], ['ready-for-work','Ready for work'], ['closed','Closed']];
+  const submit = h('button', {type:'button', class:'btn primary', onclick:() => issueForm('Submit issue', [
+    ['title','Title',true], ['observed','Observed behavior'], ['expected','Expected behavior'], ['reproduction','Reproduction steps'],
+  ], values => mutate(() => S.backend.createIssue(values)))}, '+ Submit issue');
+  root.append(h('section', {class:'col'}, h('div', {class:'col-head'}, submit)));
+  for (const [id, name] of stages) {
+    const issues = S.snap.issues.filter(issue => issue.status === id);
+    const body = h('ul', {class:'col-body'});
+    for (const issue of issues) {
+      const work = issue.workItem && S.snap.items.get(issue.workItem);
+      const evidence = h('ul', {}, (issue.evidence || []).map(text => h('li', {text})));
+      const add = h('button', {type:'button', class:'btn small', onclick:() => {
+        let current = issue;
+        issueForm('Add evidence', [['evidence','Reproduction evidence',true]],
+          values => mutate(() => S.backend.addEvidence(current.id, current.revision, current.hash, values.evidence)),
+          async () => {
+            if (!await pollFresh() || S.snap.issuesError) throw new Error('Issue data is unavailable.');
+            const latest = S.snap.issues.find(candidate => candidate.id === issue.id);
+            if (!latest || !latest.hash) throw new Error('The issue is no longer available.');
+            current = latest;
+            return 'The issue changed. Current status: ' + latest.status + '. Current evidence: ' + (latest.evidence.join('; ') || '(none)') + '. Your evidence is kept; review and save again.';
+          });
+      }}, 'Add evidence');
+      body.append(h('li', {class:'card'}, h('strong', {text:issue.title}), h('span', {class:'muted', text:issue.id}),
+        issue.observed ? h('p', {text:'Observed: ' + issue.observed}) : null,
+        issue.expected ? h('p', {text:'Expected: ' + issue.expected}) : null,
+        issue.reproduction ? h('p', {text:'Reproduction: ' + issue.reproduction}) : null,
+        issue.workItem ? h('p', {text:'Work: ' + issue.workItem + (!work || work.archived ? ' (unavailable)' : '')}) : null,
+        ...(issue.workHistory || []).map(id => { const prior = S.snap.items.get(id); return h('p', {text:'Previous work: ' + id + (!prior || prior.archived ? ' (unavailable)' : '')}); }),
+        issue.duplicateOf ? h('p', {text:'Duplicate of: ' + issue.duplicateOf}) : null,
+        issue.closureReason ? h('p', {text:'Closure: ' + issue.closureReason}) : null,
+        h('ul', {}, (issue.criteria || []).map(text => h('li', {text}))),
+        evidence, add));
+    }
+    root.append(h('section', {class:'col'}, h('div', {class:'col-head'}, h('strong', {text:name}), h('span', {class:'count', text:String(issues.length)})), body));
+  }
+}
+
 function renderFeatures(root) {
   const snap = S.snap;
   const linkedByFeature = new Map();
@@ -1812,7 +1909,7 @@ async function saveDraft(d) {
     const msg = createdId ? `Created ${createdId}.` : `Saved ${d.id}.`;
     toast(msg, {kind: 'ok'}); announce(msg);
   } catch (e) {
-    if (e.kind === 'feature_sync_failed' && e.itemId) {
+    if ((e.kind === 'feature_sync_failed' || e.kind === 'issue_sync_failed') && e.itemId) {
       if (d.id && (d.threadBody || d.threadAuthor || Object.keys(d.threadInputs || {}).length)) { d.savedItemId = e.itemId; d.keepThreadDraft = true; }
       else S.drafts.delete(key);
       if (S.editing === key) closeEditorUi();
@@ -1855,7 +1952,7 @@ function startFromHash() {
 }
 
 function wire() {
-  for (const view of ['board', 'features']) $('#view-' + view).addEventListener('click', () => { S.view = view; renderAll(); });
+  for (const view of ['board', 'features', 'issues']) $('#view-' + view).addEventListener('click', () => { S.view = view; renderAll(); });
   $('#new-feature').addEventListener('click', () => openFeature());
   $('#feature-archived').addEventListener('change', e => { S.showArchivedFeatures = e.target.checked; renderBoard(); });
   $('#skip').addEventListener('click', () => $('#board').focus());

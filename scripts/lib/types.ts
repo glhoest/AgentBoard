@@ -65,3 +65,10 @@ export class FeatureSyncError extends BoardError {
     super(`Card ${itemId} was saved, but feature status update failed for ${featureIds.join(', ')}: ${reason}. Reload the board; inspect the listed features and set their statuses with feature-move. For a non-archived card, reapplying its saved status with move recalculates its current feature. For an archived card, status retries do not recalculate; manually correct each listed feature. Do not repeat create.`);
   }
 }
+
+/** A work item was saved, but linked issue updates need a retry. */
+export class IssueSyncError extends BoardError {
+  constructor(public readonly itemId: string, reason: string) {
+    super(`Card ${itemId} was saved, but issue synchronization failed: ${reason}. Reload and reapply its saved status with move to retry after correcting the failure. Do not repeat create.`);
+  }
+}

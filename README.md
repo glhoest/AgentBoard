@@ -225,7 +225,11 @@ Manual edits, direct browser writes, separate checkouts and other machines do no
 
 The UI reads the token from the fragment and sends `Authorization: Bearer <token>` with API calls. The bridge checks the Host header, the Origin header when present, the token, the content type and the body size. It sends no CORS headers.
 
-- `GET /api/board` returns 200 `{config,items,features,hashes}`, including archived items. `hashes` maps each item and feature ID to the lowercase SHA-256 hex digest of its exact UTF-8 bytes on disk. The bridge upgrades older files on disk before hashing them, so it always returns items in the current format, with their threads, and hashes of the current bytes.
+- `GET /api/board` returns 200 `{config,items,features,issues,hashes}`, including archived items. `hashes` maps each item, feature and issue ID to the lowercase SHA-256 hex digest of its exact UTF-8 bytes on disk. If issue files cannot be read, `issues` is empty and `issuesError` describes the error; other board data remains available. The bridge upgrades older board files on disk before hashing them.
+- `POST /api/issues` takes `{title, observed?, expected?, reproduction?}` and returns the created issue (201).
+- `PATCH /api/issues/<id>` takes `{revision, hash, changes}` and returns the updated issue (200). Writable fields are `title`, `status`, `observed`, `expected`, `reproduction`, `criteria`, `workItem`, `closureReason`, and `duplicateOf`.
+- `POST /api/issues/<id>/evidence` takes `{revision, hash, entry}` where `entry` is a string, and returns the updated issue (200). Both issue updates check revision and hash under the lock.
+- If issue files cannot be read, the UI reports the error. Repair the files before using the tracker or changing work-card status.
 - `POST /api/features` takes `{title, status?, description?}` and creates a feature (201).
 - `PATCH /api/features/<id>` takes `{revision, hash, changes:{title?,status?,description?,archived?}}` and updates a feature (200). It runs the same conflict checks as the card routes.
 - `POST /api/items` takes a JSON object of writable fields, which must include `title`, and returns 201 with the full item. Defaults are the first column, medium priority, a null assignee, empty arrays and text, and not archived.
@@ -277,9 +281,22 @@ This folder is the source. `tests/` and `docs/` stay here, and setup does not co
 
 Notes on direct mode and the UI:
 
+- When issue files exist, direct mode refuses work-card status changes and restoration of archived cards. Use the bridge so linked issues follow work completion and reopening. Issue submission and evidence also require the bridge.
 - Direct mode cannot create a feature file exclusively, because the browser file API has no atomic exclusive create. A second check that the file does not exist makes the race window smaller.
 - The CLI rejects cards with an unknown status, so you cannot compare their progress against CLI output.
 - The board's "No feature" filter includes cards linked to a missing or archived feature.
+
+## Defect triage
+
+The issue tracker stores defects and their evidence in Git alongside the work board. Feature requests belong on the work board. Agents use the CLI (`issues`, `issue-show`, `issue-create`, `issue-edit`, `issue-evidence`, and `issue-promote`); run a command with `--help` for its options. Humans can submit defects and evidence in the UI. Reports are repository data: do not include secrets or private customer data.
+
+Issues move through five fixed stages: New, Smoking rack, Gathering data, Ready for work, and Closed. Smoking rack holds reports awaiting further real-world instances; Gathering data is for investigation. Triage uses judgment, not a fixed reproduction count. Before promotion, record observed and expected behavior, reproduction steps or why they are unavailable, and actionable acceptance criteria. Promotion retains the report and evidence and creates or links a normal work item. Multiple issues can link to the same work item.
+
+Each issue is a JSON file in `.agentboard/issues/`, named `IS-<12 uppercase hex>.json`. Its exact 1.0.0 fields are `version`, `id`, `revision`, `title`, `status`, `observed`, `expected`, `reproduction`, `criteria`, `evidence`, `workItem`, `workHistory`, `followWork`, `closureKind`, `closureReason`, `duplicateOf`, `createdAt`, and `updatedAt`. Status IDs are `new`, `smoking-rack`, `gathering-data`, `ready-for-work`, and `closed`. Criteria and evidence are arrays of nonblank strings. `workItem` and `duplicateOf` are IDs or null; `workHistory` retains previous work IDs. `followWork` controls automatic synchronization, and `closureKind` is `work`, `manual`, or null. The latter two distinguish a work closure from a manual resolution and prevent new evidence from being closed again by old work.
+
+A missing issues directory means there are no issues, so existing boards remain readable. Older copies ignore the issue directory and cannot maintain issue synchronization when work changes; update all copies before using issues on a shared board. Issue changes use the board lock and revision checks; as with work cards, Git operations and direct browser writes do not share that lock.
+
+An agent can close a duplicate, invalid report, or non-defect with a reason and a link to the duplicate where applicable. Issues following linked work close when it is completed and reopen when it is reopened. A manual resolution stops following work, so reopening the work does not undo a duplicate or invalid resolution; re-promote with `--work-item` to follow existing unfinished work again. Moving an issue back to triage keeps it following linked work unless it was manually resolved or reopened while its work is already done; use `issue-edit --clear-work-item` to stop following it. Relinking during triage does not follow the new work until the issue is set to Ready for work. New evidence reopens a closed issue for triage even if its old work remains done; follow-up work or a triage resolution is required. Missing or archived work links remain visible for triage. Triage can be run by an external scheduler or triggered by watcher issue events; AgentBoard does not run a scheduler.
 
 ## Watch board changes
 
@@ -307,7 +324,7 @@ The watcher accepts `--root DIR`, `--interval MS` (default 2000), `--timeout MS`
 {"schema":1,"at":"2026-01-01T12:00:00.000Z","events":[{"type":"question.opened","id":"AB-0123456789AB","questionId":"TH-0123456789AB"}]}
 ```
 
-The event types are `card.created`, `card.updated`, `card.removed`, `card.status`, `card.assignee`, `question.opened`, `question.closed`, `feature.created`, `feature.updated`, `feature.removed` and `board.updated`.
+The event types are `card.created`, `card.updated`, `card.removed`, `card.status`, `card.assignee`, `question.opened`, `question.closed`, `feature.created`, `feature.updated`, `feature.removed`, `issue.created`, `issue.updated`, `issue.removed`, `issue.status` and `board.updated`.
 
 - Update events include `fields`, the names of the top-level fields that changed.
 - Status and assignee events include `before` and `after`.
@@ -317,7 +334,7 @@ The event types are `card.created`, `card.updated`, `card.removed`, `card.status
 - Git checkouts and manual file edits can produce removal and creation events.
 - One change can produce several event types. Use filters to avoid doing the same work twice.
 
-At startup the watcher takes a baseline and emits nothing for the existing state. It reads each snapshot under the board lock and releases the lock before the action runs, so a large board or a short interval can delay writers. It compares content, so it sees changes even when a revision did not change. It upgrades older formats in memory only. A malformed snapshot produces a warning, and the next poll compares against the last good snapshot. A newer, unsupported format stops the watcher.
+At startup the watcher takes a baseline and emits nothing for the existing state. It reads each snapshot under the board lock and releases the lock before the action runs, so a large board or a short interval can delay writers. It compares content, so it sees changes even when a revision did not change. It upgrades older formats in memory only. A malformed board snapshot produces a warning, and the next poll compares against the last good snapshot. Malformed issue files produce a separate warning while board events continue; issue events resume from the last good issue snapshot when repaired. A newer, unsupported format stops the watcher.
 
 Actions run one at a time, and the next poll starts only after the action finishes. The watcher stops when:
 

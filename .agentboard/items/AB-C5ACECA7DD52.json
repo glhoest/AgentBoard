@@ -1,0 +1,23 @@
+{
+  "version": "1.1.0",
+  "id": "AB-C5ACECA7DD52",
+  "revision": 6,
+  "title": "Draft strip test clicks before the control appears",
+  "status": "done",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "Observed: Full browser runs failed because the unsent draft button was absent immediately after switching views.\n\nExpected: The test waits until the draft control is present before clicking it.\n\nReproduction: Run the full UI suite under slower timing; feature draft survives polls can fail at the draft button click.",
+  "acceptanceCriteria": [
+    {
+      "text": "Discard the unsent draft before closing the sync-error test page, preserving subsequent browser tests.",
+      "done": true
+    }
+  ],
+  "notes": "The sync-error UI test left an unsent draft open, triggering an unload confirmation that interfered with later tests. Discarding it before closing restored the sequence; bun test passed 243, failed 0.",
+  "createdAt": "2026-11-12T03:00:17.194Z",
+  "updatedAt": "2026-11-12T03:25:57.516Z",
+  "archived": false,
+  "feature": null,
+  "thread": []
+}

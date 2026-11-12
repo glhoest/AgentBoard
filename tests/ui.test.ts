@@ -72,7 +72,66 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ready)('board.html (bridge mode)', () => {
+  test('evidence conflict refreshes issue and keeps draft for retry', async () => {
+    const issue = cliJson('issue-create', 'Evidence conflict test');
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url());
+      await p.waitFor(hasCard('Seed card'));
+      await p.click('#view-issues');
+      await p.waitFor(`document.body.innerText.includes('Evidence conflict test')`);
+      await p.eval(`[...document.querySelectorAll('.card')].find(c => c.textContent.includes('Evidence conflict test')).querySelector('button').click()`);
+      await p.set('dialog[open] textarea[name=evidence]', 'My retained evidence');
+      cliJson('issue-evidence', issue.id, 'Concurrent evidence');
+      await p.click('dialog[open] button[type=submit]');
+      await p.waitFor(`document.querySelector('dialog[open] [role=alert]').textContent.includes('save again')`);
+      expect(await p.eval(`document.querySelector('dialog[open] textarea[name=evidence]').value`)).toBe('My retained evidence');
+      await p.click('dialog[open] button[type=submit]');
+      await p.waitFor(`!document.querySelector('dialog[open]')`);
+      expect(cliJson('issue-show', issue.id).evidence).toEqual(['Concurrent evidence', 'My retained evidence']);
+    } finally { await p.send('Page.close'); }
+  });
+  test('issue sync failure reloads saved card and preserves unsent thread draft', async () => {
+    const item = cliJson('create', 'Issue sync test');
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:`(() => { const original = fetch; window.fetch = async (...args) => { const response = await original(...args); if (String(args[0]).includes('api/items/${item.id}') && args[1]?.method === 'PATCH' && response.ok) return new Response(JSON.stringify({code:'issue_sync_failed',itemId:'${item.id}',error:'Card saved; reload and reapply its status after repair.'}), {status:500,headers:{'Content-Type':'application/json'}}); return response; }; })()`});
+      await p.goto(url());
+      await p.waitFor(hasCard('Issue sync test'));
+      await p.click('.card-title[title="Issue sync test"]');
+      await p.set('#ed-title', 'Saved despite sync failure');
+      await p.set('#thread-body', 'Unsent thread draft');
+      await p.click('#ed-save');
+      await p.waitFor(`document.body.innerText.includes('Card saved; reload and reapply its status after repair.')`);
+      await p.waitFor(hasCard('Saved despite sync failure'));
+      await p.click('.card-title[title="Saved despite sync failure"]');
+      expect(await p.eval(`document.querySelector('#thread-body').value`)).toBe('Unsent thread draft');
+      expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Saved despite sync failure');
+      await p.click('#ed-cancel');
+      await p.click('#cf-form button[value=ok]');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+    } finally { await p.send('Page.close'); }
+  });
+  test('malformed issue is reported while the work board remains usable', async () => {
+    const issuePage = await chrome.newPage();
+    const issues = join(root, '.agentboard', 'issues');
+    mkdirSync(issues, {recursive:true});
+    const damaged = join(issues, 'IS-0123456789AB.json');
+    writeFileSync(damaged, '{broken');
+    try {
+      await issuePage.goto(url());
+      await issuePage.waitFor(hasCard('Seed card'));
+      await issuePage.waitFor(`document.body.innerText.includes('Issue tracker could not be loaded')`);
+      await issuePage.click('#view-issues');
+      expect(await issuePage.eval(`document.body.innerText.includes('Issues unavailable')`)).toBe(true);
+      expect(await issuePage.eval(`!document.body.innerText.includes('+ Submit issue')`)).toBe(true);
+      await issuePage.click('#view-board');
+      await issuePage.click('.card-title[title="Seed card"]');
+      expect(await issuePage.eval(`document.querySelector('#editor').open`)).toBe(true);
+    } finally { await issuePage.send('Page.close'); rmSync(damaged, {force:true}); }
+  });
   test('without a token it shows launch instructions and makes no API calls', async () => {
+    page.requests.length = 0;
     await page.goto(`${base}/`);
     await page.waitFor(`document.body.innerText.includes('Connect AgentBoard to a project')`);
     expect(await page.eval(`document.body.innerText.includes('agentboard.ts --root /path/to/project serve')`)).toBe(true);
@@ -307,6 +366,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await page.eval(`document.querySelector('#feature-editor').close()`);
       expect(await page.eval(`document.querySelector('#view-features').getAttribute('aria-pressed')`)).toBe('true');
       await page.click('#view-board');
+      await page.waitFor(`[...document.querySelectorAll('#drafts-strip button')].some(b => b.textContent.includes('Unsent card draft'))`);
       await page.eval(`[...document.querySelectorAll('#drafts-strip button')].find(b => b.textContent.includes('Unsent card draft')).click()`);
       expect(await page.eval(`document.querySelector('#ed-title').value`)).toBe('Unsent card draft');
       await page.click('#ed-cancel');
@@ -1419,8 +1479,8 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       const ab = await proj.getDirectoryHandle('.agentboard', {create: true});
       const items = await ab.getDirectoryHandle('items', {create: true});
       for (const [name, text] of Object.entries(files)) {
-        const dir = name.startsWith('features/') ? await ab.getDirectoryHandle('features', {create:true}) : name === 'board.json' ? ab : items;
-        const filename = name.startsWith('features/') ? name.slice('features/'.length) : name;
+        const dir = name.startsWith('features/') ? await ab.getDirectoryHandle('features', {create:true}) : name.startsWith('issues/') ? await ab.getDirectoryHandle('issues', {create:true}) : name === 'board.json' ? ab : items;
+        const filename = name.startsWith('features/') ? name.slice('features/'.length) : name.startsWith('issues/') ? name.slice('issues/'.length) : name;
         const w = await (await dir.getFileHandle(filename, {create: true})).createWritable(); await w.write(text); await w.close();
       }
       return proj;
@@ -1444,6 +1504,44 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       await p.click('#pick-folder');
       await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
       expect(await p.eval(`document.body.textContent.includes('Direct seed')`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct mode refuses status changes when issue data exists', async () => {
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, 'issues/IS-0123456789AB.json':'{}'})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-status').value = 'done'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}))`);
+      await p.click('#ed-save');
+      await p.waitFor(`document.body.innerText.includes('Use the local bridge to change work status')`);
+      expect(await p.eval(`document.querySelector('#editor').open`)).toBe(true);
+      expect(await p.eval(`document.querySelector('.card-title[title="Direct seed"]').closest('.col').dataset.col`)).toBe('backlog');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct mode refuses restoring work when issue data exists', async () => {
+    const p = await chrome.newPage();
+    const filename = Object.keys(fixture).find(name => name.startsWith('AB-'))!;
+    const item = JSON.parse(fixture[filename]);
+    item.archived = true;
+    item.status = 'done';
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {
+        source: picker({...fixture, [filename]: JSON.stringify(item), 'issues/IS-0123456789AB.json': '{}'}),
+      });
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.eval(`(() => { const s = document.querySelector('#f-archived'); s.value = 'only'; s.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+      await p.click(`${cardSel(item.id)} button[aria-label^="Restore"]`);
+      await p.waitFor(`document.body.innerText.includes('Use the local bridge to change work status')`);
+      expect(await p.eval(`!!document.querySelector(${JSON.stringify(cardSel(item.id))})`)).toBe(true);
     } finally { await p.send('Page.close'); }
   });
 

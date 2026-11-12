@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { withLock } from './lib/lock';
 import { locate, snapshot } from './lib/store';
+import { listIssues } from './lib/issues';
 import { changes, EVENT_TYPES, type EventType } from './lib/watch-events';
 
 const usage = `Usage: bun watch.ts [--root DIR] [--interval MS] [--timeout MS] [--on TYPE ...] (--webhook | -- PROGRAM [ARG ...])
@@ -123,9 +124,21 @@ async function postWebhook(url: URL, input: string, timeout: number): Promise<vo
 
 async function watch(options: Options): Promise<void> {
   const url = options.webhook ? webhookUrl() : null;
-  const read = () => withLock(options.root, () => snapshot(options.root, { persist: false }));
-  let previous = read();
+  const read = () => withLock(options.root, () => {
+    const board = snapshot(options.root, { persist: false });
+    try { return { board, issues: listIssues(options.root), issueError: '' }; }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('written by a newer AgentBoard')) throw error;
+      return { board, issues: null, issueError: message };
+    }
+  });
+  const initial = read();
+  let previous = { ...initial.board, issues: initial.issues ?? [] };
+  let hasIssueBaseline = initial.issues !== null;
   let lastWarning = '';
+  let lastIssueWarning = initial.issueError;
+  if (lastIssueWarning) console.error(`AgentBoard watcher: issue snapshot failed; retrying: ${lastIssueWarning}`);
   const dispatches: number[] = [];
   console.error('AgentBoard watcher ready; initial snapshot is the baseline.');
   while (!stopping) {
@@ -143,8 +156,18 @@ async function watch(options: Options): Promise<void> {
       lastWarning = message;
       continue;
     }
-    const events = changes(previous, next).filter(event => !options.events.size || options.events.has(event.type));
-    previous = next;
+    if (next.issueError !== lastIssueWarning) {
+      if (next.issueError) console.error(`AgentBoard watcher: issue snapshot failed; retrying: ${next.issueError}`);
+      else if (lastIssueWarning) console.error('AgentBoard watcher: issues readable again.');
+      lastIssueWarning = next.issueError;
+    }
+    const current = { ...next.board, issues: next.issues ?? previous.issues };
+    if (!hasIssueBaseline && next.issues !== null) {
+      previous = { ...previous, issues: next.issues };
+      hasIssueBaseline = true;
+    }
+    const events = changes(previous, current).filter(event => !options.events.size || options.events.has(event.type));
+    previous = current;
     if (!events.length) continue;
     const now = Date.now();
     while (dispatches.length && dispatches[0] <= now - 60000) dispatches.shift();

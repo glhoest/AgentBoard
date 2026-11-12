@@ -22,12 +22,30 @@ export type Command =
   | { cmd: 'questions' }
   | { cmd: 'grill'; id: string | null }
   | { cmd: 'update'; force: boolean }
+  | { cmd: 'issues' }
+  | { cmd: 'issue-show'; id: string }
+  | { cmd: 'issue-create'; title: string; observed: string | null; expected: string | null; reproduction: string | null }
+  | {
+      cmd: 'issue-edit'; id: string; revision: number | null; title: string | null;
+      status: string | null; observed: string | null; expected: string | null;
+      reproduction: string | null; criteriaJson: string | null; workItem: string | null;
+      clearWorkItem: boolean; closureReason: string | null; duplicateOf: string | null;
+      clearDuplicateOf: boolean;
+    }
+  | { cmd: 'issue-evidence'; id: string; body: string; revision: number | null }
+  | { cmd: 'issue-promote'; id: string; revision: number | null; workItem: string | null }
   | { cmd: 'serve'; port: number; ui: string | null };
 export type ParseResult = { kind: 'ok'; args: Common & Command } | { kind: 'help'; text: string } | { kind: 'error'; text: string };
 
 // Argument types: 'pos' positional, 'str' option with a value, 'int', 'priority' (choice), 'bool' flag,
 // 'append' repeatable option collected into an array. Dashed names become camelCase keys (--reply-to -> replyTo).
 const specs: Record<string, [string, string][]> = {
+  issues: [],
+  'issue-show': [['id', 'pos']],
+  'issue-create': [['title', 'pos'], ['observed', 'str'], ['expected', 'str'], ['reproduction', 'str']],
+  'issue-edit': [['id', 'pos'], ['revision', 'int'], ['title', 'str'], ['status', 'str'], ['observed', 'str'], ['expected', 'str'], ['reproduction', 'str'], ['criteria-json', 'str'], ['work-item', 'str'], ['clear-work-item', 'bool'], ['closure-reason', 'str'], ['duplicate-of', 'str'], ['clear-duplicate-of', 'bool']],
+  'issue-evidence': [['id', 'pos'], ['body', 'pos'], ['revision', 'int']],
+  'issue-promote': [['id', 'pos'], ['revision', 'int'], ['work-item', 'str']],
   init: [['path', 'pos']],
   setup: [['path', 'pos']],
   list: [['all', 'bool'], ['status', 'str'], ['assignee', 'str'], ['feature', 'str']],
@@ -133,6 +151,10 @@ export function parseArgs(argv: string[]): ParseResult {
   }
   const required = optionalPositional.has(cmd) ? [] : positionals;
   if (p < required.length) return error(`the following arguments are required: ${required.slice(p).join(', ')}`);
+  if (cmd === 'issue-edit' && (
+    (values['work-item'] !== null && values['clear-work-item']) ||
+    (values['duplicate-of'] !== null && values['clear-duplicate-of'])
+  )) return error('conflicting issue link options');
   if (cmd === 'edit' && values.feature !== null && values['clear-feature']) return error('argument --clear-feature: not allowed with --feature');
   if (cmd === 'init' || cmd === 'setup') values.path ??= '.';
   if (cmd === 'serve') { values.port ??= 0; values.ui ??= null; }

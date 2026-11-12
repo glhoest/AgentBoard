@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { BoardError, Conflict, FeatureSyncError } from './types';
+import { BoardError, Conflict, FeatureSyncError, IssueSyncError } from './types';
 import { encode, snapshot, hashItem, hashFeature, createFeature, updateFeature, create, update, addEntry, editEntry } from './store';
 import { withLock } from './lock';
+import { listIssues, hashIssue, createIssue, updateIssue, addEvidence } from './issues';
 
 const FEATURE_ROUTE = /^\/api\/features\/(FT-[0-9A-F]{12})$/;
 const ITEM_ROUTE = /^\/api\/items\/(AB-[0-9A-F]{12})$/;
@@ -30,6 +31,16 @@ function versioned(body: any, payload: 'changes' | 'entry'): unknown {
 }
 
 function handleWrite(root: string, method: string, path: string, body: any): Response {
+  if (method === 'POST' && path === '/api/issues') return response(201, createIssue(root, body));
+  const issueMatch = path.match(/^\/api\/issues\/(IS-[0-9A-F]{12})(\/evidence)?$/);
+  if (issueMatch && method === 'PATCH' && !issueMatch[2]) {
+    const changes = versioned(body, 'changes') as any;
+    return response(200, updateIssue(root, issueMatch[1], body.revision, changes, { expectedHash: body.hash }));
+  }
+  if (issueMatch && method === 'POST' && issueMatch[2]) {
+    const entry = versioned(body, 'entry');
+    return response(200, addEvidence(root, issueMatch[1], body.revision, entry as string, { expectedHash: body.hash }));
+  }
   if (method === 'POST' && path === '/api/features') return response(201, createFeature(root, body));
   const featureMatch = path.match(FEATURE_ROUTE);
   if (method === 'PATCH' && featureMatch) {
@@ -85,9 +96,18 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
         // Under the lock, the snapshot upgrades older files on disk first, so the hashes match the current bytes.
         const result = withLock(root, () => {
           const value = snapshot(root) as any;
+          let issueHashes: [string, string][] = [];
+          try {
+            value.issues = listIssues(root);
+            issueHashes = value.issues.map((issue: any) => [issue.id, hashIssue(root, issue.id)]);
+          } catch (error) {
+            value.issues = [];
+            value.issuesError = error instanceof Error ? error.message : String(error);
+          }
           value.hashes = Object.fromEntries([
             ...value.items.map((item: any) => [item.id, hashItem(root, item.id)]),
             ...value.features.map((feature: any) => [feature.id, hashFeature(root, feature.id)]),
+            ...issueHashes,
           ]);
           return value;
         });
@@ -116,6 +136,7 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
 
 function errorResponse(error: unknown): Response {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof IssueSyncError) return response(500, { error: message, code: 'issue_sync_failed', itemId: error.itemId });
   if (error instanceof FeatureSyncError) return response(500, { error: message, code: 'feature_sync_failed', itemId: error.itemId, featureIds: error.featureIds });
   if (error instanceof Conflict) return response(409, { error: message, code: 'conflict' });
   if (error instanceof BoardError || error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError) {
