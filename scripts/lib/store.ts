@@ -4,7 +4,7 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { withLock } from './lock';
 import {
-  BoardError, Conflict, FeatureSyncError, BOARD_KEYS, ENTRY_ID_RE, ENTRY_KEYS, ENTRY_KINDS, FEATURE_ID_RE, FEATURE_KEYS, FEATURE_WRITABLE, ID_RE, ITEM_KEYS, LIMITS,
+  BoardError, Conflict, FeatureSyncError, IssueSyncError, BOARD_KEYS, ENTRY_ID_RE, ENTRY_KEYS, ENTRY_KINDS, FEATURE_ID_RE, FEATURE_KEYS, FEATURE_WRITABLE, ID_RE, ITEM_KEYS, LIMITS,
   PRIORITIES, SLUG_RE, TIMESTAMP_RE, WRITABLE,
   type Board, type Feature, type FeatureChanges, type Changes, type Column, type Entry, type EntryChanges, type Item, type NewEntry, type Snapshot,
 } from './types';
@@ -261,27 +261,30 @@ export function hashItem(root: string, id: string): string {
 const allowed = new Set<string>(WRITABLE);
 
 export function create(root: string, values: Changes): Item {
+  return withLock(root, () => createUnlocked(root, values));
+}
+
+/** Create a card while the caller holds the board lock. */
+export function createUnlocked(root: string, values: Changes): Item {
   const extra = Object.keys(values as any).filter(k => !allowed.has(k)).sort();
   if (extra.length) throw new BoardError('Unknown item fields: ' + extra.join(', '));
-  return withLock(root, () => {
-    const c = config(root);
-    const stamp = now();
-    const id = 'AB-' + seams.randomHex(6);
-    const x: any = {
-      version: CURRENT.item, id, revision: 1, title: '', status: c.columns[0].id, priority: 'medium', assignee: null,
-      labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false,
-      feature: null, thread: [],
-    };
-    Object.assign(x, values);
-    validate(x, c);
-    if (x.feature !== null) checkFeatureLink(root, x.feature, c);
-    const p = itemPath(root, id);
-    if (existsSync(p)) throw new Conflict('ID collision; retry');
-    const updates = x.archived ? [] : planFeatures(root, c, null, x);
-    atomicWrite(p, x);
-    writeFeatureUpdates(root, x.id, updates);
-    return x;
-  });
+  const c = config(root);
+  const stamp = now();
+  const id = 'AB-' + seams.randomHex(6);
+  const x: any = {
+    version: CURRENT.item, id, revision: 1, title: '', status: c.columns[0].id, priority: 'medium', assignee: null,
+    labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false,
+    feature: null, thread: [],
+  };
+  Object.assign(x, values);
+  validate(x, c);
+  if (x.feature !== null) checkFeatureLink(root, x.feature, c);
+  const p = itemPath(root, id);
+  if (existsSync(p)) throw new Conflict('ID collision; retry');
+  const updates = x.archived ? [] : planFeatures(root, c, null, x);
+  atomicWrite(p, x);
+  writeFeatureUpdates(root, x.id, updates);
+  return x;
 }
 
 type WriteOptions = { expectedHash?: string | null };
@@ -311,7 +314,7 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
     try {
       if (syncIssues) syncWorkItem(root, before, x, c.columns[c.columns.length - 1].id);
     } catch (error) {
-      throw new BoardError(`Card ${id} was saved, but issue synchronization failed: ${error instanceof Error ? error.message : String(error)}. Reload and reapply its saved status with move to retry.`);
+      throw new IssueSyncError(id, error instanceof Error ? error.message : String(error));
     }
     return x;
   });

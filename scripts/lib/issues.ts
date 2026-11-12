@@ -223,43 +223,48 @@ export function updateIssue(
     )
   )
     throw new BoardError('Invalid issue changes');
-  return withLock(root, () => {
-    const x = check(root, id, revision, opts);
-    if ('workItem' in changes && changes.workItem !== x.workItem) {
-      if (x.workItem && !x.workHistory.includes(x.workItem)) x.workHistory.push(x.workItem);
-      x.workHistory = x.workHistory.filter((id) => id !== changes.workItem);
+  return withLock(root, () => updateIssueUnlocked(root, id, revision, changes, opts));
+}
+
+function updateIssueUnlocked(
+  root: string,
+  id: string,
+  revision: number | null,
+  changes: IssueChanges,
+  opts: Options = {},
+): Issue {
+  const x = check(root, id, revision, opts);
+  if ('workItem' in changes && changes.workItem !== x.workItem) {
+    if (x.workItem && !x.workHistory.includes(x.workItem)) x.workHistory.push(x.workItem);
+    x.workHistory = x.workHistory.filter((id) => id !== changes.workItem);
+  }
+  Object.assign(x, changes);
+  if ('workItem' in changes && changes.workItem === null) x.followWork = false;
+  if (changes.status === 'closed') {
+    x.closureKind = 'manual';
+    x.followWork = false;
+  } else if (changes.status && changes.status !== 'closed') {
+    x.closureKind = null;
+  }
+  if (changes.status === 'ready-for-work') x.followWork = true;
+  validate(x);
+  if (
+    x.status === 'ready-for-work' &&
+    (!x.workItem || !x.observed.trim() || !x.expected.trim() || !x.reproduction.trim() || !x.criteria.length)
+  ) {
+    throw new BoardError('Ready for work requires a linked work item and completed triage');
+  }
+  if (x.status === 'closed' && !x.closureReason.trim()) throw new BoardError('Closing requires a reason');
+  if (x.duplicateOf && !existsSync(issuePath(root, x.duplicateOf)))
+    throw new BoardError('Duplicate issue does not exist');
+  if (x.status === 'ready-for-work' && x.workItem && ('workItem' in changes || 'status' in changes)) {
+    const item = store.get(root, x.workItem);
+    if (item.archived) throw new BoardError('Work item is archived');
+    if (item.status === store.config(root).columns.at(-1)?.id) {
+      throw new BoardError('Work item is already done; link follow-up work');
     }
-    Object.assign(x, changes);
-    if (changes.status === 'closed') {
-      x.closureKind = 'manual';
-      x.followWork = false;
-    } else if (changes.status && changes.status !== 'closed') {
-      x.closureKind = null;
-    }
-    if (changes.status === 'ready-for-work') x.followWork = true;
-    validate(x);
-    if (
-      x.status === 'ready-for-work' &&
-      (!x.workItem ||
-        !x.observed.trim() ||
-        !x.expected.trim() ||
-        !x.reproduction.trim() ||
-        !x.criteria.length)
-    ) {
-      throw new BoardError('Ready for work requires a linked work item and completed triage');
-    }
-    if (x.status === 'closed' && !x.closureReason.trim()) throw new BoardError('Closing requires a reason');
-    if (x.duplicateOf && !existsSync(issuePath(root, x.duplicateOf)))
-      throw new BoardError('Duplicate issue does not exist');
-    if (x.status === 'ready-for-work' && x.workItem && ('workItem' in changes || 'status' in changes)) {
-      const item = store.get(root, x.workItem);
-      if (item.archived) throw new BoardError('Work item is archived');
-      if (item.status === store.config(root).columns.at(-1)?.id) {
-        throw new BoardError('Work item is already done; link follow-up work');
-      }
-    }
-    return save(root, x);
-  });
+  }
+  return save(root, x);
 }
 export function addEvidence(
   root: string,
@@ -286,39 +291,40 @@ export function promoteIssue(
   revision: number | null,
   workItem?: string | null,
 ): Issue {
-  const x = getIssue(root, id);
-  if (revision !== null && revision !== x.revision)
-    throw new Conflict(`Revision mismatch; current revision is ${x.revision}`);
-  if (!x.observed.trim() || !x.expected.trim() || !x.reproduction.trim() || !x.criteria.length)
-    throw new BoardError(
-      'Promotion requires observed and expected behavior, reproduction steps or reason unavailable, and acceptance criteria',
-    );
-  const item = workItem
-    ? store.get(root, workItem)
-    : store.create(root, {
-        title: x.title,
-        description: `Observed: ${x.observed}\n\nExpected: ${x.expected}\n\nReproduction: ${x.reproduction}`,
-        acceptanceCriteria: x.criteria.map((text) => ({ text, done: false })),
-      });
-  if (item.archived) throw new BoardError('Work item is archived');
-  if (item.status === store.config(root).columns.at(-1)?.id)
-    throw new BoardError('Work item is already done; link follow-up work');
-  try {
-    return updateIssue(root, id, x.revision, {
-      workItem: item.id,
-      status: 'ready-for-work',
-      closureReason: '',
-      duplicateOf: null,
-    });
-  } catch (error) {
-    if (!workItem) {
-      const reason = error instanceof Error ? error.message : String(error);
+  return withLock(root, () => {
+    const x = check(root, id, revision, {});
+    if (x.status === 'ready-for-work') throw new BoardError('Issue is already ready for work');
+    if (!x.observed.trim() || !x.expected.trim() || !x.reproduction.trim() || !x.criteria.length)
       throw new BoardError(
-        `Created work item ${item.id}, but failed to link issue: ${reason}. Link it manually; do not repeat promotion.`,
+        'Promotion requires observed and expected behavior, reproduction steps or reason unavailable, and acceptance criteria',
       );
+    const item = workItem
+      ? store.get(root, workItem)
+      : store.createUnlocked(root, {
+          title: x.title,
+          description: `Observed: ${x.observed}\n\nExpected: ${x.expected}\n\nReproduction: ${x.reproduction}`,
+          acceptanceCriteria: x.criteria.map((text) => ({ text, done: false })),
+        });
+    if (item.archived) throw new BoardError('Work item is archived');
+    if (item.status === store.config(root).columns.at(-1)?.id)
+      throw new BoardError('Work item is already done; link follow-up work');
+    try {
+      return updateIssueUnlocked(root, id, x.revision, {
+        workItem: item.id,
+        status: 'ready-for-work',
+        closureReason: '',
+        duplicateOf: null,
+      });
+    } catch (error) {
+      if (!workItem) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new BoardError(
+          `Created work item ${item.id}, but failed to link issue: ${reason}. Link it manually; do not repeat promotion.`,
+        );
+      }
+      throw error;
     }
-    throw error;
-  }
+  });
 }
 /** Called under the board lock after a work item changes. */
 export function syncWorkItem(root: string, before: Item, after: Item, lastStatus: string): void {
@@ -330,7 +336,7 @@ export function syncWorkItem(root: string, before: Item, after: Item, lastStatus
       x.closureReason = 'Linked work completed';
       x.closureKind = 'work';
     } else if (after.status !== lastStatus && x.status === 'closed' && x.closureKind === 'work') {
-      x.status = 'ready-for-work';
+      x.status = 'new';
       x.closureReason = '';
       x.closureKind = null;
     } else {

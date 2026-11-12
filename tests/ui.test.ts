@@ -72,25 +72,63 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ready)('board.html (bridge mode)', () => {
+  test('evidence conflict refreshes issue and keeps draft for retry', async () => {
+    const issue = cliJson('issue-create', 'Evidence conflict test');
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url());
+      await p.waitFor(hasCard('Seed card'));
+      await p.click('#view-issues');
+      await p.waitFor(`document.body.innerText.includes('Evidence conflict test')`);
+      await p.eval(`[...document.querySelectorAll('.card')].find(c => c.textContent.includes('Evidence conflict test')).querySelector('button').click()`);
+      await p.set('dialog[open] textarea[name=evidence]', 'My retained evidence');
+      cliJson('issue-evidence', issue.id, 'Concurrent evidence');
+      await p.click('dialog[open] button[type=submit]');
+      await p.waitFor(`document.querySelector('dialog[open] [role=alert]').textContent.includes('save again')`);
+      expect(await p.eval(`document.querySelector('dialog[open] textarea[name=evidence]').value`)).toBe('My retained evidence');
+      await p.click('dialog[open] button[type=submit]');
+      await p.waitFor(`!document.querySelector('dialog[open]')`);
+      expect(cliJson('issue-show', issue.id).evidence).toEqual(['Concurrent evidence', 'My retained evidence']);
+    } finally { await p.send('Page.close'); }
+  });
+  test('issue sync failure reloads saved card and preserves unsent thread draft', async () => {
+    const item = cliJson('create', 'Issue sync test');
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:`(() => { const original = fetch; window.fetch = async (...args) => { const response = await original(...args); if (String(args[0]).includes('api/items/${item.id}') && args[1]?.method === 'PATCH' && response.ok) return new Response(JSON.stringify({code:'issue_sync_failed',itemId:'${item.id}',error:'Card saved; reload and reapply its status after repair.'}), {status:500,headers:{'Content-Type':'application/json'}}); return response; }; })()`});
+      await p.goto(url());
+      await p.waitFor(hasCard('Issue sync test'));
+      await p.click('.card-title[title="Issue sync test"]');
+      await p.set('#ed-title', 'Saved despite sync failure');
+      await p.set('#thread-body', 'Unsent thread draft');
+      await p.click('#ed-save');
+      await p.waitFor(`document.body.innerText.includes('Card saved; reload and reapply its status after repair.')`);
+      await p.waitFor(hasCard('Saved despite sync failure'));
+      await p.click('.card-title[title="Saved despite sync failure"]');
+      expect(await p.eval(`document.querySelector('#thread-body').value`)).toBe('Unsent thread draft');
+      expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Saved despite sync failure');
+    } finally { await p.send('Page.close'); }
+  });
   test('malformed issue is reported while the work board remains usable', async () => {
+    const issuePage = await chrome.newPage();
     const issues = join(root, '.agentboard', 'issues');
     mkdirSync(issues, {recursive:true});
     const damaged = join(issues, 'IS-0123456789AB.json');
     writeFileSync(damaged, '{broken');
     try {
-      await page.goto(url());
-      await page.waitFor(hasCard('Seed card'));
-      await page.waitFor(`document.body.innerText.includes('Issue tracker could not be loaded')`);
-      await page.click('#view-issues');
-      expect(await page.eval(`document.body.innerText.includes('Issues unavailable')`)).toBe(true);
-      expect(await page.eval(`!document.body.innerText.includes('+ Submit issue')`)).toBe(true);
-      await page.click('#view-board');
-      await openCard('Seed card');
-      expect(await page.eval(`document.querySelector('#editor').open`)).toBe(true);
-      await page.click('#ed-close');
-    } finally { rmSync(damaged, {force:true}); }
+      await issuePage.goto(url());
+      await issuePage.waitFor(hasCard('Seed card'));
+      await issuePage.waitFor(`document.body.innerText.includes('Issue tracker could not be loaded')`);
+      await issuePage.click('#view-issues');
+      expect(await issuePage.eval(`document.body.innerText.includes('Issues unavailable')`)).toBe(true);
+      expect(await issuePage.eval(`!document.body.innerText.includes('+ Submit issue')`)).toBe(true);
+      await issuePage.click('#view-board');
+      await issuePage.click('.card-title[title="Seed card"]');
+      expect(await issuePage.eval(`document.querySelector('#editor').open`)).toBe(true);
+    } finally { await issuePage.send('Page.close'); rmSync(damaged, {force:true}); }
   });
   test('without a token it shows launch instructions and makes no API calls', async () => {
+    page.requests.length = 0;
     await page.goto(`${base}/`);
     await page.waitFor(`document.body.innerText.includes('Connect AgentBoard to a project')`);
     expect(await page.eval(`document.body.innerText.includes('agentboard.ts --root /path/to/project serve')`)).toBe(true);

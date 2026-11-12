@@ -173,6 +173,8 @@ export function main(argv: string[], io: Io = consoleIo): number {
             if (args[key] !== null) (changes as any)[key] = args[key];
           }
           if (args.criteriaJson !== null) changes.criteria = JSON.parse(args.criteriaJson);
+          if (args.clearWorkItem) changes.workItem = null;
+          if (args.clearDuplicateOf) changes.duplicateOf = null;
           result = issues.updateIssue(root, args.id, args.revision, changes);
           break;
         }

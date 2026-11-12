@@ -6,6 +6,7 @@ import * as store from '../../scripts/lib/store';
 import * as issues from '../../scripts/lib/issues';
 import { Conflict } from '../../scripts/lib/types';
 import { main } from '../../scripts/agentboard';
+import { startBridge } from '../../scripts/lib/serve';
 
 test('triage promotion, shared work lifecycle and evidence reopening', () => {
   const root = mkdtempSync(join(tmpdir(), 'ab-issues-'));
@@ -35,7 +36,7 @@ test('triage promotion, shared work lifecycle and evidence reopening', () => {
     store.update(root, promoted.workItem!, null, { status: 'done' });
     expect(issues.getIssue(root, first.id).status).toBe('new');
     store.update(root, promoted.workItem!, null, { status: 'todo' });
-    expect(issues.getIssue(root, other.id).status).toBe('ready-for-work');
+    expect(issues.getIssue(root, other.id).status).toBe('new');
     store.update(root, promoted.workItem!, null, { status: 'done' });
     expect(issues.getIssue(root, first.id).status).toBe('new');
   } finally {
@@ -134,7 +135,7 @@ test('retains previous work and flags unavailable links; sync failures can be re
     expect(issues.issueSummary(root, followup).unavailableWorkItems).toEqual([first.workItem]);
     store.update(root, followup.workItem!, null, { status: 'done' });
     store.update(root, followup.workItem!, null, { status: 'todo' });
-    expect(issues.getIssue(root, first.id).status).toBe('ready-for-work');
+    expect(issues.getIssue(root, first.id).status).toBe('new');
     store.update(root, followup.workItem!, null, { status: 'done' });
     expect(issues.getIssue(root, first.id).status).toBe('closed');
   } finally {
@@ -179,6 +180,121 @@ test('malformed issue blocks status changes before saving but not unrelated card
     expect(store.update(root, card.id, null, { title: 'Renamed' }).title).toBe('Renamed');
     expect(() => store.update(root, card.id, null, { status: 'done' })).toThrow('Cannot read');
     expect(store.get(root, card.id).status).toBe(card.status);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('CLI clears mistaken links while retaining previous work history', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-clear-'));
+  try {
+    store.init(root);
+    const issue = issues.createIssue(root, {
+      title: 'Defect',
+      observed: 'bad',
+      expected: 'good',
+      reproduction: 'steps',
+    });
+    const duplicate = issues.createIssue(root, { title: 'Other' });
+    const ready = issues.updateIssue(root, issue.id, null, {
+      criteria: ['fixed'],
+      duplicateOf: duplicate.id,
+    });
+    const promoted = issues.promoteIssue(root, issue.id, ready.revision);
+    issues.updateIssue(root, issue.id, null, { duplicateOf: duplicate.id, status: 'gathering-data' });
+    const output: string[] = [];
+    const code = main(
+      ['--quiet', '--root', root, 'issue-edit', issue.id, '--clear-work-item', '--clear-duplicate-of'],
+      {
+        out: (text) => output.push(text),
+        err: (text) => output.push(text),
+        env: {},
+      },
+    );
+    expect(code).toBe(0);
+    const updated = issues.getIssue(root, issue.id);
+    expect(updated.workItem).toBeNull();
+    expect(updated.duplicateOf).toBeNull();
+    expect(updated.workHistory).toEqual([promoted.workItem]);
+    expect(updated.followWork).toBe(false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bridge reports a saved work item and recovery on issue sync failure', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-http-'));
+  store.init(root);
+  const issue = issues.createIssue(root, {
+    title: 'Defect',
+    observed: 'bad',
+    expected: 'good',
+    reproduction: 'steps',
+  });
+  const ready = issues.updateIssue(root, issue.id, null, { criteria: ['fixed'] });
+  const promoted = issues.promoteIssue(root, issue.id, ready.revision);
+  const ui = join(root, 'ui.html');
+  writeFileSync(ui, 'ui');
+  const bridge = startBridge(root, 0, ui, () => {});
+  try {
+    const item = store.get(root, promoted.workItem!);
+    issues.issueSeams.beforeSyncWrite = () => {
+      throw new Error('injected failure');
+    };
+    const response = await fetch(`http://127.0.0.1:${bridge.port}/api/items/${item.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${bridge.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        revision: item.revision,
+        hash: store.hashItem(root, item.id),
+        changes: { status: 'done' },
+      }),
+    });
+    const body = (await response.json()) as { code: string; itemId: string; error: string };
+    expect(response.status).toBe(500);
+    expect(body.code).toBe('issue_sync_failed');
+    expect(body.itemId).toBe(item.id);
+    expect(body.error).toContain('reapply its saved status');
+    expect(store.get(root, item.id).status).toBe('done');
+  } finally {
+    issues.issueSeams.beforeSyncWrite = () => {};
+    bridge.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('concurrent promotion creates only one work item', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-promote-race-'));
+  try {
+    store.init(root);
+    const issue = issues.createIssue(root, {
+      title: 'Race',
+      observed: 'bad',
+      expected: 'good',
+      reproduction: 'steps',
+    });
+    const ready = issues.updateIssue(root, issue.id, null, { criteria: ['fixed'] });
+    const cli = join(import.meta.dir, '../../scripts/agentboard.ts');
+    const processes = [0, 1].map(() =>
+      Bun.spawn(
+        [
+          process.execPath,
+          cli,
+          '--quiet',
+          '--root',
+          root,
+          'issue-promote',
+          issue.id,
+          '--revision',
+          String(ready.revision),
+        ],
+        { stdout: 'ignore', stderr: 'ignore' },
+      ),
+    );
+    const codes = await Promise.all(processes.map((process) => process.exited));
+    expect(codes.sort()).toEqual([0, 2]);
+    expect(store.snapshot(root).items).toHaveLength(1);
+    expect(issues.getIssue(root, issue.id).workItem).toBe(store.snapshot(root).items[0].id);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

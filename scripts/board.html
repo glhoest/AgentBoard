@@ -429,8 +429,8 @@ function bridgeBackend(token) {
     if (!res.ok) {
       const msg = isObj(data) && typeof data.error === 'string' ? data.error : `HTTP ${res.status}`;
       const kind = res.status === 409 ? 'conflict' : res.status === 403 ? 'forbidden' : res.status === 400 ? 'invalid' : res.status >= 500 ? 'server' : 'http';
-      if (isObj(data) && data.code === 'feature_sync_failed' && typeof data.itemId === 'string' && ID_RE.test(data.itemId)) {
-        const error = new ApiError('feature_sync_failed', msg, res.status);
+      if (isObj(data) && ['feature_sync_failed', 'issue_sync_failed'].includes(data.code) && typeof data.itemId === 'string' && ID_RE.test(data.itemId)) {
+        const error = new ApiError(data.code, msg, res.status);
         error.itemId = data.itemId;
         throw error;
       }
@@ -1022,7 +1022,7 @@ async function quickPatch(id, changes, doneMsg) {
     return true;
   } catch (e) {
     if (conflictFromError(e)) { toast(`${id} changed elsewhere, so nothing was changed. The board is refreshing to the current card; review it and try again.`, {kind: 'error'}); S.needsFresh = true; pollFresh().catch(() => {}); }
-    else if (e.kind === 'feature_sync_failed') { S.needsFresh = true; pollFresh().catch(() => {}); toast(e.message, {kind: 'error', persistent: true}); }
+    else if (e.kind === 'feature_sync_failed' || e.kind === 'issue_sync_failed') { S.needsFresh = true; pollFresh().catch(() => {}); toast(e.message, {kind: 'error', persistent: true}); }
     else toast(`Could not update ${id}: ${e.message}`, {kind: 'error'});
     return false;
   } finally { S.writing = false; renderBusy(); }
@@ -1256,7 +1256,7 @@ function moveFeature(feature, status) {
   if (feature.status === status) return;
   return featureWrite(() => S.backend.patchFeature(feature.id, feature.revision, feature.hash, {status}));
 }
-function issueForm(title, fields, save) {
+function issueForm(title, fields, save, onConflict) {
   const dialog = h('dialog', {class:'dlg'});
   const form = h('form', {});
   const inputs = {};
@@ -1275,7 +1275,12 @@ function issueForm(title, fields, save) {
     try {
       await save(Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, input.value])));
       dialog.close(); await pollFresh();
-    } catch (e) { error.textContent = e.message || String(e); }
+    } catch (e) {
+      if (e.kind === 'conflict' && onConflict) {
+        try { error.textContent = await onConflict(); }
+        catch (refreshError) { error.textContent = 'Could not refresh the issue. Your evidence is kept; retry when the connection returns. ' + (refreshError.message || refreshError); }
+      } else error.textContent = e.message || String(e);
+    }
     finally { submit.disabled = false; }
   });
   dialog.addEventListener('close', () => dialog.remove());
@@ -1302,8 +1307,18 @@ function renderIssues(root) {
     for (const issue of issues) {
       const work = issue.workItem && S.snap.items.get(issue.workItem);
       const evidence = h('ul', {}, (issue.evidence || []).map(text => h('li', {text})));
-      const add = h('button', {type:'button', class:'btn small', onclick:() => issueForm('Add evidence', [['evidence','Reproduction evidence',true]],
-        values => mutate(() => S.backend.addEvidence(issue.id, issue.revision, issue.hash, values.evidence)))}, 'Add evidence');
+      const add = h('button', {type:'button', class:'btn small', onclick:() => {
+        let current = issue;
+        issueForm('Add evidence', [['evidence','Reproduction evidence',true]],
+          values => mutate(() => S.backend.addEvidence(current.id, current.revision, current.hash, values.evidence)),
+          async () => {
+            if (!await pollFresh() || S.snap.issuesError) throw new Error('Issue data is unavailable.');
+            const latest = S.snap.issues.find(candidate => candidate.id === issue.id);
+            if (!latest || !latest.hash) throw new Error('The issue is no longer available.');
+            current = latest;
+            return 'The issue changed. Current status: ' + latest.status + '. Current evidence: ' + (latest.evidence.join('; ') || '(none)') + '. Your evidence is kept; review and save again.';
+          });
+      }}, 'Add evidence');
       body.append(h('li', {class:'card'}, h('strong', {text:issue.title}), h('span', {class:'muted', text:issue.id}),
         issue.observed ? h('p', {text:'Observed: ' + issue.observed}) : null,
         issue.expected ? h('p', {text:'Expected: ' + issue.expected}) : null,
@@ -1894,7 +1909,7 @@ async function saveDraft(d) {
     const msg = createdId ? `Created ${createdId}.` : `Saved ${d.id}.`;
     toast(msg, {kind: 'ok'}); announce(msg);
   } catch (e) {
-    if (e.kind === 'feature_sync_failed' && e.itemId) {
+    if ((e.kind === 'feature_sync_failed' || e.kind === 'issue_sync_failed') && e.itemId) {
       if (d.id && (d.threadBody || d.threadAuthor || Object.keys(d.threadInputs || {}).length)) { d.savedItemId = e.itemId; d.keepThreadDraft = true; }
       else S.drafts.delete(key);
       if (S.editing === key) closeEditorUi();

@@ -45,6 +45,34 @@ test('watcher dispatches issue changes through the issue filter', async () => {
   }
 });
 
+test('malformed issues do not block card events and recover from the last good issue baseline', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-watch-bad-issue-'));
+  const action = join(root, 'action.ts');
+  const output = join(root, 'events.json');
+  let running: Awaited<ReturnType<typeof start>> | undefined;
+  try {
+    init(root);
+    const issue = createIssue(root, { title: 'Defect' });
+    const path = join(root, '.agentboard', 'issues', `${issue.id}.json`);
+    const valid = readFileSync(path, 'utf8');
+    writeFileSync(action, 'await Bun.write(process.argv[2], await new Response(Bun.stdin.stream()).text());');
+    running = await start(['--root', root, '--interval', '150', '--', bun, action, output]);
+    writeFileSync(path, '{');
+    const card = create(root, { title: 'Still delivered' });
+    await until(() => existsSync(output));
+    expect(JSON.parse(readFileSync(output, 'utf8')).events).toEqual([{ type: 'card.created', id: card.id }]);
+    await until(() => running!.output().includes('issue snapshot failed'));
+    writeFileSync(path, valid);
+    updateIssue(root, issue.id, issue.revision, { status: 'smoking-rack' });
+    await until(() => running!.output().includes('issues readable again'));
+    await until(() => JSON.parse(readFileSync(output, 'utf8')).events.some((event: any) => event.type === 'issue.status'));
+  } finally {
+    running?.proc.kill();
+    if (running) await running.proc.exited;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 async function until(check: () => boolean, timeout = 6000) {
   const deadline = Date.now() + timeout;
   while (!check()) {
