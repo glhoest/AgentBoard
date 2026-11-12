@@ -235,6 +235,7 @@ function updateIssueUnlocked(
 ): Issue {
   const x = check(root, id, revision, opts);
   const reopening = x.status === 'closed' && changes.status && changes.status !== 'closed';
+  const relinking = 'workItem' in changes && changes.workItem !== x.workItem;
   if (reopening && (changes.closureReason || changes.duplicateOf)) {
     throw new BoardError('A reopened issue cannot have a closure reason or duplicate');
   }
@@ -243,6 +244,13 @@ function updateIssueUnlocked(
     x.workHistory = x.workHistory.filter((id) => id !== changes.workItem);
   }
   Object.assign(x, changes);
+  if (x.status !== 'closed' && (changes.closureReason || changes.duplicateOf)) {
+    throw new BoardError('Closure reason and duplicate require a closed issue');
+  }
+  if (relinking && changes.status !== 'ready-for-work') {
+    x.followWork = false;
+    if (x.status === 'closed') x.closureKind = 'manual';
+  }
   if (reopening) {
     x.closureReason = '';
     x.duplicateOf = null;

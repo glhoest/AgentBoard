@@ -196,12 +196,9 @@ test('CLI clears mistaken links while retaining previous work history', () => {
       reproduction: 'steps',
     });
     const duplicate = issues.createIssue(root, { title: 'Other' });
-    const ready = issues.updateIssue(root, issue.id, null, {
-      criteria: ['fixed'],
-      duplicateOf: duplicate.id,
-    });
+    const ready = issues.updateIssue(root, issue.id, null, { criteria: ['fixed'] });
     const promoted = issues.promoteIssue(root, issue.id, ready.revision);
-    issues.updateIssue(root, issue.id, null, { duplicateOf: duplicate.id, status: 'gathering-data' });
+    issues.updateIssue(root, issue.id, null, { duplicateOf: duplicate.id, status: 'closed', closureReason: 'Duplicate' });
     const output: string[] = [];
     const code = main(
       ['--quiet', '--root', root, 'issue-edit', issue.id, '--clear-work-item', '--clear-duplicate-of'],
@@ -356,6 +353,27 @@ test('manual resolution and reopening do not follow already completed work', () 
     issues.updateIssue(root, issue.id, null, { status: 'new' });
     store.update(root, promoted.workItem!, null, { status: 'done' });
     expect(issues.getIssue(root, issue.id).status).toBe('new');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('closure fields require closure and relinking does not implicitly follow new work', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-relink-'));
+  try {
+    store.init(root);
+    const issue = issues.createIssue(root, { title: 'Defect', observed: 'bad', expected: 'good', reproduction: 'steps' });
+    const duplicate = issues.createIssue(root, { title: 'Other' });
+    expect(() => issues.updateIssue(root, issue.id, null, { closureReason: 'Invalid' })).toThrow();
+    expect(() => issues.updateIssue(root, issue.id, null, { duplicateOf: duplicate.id })).toThrow();
+    const ready = issues.updateIssue(root, issue.id, null, { criteria: ['fixed'] });
+    const promoted = issues.promoteIssue(root, issue.id, ready.revision);
+    issues.updateIssue(root, issue.id, null, { status: 'gathering-data' });
+    const other = store.create(root, { title: 'Other work' });
+    issues.updateIssue(root, issue.id, null, { workItem: other.id });
+    store.update(root, other.id, null, { status: 'done' });
+    expect(issues.getIssue(root, issue.id).status).toBe('gathering-data');
+    expect(issues.getIssue(root, issue.id).workHistory).toContain(promoted.workItem);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
