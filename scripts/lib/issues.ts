@@ -235,7 +235,9 @@ function updateIssueUnlocked(
 ): Issue {
   const x = check(root, id, revision, opts);
   const reopening = x.status === 'closed' && changes.status && changes.status !== 'closed';
-  if (reopening && changes.closureReason) throw new BoardError('A reopened issue cannot have a closure reason');
+  if (reopening && (changes.closureReason || changes.duplicateOf)) {
+    throw new BoardError('A reopened issue cannot have a closure reason or duplicate');
+  }
   if ('workItem' in changes && changes.workItem !== x.workItem) {
     if (x.workItem && !x.workHistory.includes(x.workItem)) x.workHistory.push(x.workItem);
     x.workHistory = x.workHistory.filter((id) => id !== changes.workItem);
@@ -244,9 +246,13 @@ function updateIssueUnlocked(
   if (reopening) {
     x.closureReason = '';
     x.duplicateOf = null;
+    if (x.workItem && existsSync(store.itemPath(root, x.workItem))) {
+      const item = store.get(root, x.workItem);
+      if (item.status === store.config(root).columns.at(-1)?.id) x.followWork = false;
+    }
   }
   if ('workItem' in changes && changes.workItem === null) x.followWork = false;
-  if (changes.status === 'closed') {
+  if (changes.status === 'closed' || (x.status === 'closed' && ('closureReason' in changes || 'duplicateOf' in changes))) {
     x.closureKind = 'manual';
     x.followWork = false;
   } else if (changes.status && changes.status !== 'closed') {
@@ -285,6 +291,7 @@ export function addEvidence(
     if (x.status === 'closed') {
       x.status = 'new';
       x.closureReason = '';
+      x.duplicateOf = null;
       x.closureKind = null;
       x.followWork = false;
     }
@@ -344,6 +351,7 @@ export function syncWorkItem(root: string, before: Item, after: Item, lastStatus
     } else if (after.status !== lastStatus && x.status === 'closed' && x.closureKind === 'work') {
       x.status = 'new';
       x.closureReason = '';
+      x.duplicateOf = null;
       x.closureKind = null;
     } else {
       continue;

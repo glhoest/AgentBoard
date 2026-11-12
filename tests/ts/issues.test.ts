@@ -327,10 +327,35 @@ test('manually reopening an issue clears its closure reason', () => {
     const original = issues.createIssue(root, { title: 'Original' });
     issues.updateIssue(root, issue.id, null, { status: 'closed', closureReason: 'Duplicate', duplicateOf: original.id });
     expect(() => issues.updateIssue(root, issue.id, null, { status: 'new', closureReason: 'reason' })).toThrow();
+    expect(() => issues.updateIssue(root, issue.id, null, { status: 'new', duplicateOf: original.id })).toThrow();
+    const evidenced = issues.addEvidence(root, issue.id, null, 'Another reproduction');
+    expect(evidenced.duplicateOf).toBeNull();
+    issues.updateIssue(root, issue.id, null, { status: 'closed', closureReason: 'Duplicate', duplicateOf: original.id });
     const reopened = issues.updateIssue(root, issue.id, null, { status: 'gathering-data' });
     expect(reopened.closureReason).toBe('');
     expect(reopened.duplicateOf).toBeNull();
     expect(reopened.closureKind).toBeNull();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('manual resolution and reopening do not follow already completed work', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-manual-'));
+  try {
+    store.init(root);
+    const issue = issues.createIssue(root, { title: 'Defect', observed: 'bad', expected: 'good', reproduction: 'steps' });
+    const original = issues.createIssue(root, { title: 'Original' });
+    const ready = issues.updateIssue(root, issue.id, null, { criteria: ['fixed'] });
+    const promoted = issues.promoteIssue(root, issue.id, ready.revision);
+    store.update(root, promoted.workItem!, null, { status: 'done' });
+    issues.updateIssue(root, issue.id, null, { closureReason: 'Duplicate', duplicateOf: original.id });
+    store.update(root, promoted.workItem!, null, { status: 'todo' });
+    expect(issues.getIssue(root, issue.id).status).toBe('closed');
+    store.update(root, promoted.workItem!, null, { status: 'done' });
+    issues.updateIssue(root, issue.id, null, { status: 'new' });
+    store.update(root, promoted.workItem!, null, { status: 'done' });
+    expect(issues.getIssue(root, issue.id).status).toBe('new');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
