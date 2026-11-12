@@ -363,6 +363,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await page.eval(`document.querySelector('#feature-editor').close()`);
       expect(await page.eval(`document.querySelector('#view-features').getAttribute('aria-pressed')`)).toBe('true');
       await page.click('#view-board');
+      await page.waitFor(`[...document.querySelectorAll('#drafts-strip button')].some(b => b.textContent.includes('Unsent card draft'))`);
       await page.eval(`[...document.querySelectorAll('#drafts-strip button')].find(b => b.textContent.includes('Unsent card draft')).click()`);
       expect(await page.eval(`document.querySelector('#ed-title').value`)).toBe('Unsent card draft');
       await page.click('#ed-cancel');

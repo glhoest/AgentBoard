@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "id": "IS-0642830D9037",
+  "revision": 4,
+  "title": "Draft strip test clicks before the control appears",
+  "status": "closed",
+  "observed": "Full browser runs failed because the unsent draft button was absent immediately after switching views.",
+  "expected": "The test waits until the draft control is present before clicking it.",
+  "reproduction": "Run the full UI suite under slower timing; feature draft survives polls can fail at the draft button click.",
+  "criteria": [
+    "Wait for the draft control before clicking; preserve the draft assertion."
+  ],
+  "evidence": [],
+  "workItem": "AB-C5ACECA7DD52",
+  "workHistory": [],
+  "followWork": true,
+  "closureKind": "work",
+  "closureReason": "Linked work completed",
+  "duplicateOf": null,
+  "createdAt": "2026-11-12T03:00:10.213Z",
+  "updatedAt": "2026-11-12T03:00:28.084Z"
+}
