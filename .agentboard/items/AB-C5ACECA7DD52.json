@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
   "id": "AB-C5ACECA7DD52",
-  "revision": 3,
+  "revision": 5,
   "title": "Draft strip test clicks before the control appears",
   "status": "done",
   "priority": "medium",
@@ -14,9 +14,9 @@
       "done": true
     }
   ],
-  "notes": "Focused browser test passed after the wait was added; full suite verification remains in progress.",
+  "notes": "The sync-error UI test left an unsent draft open, triggering an unload confirmation that interfered with later tests. Discarding it before closing restored the sequence; bun test passed 243, failed 0.",
   "createdAt": "2026-11-12T03:00:17.194Z",
-  "updatedAt": "2026-11-12T03:00:34.967Z",
+  "updatedAt": "2026-11-12T03:08:10.045Z",
   "archived": false,
   "feature": null,
   "thread": []

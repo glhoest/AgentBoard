@@ -107,6 +107,9 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.click('.card-title[title="Saved despite sync failure"]');
       expect(await p.eval(`document.querySelector('#thread-body').value`)).toBe('Unsent thread draft');
       expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Saved despite sync failure');
+      await p.click('#ed-cancel');
+      await p.click('#cf-form button[value=ok]');
+      await p.waitFor(`!document.querySelector('#editor').open`);
     } finally { await p.send('Page.close'); }
   });
   test('malformed issue is reported while the work board remains usable', async () => {
