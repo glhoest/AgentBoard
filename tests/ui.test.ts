@@ -1419,8 +1419,8 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       const ab = await proj.getDirectoryHandle('.agentboard', {create: true});
       const items = await ab.getDirectoryHandle('items', {create: true});
       for (const [name, text] of Object.entries(files)) {
-        const dir = name.startsWith('features/') ? await ab.getDirectoryHandle('features', {create:true}) : name === 'board.json' ? ab : items;
-        const filename = name.startsWith('features/') ? name.slice('features/'.length) : name;
+        const dir = name.startsWith('features/') ? await ab.getDirectoryHandle('features', {create:true}) : name.startsWith('issues/') ? await ab.getDirectoryHandle('issues', {create:true}) : name === 'board.json' ? ab : items;
+        const filename = name.startsWith('features/') ? name.slice('features/'.length) : name.startsWith('issues/') ? name.slice('issues/'.length) : name;
         const w = await (await dir.getFileHandle(filename, {create: true})).createWritable(); await w.write(text); await w.close();
       }
       return proj;
@@ -1444,6 +1444,23 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       await p.click('#pick-folder');
       await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
       expect(await p.eval(`document.body.textContent.includes('Direct seed')`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct mode refuses status changes when issue data exists', async () => {
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, 'issues/IS-0123456789AB.json':'{}'})});
+      await p.goto(base + '/');
+      await p.eval(`document.querySelector('.direct-box').open = true`);
+      await p.click('#pick-folder');
+      await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-status').value = 'done'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}))`);
+      await p.click('#ed-save');
+      await p.waitFor(`document.body.textContent.includes('Use the local bridge to change work status')`);
+      expect(await p.eval(`document.querySelector('#editor').open`)).toBe(true);
+      expect(await p.eval(`document.querySelector('.card-title[title="Direct seed"]').closest('.col').dataset.col`)).toBe('backlog');
     } finally { await p.send('Page.close'); }
   });
 

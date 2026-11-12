@@ -145,8 +145,8 @@ export function main(argv: string[], io: Io = consoleIo): number {
     } else {
       const root = store.locate(args.root ?? process.cwd());
       switch (args.cmd) {
-        case 'issues': result = issues.listIssues(root); break;
-        case 'issue-show': result = issues.getIssue(root,args.id); break;
+        case 'issues': result = issues.listIssues(root).map(issue => issues.issueSummary(root, issue)); break;
+        case 'issue-show': result = issues.issueSummary(root, issues.getIssue(root,args.id)); break;
         case 'issue-create': result = issues.createIssue(root,{title:args.title, observed:args.observed ?? undefined, expected:args.expected ?? undefined, reproduction:args.reproduction ?? undefined}); break;
         case 'issue-evidence': result = issues.addEvidence(root,args.id,args.revision,args.body); break;
         case 'issue-promote': result = issues.promoteIssue(root,args.id,args.revision,args.workItem); break;

@@ -277,6 +277,7 @@ This folder is the source. `tests/` and `docs/` stay here, and setup does not co
 
 Notes on direct mode and the UI:
 
+- When issue files exist, direct mode refuses work-card status changes, including drag-and-drop. Use the bridge so linked issues follow work completion and reopening. Issue submission and evidence also require the bridge.
 - Direct mode cannot create a feature file exclusively, because the browser file API has no atomic exclusive create. A second check that the file does not exist makes the race window smaller.
 - The CLI rejects cards with an unknown status, so you cannot compare their progress against CLI output.
 - The board's "No feature" filter includes cards linked to a missing or archived feature.

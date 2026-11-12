@@ -25,7 +25,7 @@ test('triage promotion, shared work lifecycle and evidence reopening', () => {
     store.update(root,promoted.workItem!,null,{status:'done'});
     expect(issues.getIssue(root,first.id).status).toBe('new');
     store.update(root,promoted.workItem!,null,{status:'todo'});
-    expect(issues.getIssue(root,other.id).status).toBe('new');
+    expect(issues.getIssue(root,other.id).status).toBe('ready-for-work');
     store.update(root,promoted.workItem!,null,{status:'done'});
     expect(issues.getIssue(root,first.id).status).toBe('new');
   } finally { rmSync(root,{recursive:true,force:true}); }
@@ -61,4 +61,30 @@ test('concurrent evidence writes reject stale revisions', async () => {
     expect(codes.sort()).toEqual([0,2]);
     expect(issues.getIssue(root,issue.id).evidence).toHaveLength(1);
   } finally { rmSync(root,{recursive:true,force:true}); }
+});
+
+test('retains previous work and flags unavailable links; sync failures can be retried', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-sync-'));
+  try {
+    store.init(root);
+    const created = issues.createIssue(root,{title:'Defect',observed:'bad',expected:'good',reproduction:'steps'});
+    const ready = issues.updateIssue(root,created.id,1,{criteria:['fixed']});
+    const first = issues.promoteIssue(root,created.id,ready.revision);
+    issues.issueSeams.beforeSyncWrite = () => { throw new Error('injected write failure'); };
+    expect(() => store.update(root,first.workItem!,null,{status:'done'})).toThrow('was saved');
+    expect(issues.getIssue(root,first.id).status).toBe('ready-for-work');
+    issues.issueSeams.beforeSyncWrite = () => {};
+    store.update(root,first.workItem!,null,{status:'done'});
+    expect(issues.getIssue(root,first.id).status).toBe('closed');
+    issues.addEvidence(root,first.id,null,'still broken');
+    const followup = issues.promoteIssue(root,first.id,null);
+    expect(followup.workHistory).toEqual([first.workItem]);
+    store.update(root,first.workItem!,null,{archived:true});
+    expect(issues.issueSummary(root,followup).unavailableWorkItems).toEqual([first.workItem]);
+    store.update(root,followup.workItem!,null,{status:'done'});
+    store.update(root,followup.workItem!,null,{status:'todo'});
+    expect(issues.getIssue(root,first.id).status).toBe('ready-for-work');
+    store.update(root,followup.workItem!,null,{status:'done'});
+    expect(issues.getIssue(root,first.id).status).toBe('closed');
+  } finally { issues.issueSeams.beforeSyncWrite = () => {}; rmSync(root,{recursive:true,force:true}); }
 });

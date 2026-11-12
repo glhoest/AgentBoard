@@ -306,7 +306,11 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
       ? planFeatures(root, c, before, x) : [];
     atomicWrite(itemPath(root, id), x);
     writeFeatureUpdates(root, x.id, updates);
-    syncWorkItem(root, before, x, c.columns[c.columns.length - 1].id);
+    try {
+      syncWorkItem(root, before, x, c.columns[c.columns.length - 1].id);
+    } catch (error) {
+      throw new BoardError(`Card ${id} was saved, but issue synchronization failed: ${error instanceof Error ? error.message : String(error)}. Reload and reapply its saved status with move to retry.`);
+    }
     return x;
   });
 }

@@ -576,6 +576,18 @@ async function directBackend(picked) {
     try { return await ab.getDirectoryHandle('features', {create}); }
     catch (e) { if (!create && e.name === 'NotFoundError') return null; throw e; }
   }
+  // Direct mode cannot safely coordinate issue lifecycle writes with the CLI.
+  // Refuse status changes whenever issue files exist; the bridge performs both writes.
+  async function guardIssueStatusWrite() {
+    let dir;
+    try { dir = await ab.getDirectoryHandle('issues'); }
+    catch (e) { if (e.name === 'NotFoundError') return; throw e; }
+    for await (const [name, handle] of dir.entries()) {
+      if (handle.kind === 'file' && name.endsWith('.json') && !name.startsWith('.tmp-')) {
+        throw new ApiError('invalid', 'Issue tracker data exists. Use the local bridge to change work status so linked issues stay in sync.');
+      }
+    }
+  }
   async function checkLink(id) {
     if (id === null || id === undefined) return;
     const dir = await featureDir();
@@ -776,6 +788,7 @@ async function directBackend(picked) {
         if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
         const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
         validateStrict(x, config);
+        if ('status' in changes) await guardIssueStatusWrite();
         const updates = (!item.archived || !x.archived) && (item.feature !== x.feature || item.status !== x.status || item.archived !== x.archived || 'status' in changes)
           ? await planFeatures(config, item, x) : [];
         await write(itemsDir, name, x, false);
@@ -1291,6 +1304,7 @@ function renderIssues(root) {
         issue.expected ? h('p', {text:'Expected: ' + issue.expected}) : null,
         issue.reproduction ? h('p', {text:'Reproduction: ' + issue.reproduction}) : null,
         issue.workItem ? h('p', {text:'Work: ' + issue.workItem + (!work || work.archived ? ' (unavailable)' : '')}) : null,
+        ...(issue.workHistory || []).map(id => { const prior = S.snap.items.get(id); return h('p', {text:'Previous work: ' + id + (!prior || prior.archived ? ' (unavailable)' : '')}); }),
         issue.duplicateOf ? h('p', {text:'Duplicate of: ' + issue.duplicateOf}) : null,
         issue.closureReason ? h('p', {text:'Closure: ' + issue.closureReason}) : null,
         h('ul', {}, (issue.criteria || []).map(text => h('li', {text}))),
