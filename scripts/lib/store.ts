@@ -1,3 +1,4 @@
+import { syncWorkItem } from './issues';
 import { mkdirSync, openSync, writeSync, fsyncSync, closeSync, renameSync, unlinkSync, existsSync, readFileSync, readdirSync, appendFileSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -305,6 +306,7 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
       ? planFeatures(root, c, before, x) : [];
     atomicWrite(itemPath(root, id), x);
     writeFeatureUpdates(root, x.id, updates);
+    syncWorkItem(root, before, x, c.columns[c.columns.length - 1].id);
     return x;
   });
 }

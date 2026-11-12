@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { withLock } from './lib/lock';
 import { locate, snapshot } from './lib/store';
+import { listIssues } from './lib/issues';
 import { changes, EVENT_TYPES, type EventType } from './lib/watch-events';
 
 const usage = `Usage: bun watch.ts [--root DIR] [--interval MS] [--timeout MS] [--on TYPE ...] (--webhook | -- PROGRAM [ARG ...])
@@ -123,7 +124,7 @@ async function postWebhook(url: URL, input: string, timeout: number): Promise<vo
 
 async function watch(options: Options): Promise<void> {
   const url = options.webhook ? webhookUrl() : null;
-  const read = () => withLock(options.root, () => snapshot(options.root, { persist: false }));
+  const read = () => withLock(options.root, () => ({ ...snapshot(options.root, { persist: false }), issues: listIssues(options.root) }));
   let previous = read();
   let lastWarning = '';
   const dispatches: number[] = [];

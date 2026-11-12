@@ -25,6 +25,19 @@ const board = async () => (await (await fetch(`${base}/api/board`, { headers: au
 const create = async (title: string) => (await (await fetch(`${base}/api/items`, { method: 'POST', headers: json(), body: JSON.stringify({ title }) })).json()) as any;
 const patch = (id: string, body: unknown) => fetch(`${base}/api/items/${id}`, { method: 'PATCH', headers: json(), body: typeof body === 'string' ? body : JSON.stringify(body) });
 
+test('issue submission and evidence use snapshot hashes for conflict detection', async () => {
+  const created = await fetch(`${base}/api/issues`, { method: 'POST', headers: json(), body: JSON.stringify({title: 'Defect', observed: 'Fails'}) });
+  expect(created.status).toBe(201);
+  const issue = await created.json() as any;
+  const snap = await board();
+  expect(snap.issues.find((x: any) => x.id === issue.id).observed).toBe('Fails');
+  const payload = {revision: issue.revision, hash: snap.hashes[issue.id], entry: 'Another reproduction'};
+  const post = () => fetch(`${base}/api/issues/${issue.id}/evidence`, {method:'POST', headers:json(), body:JSON.stringify(payload)});
+  expect((await post()).status).toBe(200);
+  expect((await post()).status).toBe(409);
+  expect((await board()).issues.find((x: any) => x.id === issue.id).evidence).toEqual(['Another reproduction']);
+});
+
 function rawGet(path: string, headers: Record<string, string>): Promise<number> {
   return new Promise((resolve, reject) => {
     const socket = createConnection({ host: '127.0.0.1', port: bridge.port });

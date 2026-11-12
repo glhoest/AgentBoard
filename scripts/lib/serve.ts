@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { BoardError, Conflict, FeatureSyncError } from './types';
 import { encode, snapshot, hashItem, hashFeature, createFeature, updateFeature, create, update, addEntry, editEntry } from './store';
 import { withLock } from './lock';
+import { listIssues, hashIssue, createIssue, updateIssue, addEvidence } from './issues';
 
 const FEATURE_ROUTE = /^\/api\/features\/(FT-[0-9A-F]{12})$/;
 const ITEM_ROUTE = /^\/api\/items\/(AB-[0-9A-F]{12})$/;
@@ -30,6 +31,16 @@ function versioned(body: any, payload: 'changes' | 'entry'): unknown {
 }
 
 function handleWrite(root: string, method: string, path: string, body: any): Response {
+  if (method === 'POST' && path === '/api/issues') return response(201, createIssue(root, body));
+  const issueMatch = path.match(/^\/api\/issues\/(IS-[0-9A-F]{12})(\/evidence)?$/);
+  if (issueMatch && method === 'PATCH' && !issueMatch[2]) {
+    const changes = versioned(body, 'changes') as any;
+    return response(200, updateIssue(root, issueMatch[1], body.revision, changes, { expectedHash: body.hash }));
+  }
+  if (issueMatch && method === 'POST' && issueMatch[2]) {
+    const entry = versioned(body, 'entry');
+    return response(200, addEvidence(root, issueMatch[1], body.revision, entry as string, { expectedHash: body.hash }));
+  }
   if (method === 'POST' && path === '/api/features') return response(201, createFeature(root, body));
   const featureMatch = path.match(FEATURE_ROUTE);
   if (method === 'PATCH' && featureMatch) {
@@ -85,9 +96,11 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
         // Under the lock, the snapshot upgrades older files on disk first, so the hashes match the current bytes.
         const result = withLock(root, () => {
           const value = snapshot(root) as any;
+          value.issues = listIssues(root);
           value.hashes = Object.fromEntries([
             ...value.items.map((item: any) => [item.id, hashItem(root, item.id)]),
             ...value.features.map((feature: any) => [feature.id, hashFeature(root, feature.id)]),
+            ...value.issues.map((issue: any) => [issue.id, hashIssue(root, issue.id)]),
           ]);
           return value;
         });

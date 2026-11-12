@@ -281,6 +281,16 @@ Notes on direct mode and the UI:
 - The CLI rejects cards with an unknown status, so you cannot compare their progress against CLI output.
 - The board's "No feature" filter includes cards linked to a missing or archived feature.
 
+## Defect triage
+
+The issue tracker stores defects and their evidence in Git alongside the work board. Feature requests belong on the work board. Agents use the CLI (`issues`, `issue-show`, `issue-create`, `issue-edit`, `issue-evidence`, and `issue-promote`); run a command with `--help` for its options. Humans can submit defects and evidence in the UI. Reports are repository data: do not include secrets or private customer data.
+
+Issues move through five fixed stages: New, Smoking rack, Gathering data, Ready for work, and Closed. Smoking rack holds reports awaiting further real-world instances; Gathering data is for investigation. Triage uses judgment, not a fixed reproduction count. Before promotion, record observed and expected behavior, reproduction steps or why they are unavailable, and actionable acceptance criteria. Promotion retains the report and evidence and creates or links a normal work item. Multiple issues can link to the same work item.
+
+Each issue is a JSON file in `.agentboard/issues/`, named `IS-<12 uppercase hex>.json`. Version 1.0.0 stores its ID, revision, title, status, observed and expected behavior, reproduction text, criteria and evidence arrays, work item and duplicate IDs, closure reason, and creation and update timestamps. A missing issues directory means there are no issues, so existing boards remain readable. Issue changes use the board lock and revision checks; as with work cards, Git operations and direct browser writes do not share that lock.
+
+An agent can close a duplicate, invalid report, or non-defect with a reason and a link to the duplicate where applicable. Linked issues close when their work is completed and reopen when it is reopened. New evidence reopens a closed issue for triage even if its old work remains done; follow-up work or a triage resolution is required. Missing or archived work links remain visible for triage. Triage can be run by an external scheduler or triggered by watcher issue events; AgentBoard does not run a scheduler.
+
 ## Watch board changes
 
 The optional local watcher compares board snapshots and runs an action when it sees selected changes. Start it yourself, in an environment you trust. Neither `serve` nor setup starts it. For example, this prints new open-question events from a project with the skill installed:
@@ -307,7 +317,7 @@ The watcher accepts `--root DIR`, `--interval MS` (default 2000), `--timeout MS`
 {"schema":1,"at":"2026-01-01T12:00:00.000Z","events":[{"type":"question.opened","id":"AB-0123456789AB","questionId":"TH-0123456789AB"}]}
 ```
 
-The event types are `card.created`, `card.updated`, `card.removed`, `card.status`, `card.assignee`, `question.opened`, `question.closed`, `feature.created`, `feature.updated`, `feature.removed` and `board.updated`.
+The event types are `card.created`, `card.updated`, `card.removed`, `card.status`, `card.assignee`, `question.opened`, `question.closed`, `feature.created`, `feature.updated`, `feature.removed`, `issue.created`, `issue.updated`, `issue.removed`, `issue.status` and `board.updated`.
 
 - Update events include `fields`, the names of the top-level fields that changed.
 - Status and assignee events include `before` and `after`.

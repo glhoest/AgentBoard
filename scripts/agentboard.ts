@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import * as issues from './lib/issues';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseArgs } from './lib/args';
@@ -144,6 +145,17 @@ export function main(argv: string[], io: Io = consoleIo): number {
     } else {
       const root = store.locate(args.root ?? process.cwd());
       switch (args.cmd) {
+        case 'issues': result = issues.listIssues(root); break;
+        case 'issue-show': result = issues.getIssue(root,args.id); break;
+        case 'issue-create': result = issues.createIssue(root,{title:args.title, observed:args.observed ?? undefined, expected:args.expected ?? undefined, reproduction:args.reproduction ?? undefined}); break;
+        case 'issue-evidence': result = issues.addEvidence(root,args.id,args.revision,args.body); break;
+        case 'issue-promote': result = issues.promoteIssue(root,args.id,args.revision,args.workItem); break;
+        case 'issue-edit': {
+          const changes: issues.IssueChanges = {};
+          for (const key of ['title','status','observed','expected','reproduction','workItem','closureReason','duplicateOf'] as const) if (args[key] !== null) (changes as any)[key] = args[key];
+          if (args.criteriaJson !== null) changes.criteria = JSON.parse(args.criteriaJson);
+          result = issues.updateIssue(root,args.id,args.revision,changes); break;
+        }
         case 'list':
           result = withLock(root, () => store.snapshot(root).items).filter(item =>
             (args.all || !item.archived) &&

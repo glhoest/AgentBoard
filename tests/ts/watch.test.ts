@@ -4,10 +4,46 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { init, create, update, addEntry, snapshot, createFeature, updateFeature } from '../../scripts/lib/store';
 import { changes } from '../../scripts/lib/watch-events';
+import { createIssue, listIssues, updateIssue } from '../../scripts/lib/issues';
 
 const watcher = resolve(import.meta.dir, '../../scripts/watch.ts');
 const cli = resolve(import.meta.dir, '../../scripts/agentboard.ts');
 const bun = process.execPath;
+
+test('issue events report creation, field changes, status and removal', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-events-'));
+  try {
+    init(root);
+    const read = () => ({ ...snapshot(root), issues: listIssues(root) });
+    const empty = read();
+    const issue = createIssue(root, { title: 'Defect' });
+    const created = read();
+    expect(changes(empty, created)).toEqual([{ type: 'issue.created', id: issue.id }]);
+    updateIssue(root, issue.id, issue.revision, { status: 'smoking-rack' });
+    const updated = read();
+    expect(changes(created, updated).map(event => event.type)).toEqual(['issue.updated', 'issue.status']);
+    expect(changes(updated, empty)).toEqual([{ type: 'issue.removed', id: issue.id }]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('watcher dispatches issue changes through the issue filter', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-watch-issue-'));
+  const action = join(root, 'action.ts');
+  const output = join(root, 'events.json');
+  let running: Awaited<ReturnType<typeof start>> | undefined;
+  try {
+    init(root);
+    writeFileSync(action, 'await Bun.write(process.argv[2], await new Response(Bun.stdin.stream()).text());');
+    running = await start(['--root', root, '--interval', '150', '--on', 'issue.created', '--', bun, action, output]);
+    const issue = createIssue(root, { title: 'Defect' });
+    await until(() => existsSync(output));
+    expect(JSON.parse(readFileSync(output, 'utf8')).events).toEqual([{ type: 'issue.created', id: issue.id }]);
+  } finally {
+    running?.proc.kill();
+    if (running) await running.proc.exited;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 async function until(check: () => boolean, timeout = 6000) {
   const deadline = Date.now() + timeout;
