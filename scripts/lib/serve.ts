@@ -96,11 +96,18 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
         // Under the lock, the snapshot upgrades older files on disk first, so the hashes match the current bytes.
         const result = withLock(root, () => {
           const value = snapshot(root) as any;
-          value.issues = listIssues(root);
+          let issueHashes: [string, string][] = [];
+          try {
+            value.issues = listIssues(root);
+            issueHashes = value.issues.map((issue: any) => [issue.id, hashIssue(root, issue.id)]);
+          } catch (error) {
+            value.issues = [];
+            value.issuesError = error instanceof Error ? error.message : String(error);
+          }
           value.hashes = Object.fromEntries([
             ...value.items.map((item: any) => [item.id, hashItem(root, item.id)]),
             ...value.features.map((feature: any) => [feature.id, hashFeature(root, feature.id)]),
-            ...value.issues.map((issue: any) => [issue.id, hashIssue(root, issue.id)]),
+            ...issueHashes,
           ]);
           return value;
         });

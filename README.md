@@ -226,6 +226,7 @@ Manual edits, direct browser writes, separate checkouts and other machines do no
 The UI reads the token from the fragment and sends `Authorization: Bearer <token>` with API calls. The bridge checks the Host header, the Origin header when present, the token, the content type and the body size. It sends no CORS headers.
 
 - `GET /api/board` returns 200 `{config,items,features,hashes}`, including archived items. `hashes` maps each item and feature ID to the lowercase SHA-256 hex digest of its exact UTF-8 bytes on disk. The bridge upgrades older files on disk before hashing them, so it always returns items in the current format, with their threads, and hashes of the current bytes.
+- If issue files cannot be read, the snapshot includes an empty `issues` array and `issuesError` describing the problem. The UI reports that issue data is unavailable; repair the files before using the issue tracker. Work-card status changes are blocked until issue data is readable.
 - `POST /api/features` takes `{title, status?, description?}` and creates a feature (201).
 - `PATCH /api/features/<id>` takes `{revision, hash, changes:{title?,status?,description?,archived?}}` and updates a feature (200). It runs the same conflict checks as the card routes.
 - `POST /api/items` takes a JSON object of writable fields, which must include `title`, and returns 201 with the full item. Defaults are the first column, medium priority, a null assignee, empty arrays and text, and not archived.

@@ -406,7 +406,7 @@ function normalizeSnapshot(raw) {
   const list = [...items.values()];
   return {
     config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns},
-    columns: all, items, list, features, problems, issues: (raw.issues || []).map(issue => ({...issue, hash: raw.hashes[issue.id]})),
+    columns: all, items, list, features, problems, issues: (raw.issues || []).map(issue => ({...issue, hash: raw.hashes[issue.id]})), issuesError: typeof raw.issuesError === 'string' ? raw.issuesError : '',
     cfgKey: JSON.stringify(raw.config),
     archivedCount: list.filter(i => i.archived).length,
   };
@@ -870,7 +870,7 @@ function applySnapshot(snap) {
     for (const id of prev.items.keys()) if (!snap.items.has(id)) changed.add(id);
   }
   const featureChanged = !prev || JSON.stringify([...prev.features.values()]) !== JSON.stringify([...snap.features.values()]);
-  const structural = featureChanged || !prev || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
+  const structural = featureChanged || !prev || prev.issuesError !== snap.issuesError || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
   let draftChanged = false;
   for (const d of S.drafts.values()) if (syncDraft(d)) draftChanged = true;
   if (structural) {
@@ -1080,6 +1080,7 @@ function alertBox(kind, title, body, actions) {
 }
 function renderNotices() {
   const box = $('#notices'); clear(box);
+  if (S.snap && S.snap.issuesError) box.append(alertBox('error', 'Issue tracker could not be loaded', ['Issue data is unavailable: ' + S.snap.issuesError, 'Inspect and repair the issue files, then retry. Work-card status changes may also require repair.']));
   if (S.mode === 'direct') box.append(alertBox('warn', 'Direct file mode: concurrent updates can be lost',
     ['This page writes board files itself. It cannot take the advisory lock or do an atomic compare-and-swap, so if the CLI, the bridge, another tab, Git or another person writes the same card at nearly the same moment, one of the updates can be silently lost.',
      'The revision and file hash are re-checked just before each save, but that check is not a guarantee. Prefer the local bridge (bun agentboard.ts serve) whenever you can.']));
@@ -1284,6 +1285,10 @@ function issueForm(title, fields, save) {
 function renderIssues(root) {
   if (S.mode !== 'bridge') {
     root.append(h('section', {class:'panel'}, h('h2', {text:'Issues'}), h('p', {text:'Use the local bridge to view and update issues.'})));
+    return;
+  }
+  if (S.snap.issuesError) {
+    root.append(h('section', {class:'panel'}, h('h2', {text:'Issues unavailable'}), h('p', {text:'Repair the issue files before submitting or updating issues.'})));
     return;
   }
   const stages = [['new','New'], ['smoking-rack','Smoking rack'], ['gathering-data','Gathering data'], ['ready-for-work','Ready for work'], ['closed','Closed']];

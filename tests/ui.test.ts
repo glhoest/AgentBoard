@@ -72,6 +72,24 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ready)('board.html (bridge mode)', () => {
+  test('malformed issue is reported while the work board remains usable', async () => {
+    const issues = join(root, '.agentboard', 'issues');
+    mkdirSync(issues, {recursive:true});
+    const damaged = join(issues, 'IS-0123456789AB.json');
+    writeFileSync(damaged, '{broken');
+    try {
+      await page.goto(url());
+      await page.waitFor(hasCard('Seed card'));
+      await page.waitFor(`document.body.innerText.includes('Issue tracker could not be loaded')`);
+      await page.click('#view-issues');
+      expect(await page.eval(`document.body.innerText.includes('Issues unavailable')`)).toBe(true);
+      expect(await page.eval(`!document.body.innerText.includes('+ Submit issue')`)).toBe(true);
+      await page.click('#view-board');
+      await openCard('Seed card');
+      expect(await page.eval(`document.querySelector('#editor').open`)).toBe(true);
+      await page.click('#ed-close');
+    } finally { rmSync(damaged, {force:true}); }
+  });
   test('without a token it shows launch instructions and makes no API calls', async () => {
     await page.goto(`${base}/`);
     await page.waitFor(`document.body.innerText.includes('Connect AgentBoard to a project')`);
@@ -1458,7 +1476,7 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
       await p.click('.card-title[title="Direct seed"]');
       await p.eval(`document.querySelector('#ed-status').value = 'done'; document.querySelector('#ed-status').dispatchEvent(new Event('change', {bubbles:true}))`);
       await p.click('#ed-save');
-      await p.waitFor(`document.body.textContent.includes('Use the local bridge to change work status')`);
+      await p.waitFor(`document.body.innerText.includes('Use the local bridge to change work status')`);
       expect(await p.eval(`document.querySelector('#editor').open`)).toBe(true);
       expect(await p.eval(`document.querySelector('.card-title[title="Direct seed"]').closest('.col').dataset.col`)).toBe('backlog');
     } finally { await p.send('Page.close'); }

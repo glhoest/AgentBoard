@@ -1,4 +1,4 @@
-import { syncWorkItem } from './issues';
+import { listIssues, syncWorkItem } from './issues';
 import { mkdirSync, openSync, writeSync, fsyncSync, closeSync, renameSync, unlinkSync, existsSync, readFileSync, readdirSync, appendFileSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -304,10 +304,12 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
     validate(x, c);
     const updates = (!before.archived || !x.archived) && (before.feature !== x.feature || before.status !== x.status || before.archived !== x.archived || opts.recalculate)
       ? planFeatures(root, c, before, x) : [];
+    const syncIssues = before.status !== x.status || opts.recalculate;
+    if (syncIssues) listIssues(root); // Validate before saving the work item.
     atomicWrite(itemPath(root, id), x);
     writeFeatureUpdates(root, x.id, updates);
     try {
-      syncWorkItem(root, before, x, c.columns[c.columns.length - 1].id);
+      if (syncIssues) syncWorkItem(root, before, x, c.columns[c.columns.length - 1].id);
     } catch (error) {
       throw new BoardError(`Card ${id} was saved, but issue synchronization failed: ${error instanceof Error ? error.message : String(error)}. Reload and reapply its saved status with move to retry.`);
     }
