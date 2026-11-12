@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "id": "IS-EA47803AFAFD",
-  "revision": 3,
+  "revision": 4,
   "title": "Intermittent feature controls browser test failure",
   "status": "smoking-rack",
   "observed": "An independent full test run reported a failure in feature controls fit and restore focus across polls, moves and dialogs; a subsequent UI suite passed.",
@@ -9,7 +9,8 @@
   "reproduction": "Intermittent; exact failure output was unavailable in the review report.",
   "criteria": [],
   "evidence": [
-    "Opus review reported 232 passes and 2 failures in one run, followed by 71 UI passes and 234 full-suite passes; failure details were incomplete."
+    "Opus review reported 232 passes and 2 failures in one run, followed by 71 UI passes and 234 full-suite passes; failure details were incomplete.",
+    "Full bun test: feature controls fit and restore focus across polls, moves and dialogs timed out; focused rerun passed (1 pass, 0 fail)."
   ],
   "workItem": null,
   "workHistory": [],
@@ -18,5 +19,5 @@
   "closureReason": "",
   "duplicateOf": null,
   "createdAt": "2026-11-12T02:14:40.996Z",
-  "updatedAt": "2026-11-12T02:14:44.577Z"
+  "updatedAt": "2026-11-12T03:17:14.286Z"
 }

@@ -235,12 +235,16 @@ function updateIssueUnlocked(
 ): Issue {
   const x = check(root, id, revision, opts);
   const reopening = x.status === 'closed' && changes.status && changes.status !== 'closed';
+  if (reopening && changes.closureReason) throw new BoardError('A reopened issue cannot have a closure reason');
   if ('workItem' in changes && changes.workItem !== x.workItem) {
     if (x.workItem && !x.workHistory.includes(x.workItem)) x.workHistory.push(x.workItem);
     x.workHistory = x.workHistory.filter((id) => id !== changes.workItem);
   }
   Object.assign(x, changes);
-  if (reopening) x.closureReason = '';
+  if (reopening) {
+    x.closureReason = '';
+    x.duplicateOf = null;
+  }
   if ('workItem' in changes && changes.workItem === null) x.followWork = false;
   if (changes.status === 'closed') {
     x.closureKind = 'manual';

@@ -324,9 +324,12 @@ test('manually reopening an issue clears its closure reason', () => {
   try {
     store.init(root);
     const issue = issues.createIssue(root, { title: 'Defect' });
-    issues.updateIssue(root, issue.id, null, { status: 'closed', closureReason: 'Invalid report' });
+    const original = issues.createIssue(root, { title: 'Original' });
+    issues.updateIssue(root, issue.id, null, { status: 'closed', closureReason: 'Duplicate', duplicateOf: original.id });
+    expect(() => issues.updateIssue(root, issue.id, null, { status: 'new', closureReason: 'reason' })).toThrow();
     const reopened = issues.updateIssue(root, issue.id, null, { status: 'gathering-data' });
     expect(reopened.closureReason).toBe('');
+    expect(reopened.duplicateOf).toBeNull();
     expect(reopened.closureKind).toBeNull();
   } finally {
     rmSync(root, { recursive: true, force: true });
