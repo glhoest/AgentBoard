@@ -135,6 +135,7 @@ async function watch(options: Options): Promise<void> {
   });
   const initial = read();
   let previous = { ...initial.board, issues: initial.issues ?? [] };
+  let hasIssueBaseline = initial.issues !== null;
   let lastWarning = '';
   let lastIssueWarning = initial.issueError;
   if (lastIssueWarning) console.error(`AgentBoard watcher: issue snapshot failed; retrying: ${lastIssueWarning}`);
@@ -161,6 +162,10 @@ async function watch(options: Options): Promise<void> {
       lastIssueWarning = next.issueError;
     }
     const current = { ...next.board, issues: next.issues ?? previous.issues };
+    if (!hasIssueBaseline && next.issues !== null) {
+      previous = { ...previous, issues: next.issues };
+      hasIssueBaseline = true;
+    }
     const events = changes(previous, current).filter(event => !options.events.size || options.events.has(event.type));
     previous = current;
     if (!events.length) continue;

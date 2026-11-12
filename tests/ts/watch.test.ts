@@ -73,6 +73,31 @@ test('malformed issues do not block card events and recover from the last good i
   }
 });
 
+test('watcher baselines existing issues after an unreadable startup snapshot', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-watch-initial-bad-'));
+  const action = join(root, 'action.ts');
+  const output = join(root, 'events.json');
+  let running: Awaited<ReturnType<typeof start>> | undefined;
+  try {
+    init(root);
+    const issue = createIssue(root, { title: 'Existing defect' });
+    const path = join(root, '.agentboard', 'issues', `${issue.id}.json`);
+    const valid = readFileSync(path, 'utf8');
+    writeFileSync(path, '{');
+    writeFileSync(action, 'await Bun.write(process.argv[2], await new Response(Bun.stdin.stream()).text());');
+    running = await start(['--root', root, '--interval', '150', '--', bun, action, output]);
+    writeFileSync(path, valid);
+    await until(() => running!.output().includes('issues readable again'));
+    const card = create(root, { title: 'Trigger' });
+    await until(() => existsSync(output));
+    expect(JSON.parse(readFileSync(output, 'utf8')).events).toEqual([{ type: 'card.created', id: card.id }]);
+  } finally {
+    running?.proc.kill();
+    if (running) await running.proc.exited;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 async function until(check: () => boolean, timeout = 6000) {
   const deadline = Date.now() + timeout;
   while (!check()) {

@@ -307,7 +307,7 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
     validate(x, c);
     const updates = (!before.archived || !x.archived) && (before.feature !== x.feature || before.status !== x.status || before.archived !== x.archived || opts.recalculate)
       ? planFeatures(root, c, before, x) : [];
-    const syncIssues = before.status !== x.status || opts.recalculate;
+    const syncIssues = before.status !== x.status || (before.archived && !x.archived) || opts.recalculate;
     if (syncIssues) listIssues(root); // Validate before saving the work item.
     atomicWrite(itemPath(root, id), x);
     writeFeatureUpdates(root, x.id, updates);

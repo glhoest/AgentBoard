@@ -299,3 +299,22 @@ test('concurrent promotion creates only one work item', async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('restoring done work synchronizes linked issues', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-issue-triage-'));
+  try {
+    store.init(root);
+    const make = () => {
+      const issue = issues.createIssue(root, { title: 'Defect', observed: 'bad', expected: 'good', reproduction: 'steps' });
+      const ready = issues.updateIssue(root, issue.id, null, { criteria: ['fixed'] });
+      return issues.promoteIssue(root, issue.id, ready.revision);
+    };
+    const restored = make();
+    store.update(root, restored.workItem!, null, { archived: true });
+    store.update(root, restored.workItem!, null, { status: 'done' });
+    store.update(root, restored.workItem!, null, { archived: false });
+    expect(issues.getIssue(root, restored.id).status).toBe('closed');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
