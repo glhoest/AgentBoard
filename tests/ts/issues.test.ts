@@ -374,6 +374,12 @@ test('closure fields require closure and relinking does not implicitly follow ne
     store.update(root, other.id, null, { status: 'done' });
     expect(issues.getIssue(root, issue.id).status).toBe('gathering-data');
     expect(issues.getIssue(root, issue.id).workHistory).toContain(promoted.workItem);
+    const next = store.create(root, { title: 'Ready work' });
+    issues.updateIssue(root, issue.id, null, { workItem: next.id, status: 'ready-for-work' });
+    const replacement = store.create(root, { title: 'Replacement work' });
+    issues.updateIssue(root, issue.id, null, { workItem: replacement.id });
+    store.update(root, replacement.id, null, { status: 'done' });
+    expect(issues.getIssue(root, issue.id).status).toBe('closed');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

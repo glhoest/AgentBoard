@@ -247,10 +247,11 @@ function updateIssueUnlocked(
   if (x.status !== 'closed' && (changes.closureReason || changes.duplicateOf)) {
     throw new BoardError('Closure reason and duplicate require a closed issue');
   }
-  if (relinking && changes.status !== 'ready-for-work') {
+  if (relinking && x.status !== 'ready-for-work') {
     x.followWork = false;
     if (x.status === 'closed') x.closureKind = 'manual';
   }
+  if (relinking && x.status === 'ready-for-work') x.followWork = true;
   if (reopening) {
     x.closureReason = '';
     x.duplicateOf = null;
