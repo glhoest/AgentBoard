@@ -146,6 +146,30 @@ describe('format snapshots', () => {
     matchSnapshot('features', { 'transcript.txt': lines.join('\n'), ...boardFiles(root) });
   });
 
+  test('custom field commands preserve their output and file format', () => {
+    const root = tempRoot('fields');
+    store.init(root);
+    const { lines, cli } = session(root);
+    cli('field-add', 'points', '--type', 'number', '--name', 'Story points');
+    cli('field-add', 'team', '--type', 'text');
+    cli('field-add', 'blocked-by-legal', '--type', 'boolean');
+    cli('field-edit', 'team', '--name', 'Owning team');
+    cli('fields');
+    const first = JSON.parse(cli('--json', 'create', 'Estimate me', '--field', 'points=5', '--field', 'team=Platform').out);
+    const second = JSON.parse(cli('--json', 'create', 'Later').out);
+    cli('edit', second.id, '--field', 'team=Web', '--field', 'blocked-by-legal=true', '--field', 'points=2.5');
+    cli('--json', 'list', '--field', 'points=5');
+    cli('list', '--field-min', 'points=3');
+    cli('list', '--field-contains', 'team=plat');
+    cli('list', '--no-field', 'points');
+    cli('edit', first.id, '--clear-field', 'team');
+    cli('show', first.id);
+    cli('field-remove', 'points');
+    cli('field-remove', 'points', '--yes');
+    cli('fields');
+    matchSnapshot('fields', { 'transcript.txt': lines.join('\n'), ...boardFiles(root) });
+  });
+
   test('the v1 legacy board upgrades on first touch to exactly the snapshot bytes', () => {
     const root = tempRoot('legacy');
     cpSync(LEGACY, join(root, '.agentboard'), { recursive: true });
@@ -168,8 +192,8 @@ describe('format snapshots', () => {
     for (const id of ['AB-0000000000A1', 'AB-0000000000B2', 'AB-0000000000C3']) {
       const old = JSON.parse(before[`items/${id}.json`]);
       const now = JSON.parse(after[`items/${id}.json`]);
-      expect(now).toEqual({ ...old, version: '1.1.0', feature: null, thread: [] });
-      expect(Object.keys(now)).toEqual([...Object.keys(old), 'feature', 'thread']);
+      expect(now).toEqual({ ...old, version: '1.2.0', feature: null, thread: [], fields: {} });
+      expect(Object.keys(now)).toEqual([...Object.keys(old), 'feature', 'thread', 'fields']);
     }
     expect(tick).toBe(0);   // no clock reads: nothing was edited
     cli('list', '--all');   // already current: nothing changes any more

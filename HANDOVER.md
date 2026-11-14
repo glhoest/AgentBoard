@@ -10,6 +10,10 @@ The optional `scripts/watch.ts` polls validated snapshots and dispatches filtere
 
 Issues live in `.agentboard/issues/`; `scripts/lib/issues.ts` owns their validation, lifecycle and work synchronization. The CLI, bridge, UI and watcher expose the tracker. See README “Defect triage” for the format and workflow. Old copies ignore issues and cannot synchronize them, so update all installed copies before using the tracker on a shared board.
 
+## Custom fields
+
+Cards 1.2.0 and `board.json` 1.2.0 add custom scalar fields: definitions (`text`, `number`, `boolean`) in `board.json` `fields`, values in each card's `fields` object. `scripts/lib/fields.ts` owns validation, value parsing and the `list` filters (exact, min/max, contains, has/no); `store.ts` owns `addField`, `editField` and `removeField` (removal strips values from all cards under the lock, cards first, board last). `board.html` shows chips, editor inputs and includes values in search; direct mode upgrades 1.0.0/1.1.0 files to 1.2.0 with the same steps as `versions.ts`. Definitions are managed only through the CLI. Field IDs can equal `Object.prototype` names such as `constructor`, so value lookups use `Object.hasOwn` (`hasValue` in `fields.ts`, `hasOwn` in `board.html`). Update every vendored copy with `setup` before using fields on a shared board; old copies reject 1.2.0 files. Not built, on purpose: select/date types, field-based sorting or UI filters, OR queries, type changes. The title and description CLI search in card AB-7DE663B669B5 is separate; custom field filters are `list` options and do not overlap with it. See README "Custom fields".
+
 ## 1. What this is
 
 AgentBoard is a repository-backed Kanban for humans and AI agents, packaged as an agent skill:

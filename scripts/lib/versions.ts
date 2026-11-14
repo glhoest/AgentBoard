@@ -11,8 +11,8 @@ export type FileKind = 'item' | 'board' | 'feature';
 
 /** The version this code writes for each kind of file. */
 export const CURRENT: Record<FileKind, string> = {
-  item: '1.1.0',
-  board: '1.1.0',
+  item: '1.2.0',
+  board: '1.2.0',
   feature: '1.0.0',
 };
 
@@ -69,14 +69,28 @@ function boardTo110(value: Json): Json {
   return upgraded;
 }
 
+/** Card 1.1.0 -> 1.2.0: appends `fields` ({}), the custom field values. */
+function itemTo120(value: Json): Json {
+  if ('fields' in value) throw new BoardError('Invalid item structure or version');
+  const { version: _old, ...rest } = value;
+  return { version: '1.2.0', ...rest, fields: {} };
+}
+
+/** board.json 1.1.0 -> 1.2.0: appends `fields` ([]), the custom field definitions. */
+function boardTo120(value: Json): Json {
+  if ('fields' in value) throw new BoardError('Unknown keys in board.json: fields');
+  const { version: _old, ...rest } = value;
+  return { version: '1.2.0', ...rest, fields: [] };
+}
+
 function isColumnWithId(column: unknown, id: string): boolean {
   return !!column && typeof column === 'object' && (column as Json).id === id;
 }
 
 /** Ordered upgrade steps per kind. The `from` of each step must equal the `to` of the step before it. */
 export const PIPELINES: Record<FileKind, UpgradeStep[]> = {
-  item: [{ from: '1.0.0', to: '1.1.0', upgrade: itemTo110 }],
-  board: [{ from: '1.0.0', to: '1.1.0', upgrade: boardTo110 }],
+  item: [{ from: '1.0.0', to: '1.1.0', upgrade: itemTo110 }, { from: '1.1.0', to: '1.2.0', upgrade: itemTo120 }],
+  board: [{ from: '1.0.0', to: '1.1.0', upgrade: boardTo110 }, { from: '1.1.0', to: '1.2.0', upgrade: boardTo120 }],
   feature: [],
 };
 

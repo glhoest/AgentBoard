@@ -74,7 +74,7 @@ Replace the example IDs with the IDs that `create` and `ask` return. Global flag
 
 Output is JSON, and `--json` makes it compact. `grill` is the exception: it prints plain text unless you pass `--json`. Errors go to stderr. Exit code 1 means a failure, and exit code 2 means a conflict or a usage error. `--` ends the options, so text that starts with `-` can follow it.
 
-Commands: `init [path]`, `setup [path]`, `list [--all] [--status S] [--assignee A]`, `show ID`, `create TITLE …`, `edit ID …`, `move ID STATUS`, `claim ID ASSIGNEE` and `serve [--port P] [--ui FILE]`.
+Commands: `init [path]`, `setup [path]`, `list [--all] [--status S] [--assignee A] [--feature ID] [field filters]`, `show ID`, `create TITLE …`, `edit ID …`, `move ID STATUS`, `claim ID ASSIGNEE` and `serve [--port P] [--ui FILE]`.
 
 Thread commands:
 
@@ -91,6 +91,12 @@ Feature commands:
 - `feature-move ID STATUS [--revision N]`
 - `feature-show ID` prints the feature with its progress, counts and linked cards.
 - `features [--include-archived]` prints `{features, dangling}`. Each feature summary has `id`, `title`, `status`, `archived`, `progress` and `counts`.
+
+Custom field commands (see [Custom fields](#custom-fields)):
+
+- `field-add ID --type text|number|boolean [--name N]` defines a field. `field-edit ID --name N` renames it. `field-remove ID [--yes]` deletes it and its values on every card. `fields` lists the definitions with the number of cards that hold a value.
+- `create` and `edit` take repeatable `--field ID=VALUE`; `edit` also takes repeatable `--clear-field ID`.
+- `list` filters with repeatable `--field ID=VALUE`, `--field-min ID=N`, `--field-max ID=N`, `--field-contains ID=TEXT`, `--has-field ID` and `--no-field ID`.
 
 Link a card to a feature with `create --feature ID` or `edit ID --feature ID`, remove the link with `edit ID --clear-feature`, and filter cards with `list --feature ID`.
 
@@ -109,15 +115,16 @@ type Priority = 'low' | 'medium' | 'high' | 'urgent';
 type Criterion = { text: string; done: boolean };
 type Entry = { id: string; kind: 'comment' | 'question' | 'answer'; author: string | null; body: string;
  replyTo: string | null; createdAt: string; updatedAt: string };
-type Item = { version: '1.1.0'; id: string; revision: number; title: string; status: string;
+type Item = { version: '1.2.0'; id: string; revision: number; title: string; status: string;
  priority: Priority; assignee: string | null; labels: string[]; description: string;
  acceptanceCriteria: Criterion[]; notes: string; createdAt: string; updatedAt: string; archived: boolean;
- feature: string | null; thread: Entry[] };
+ feature: string | null; thread: Entry[]; fields: Record<string, string | number | boolean> };
 type Column = { id: string; name: string };
-type Board = { version: '1.1.0'; name: string; columns: Column[]; featureColumns: Column[] };
+type FieldDef = { id: string; name: string; type: 'text' | 'number' | 'boolean' };
+type Board = { version: '1.2.0'; name: string; columns: Column[]; featureColumns: Column[]; fields: FieldDef[] };
 type Feature = { version: '1.0.0'; id: string; revision: number; title: string; status: string; description: string; createdAt: string; updatedAt: string; archived: boolean };
 type Snapshot = { config: Board; items: Item[]; features: Feature[]; hashes: Record<string, string> };
-type Changes = Partial<Pick<Item, 'title' | 'status' | 'priority' | 'assignee' | 'labels' | 'description' | 'acceptanceCriteria' | 'notes' | 'archived' | 'feature'>>;
+type Changes = Partial<Pick<Item, 'title' | 'status' | 'priority' | 'assignee' | 'labels' | 'description' | 'acceptanceCriteria' | 'notes' | 'archived' | 'feature' | 'fields'>>;
 ```
 
 ### Cards
@@ -132,15 +139,40 @@ Every item field is required, and extra fields are not allowed. A file's name mu
 | `description`, `notes` | up to 100,000 characters each |
 | `acceptanceCriteria` | up to 200 criteria, each with nonempty text of up to 1,000 characters |
 
-`status` must match a column ID. `feature` is null or `FT-<12 uppercase hex>`. `Changes` replace whole fields, including entire arrays. You cannot set `thread` through `Changes` or `create`. Cards have no manual order, so sort them deterministically. Archive cards instead of deleting them.
+`status` must match a column ID. `feature` is null or `FT-<12 uppercase hex>`. `Changes` replace whole fields, including entire arrays. In `Changes`, `fields` replaces the whole values object, like `labels` replaces the whole array (the CLI patches single values instead). You cannot set `thread` through `Changes` or `create`. Cards have no manual order, so sort them deterministically. Archive cards instead of deleting them.
 
 ### Board and columns
 
-`board.json` has exactly the four keys shown in `Board`. Column IDs are unique lowercase slugs matching `^[a-z][a-z0-9-]{0,39}$`. The first column is the default for new cards. `init` creates the columns backlog, needs-grilling ("Needs grilling"), todo, in-progress, blocked and done.
+`board.json` has exactly the five keys shown in `Board`. Column IDs are unique lowercase slugs matching `^[a-z][a-z0-9-]{0,39}$`. The first column is the default for new cards. `init` creates the columns backlog, needs-grilling ("Needs grilling"), todo, in-progress, blocked and done.
 
 `featureColumns` follow the same rules and hold feature statuses only. They default to planned, active and done.
 
 Only edit `board.json` while no writers are running. Never remove a column that is in use, including a feature column that a feature uses. If you do, reads and feature moves fail with an error that names the feature ID and status.
+
+### Custom fields
+
+Boards define their own scalar fields in `board.json` under `fields`, in the order they were added. Cards hold values in their `fields` object, in definition order. A card only has a key for a field that has a value, so "not set" is the absence of the key.
+
+| Type | Value in the card file | Accepted on the command line |
+| --- | --- | --- |
+| `number` | a finite JSON number | decimal or exponent form: `5`, `-2`, `2.5`, `1e3` |
+| `text` | a string of 1–1,000 characters | any text, not blank |
+| `boolean` | `true` or `false` | `true` or `false` (lowercase) |
+
+A field ID is a lowercase slug matching `^[a-z][a-z0-9-]{0,39}$`. A number is a finite JSON number, and a whole number must lie within ±9007199254740991 so that exact matches stay exact. The name is 1–80 characters and defaults to the ID. A board holds at most 50 fields. The type cannot change after creation, because existing values would become invalid. To change a type, remove the field and add it again. `field-remove` refuses to run when cards hold values for the field, unless you pass `--yes`. With `--yes` it deletes the definition and the values in one locked operation, and each card that held a value gets revision + 1. It writes cards first and `board.json` last, so after a crash you can run it again. A card file with a value for an undefined field, or with a value of the wrong type, is invalid. Because of that, edit `board.json` fields only through the CLI.
+
+Filters of `list` combine with AND, together with `--status`, `--assignee`, `--feature` and `--all`. A card without a value only matches `--no-field`.
+
+- `--field ID=VALUE` is an exact match. Numbers compare numerically (`5` equals `5.0`). Text must match the whole value and is case-sensitive. A boolean is `true` or `false`.
+- `--field-min ID=N` and `--field-max ID=N` are inclusive bounds for number fields. Use both for a range.
+- `--field-contains ID=TEXT` is a case-insensitive substring search in a text field.
+- `--has-field ID` and `--no-field ID` select cards that do or do not have a value.
+
+A filter on an unknown field, a value of the wrong type, or a filter that does not suit the field type (for example `--field-min` on text) is an error, not an empty result. There is no query language, no OR and no sorting by field. Filter the JSON output for anything more.
+
+`create`, `edit` and the bridge validate values the same way. Field edits go through the normal locked, revision-checked write path: `edit --field` patches single values inside the lock, so concurrent edits to different fields of one card do not lose each other, and `--revision N` guards them. The bridge replaces the whole `fields` object, like it replaces `labels`, so a conflicting edit gets a 409.
+
+The web UI shows the values as chips on cards and as inputs in the card editor (numbers as text that must parse, booleans as Not set, Yes or No). The board search box also matches `Name: value` of custom fields. Define, rename and remove fields, and use the exact and numeric filters, with the CLI.
 
 ### Features
 
@@ -180,10 +212,11 @@ When the CLI or bridge reads an older file, it upgrades the file on the spot:
 
 Upgrades so far:
 
+- Cards 1.1.0 to 1.2.0 append `fields: {}`. `board.json` 1.1.0 to 1.2.0 appends `fields: []`.
 - Cards 1.0.0 to 1.1.0 append `feature: null` and `thread: []`.
 - `board.json` 1.0.0 to 1.1.0 adds the default `featureColumns`. It also inserts the needs-grilling column after `backlog`, or first if there is no `backlog`, unless a column with that ID already exists. The version records that this upgrade ran, so the column does not come back if you remove it later.
 
-Old copies of AgentBoard reject upgraded files with an error. Update every vendored copy with `setup` before newer code touches a shared board.
+Old copies of AgentBoard, including old watchers, reject upgraded files with an error. A running watcher reports every card as updated (and the board as updated) when a 1.2.0 upgrade first rewrites the files. Update every vendored copy with `setup` before newer code touches a shared board.
 
 ### Automatic feature status
 

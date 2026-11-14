@@ -169,11 +169,11 @@ describe('thread in the store', () => {
     expect(() => store.update(root, id, null, { thread: [] } as any)).toThrow('Invalid or empty changes');
   });
 
-  test('init creates board.json 1.1.0 with Needs grilling after Backlog and the default feature columns', () => {
+  test('init creates board.json 1.2.0 with Needs grilling after Backlog and the default feature columns', () => {
     const root = project();
     const board = JSON.parse(readFileSync(store.boardPath(root), 'utf8'));
-    expect(Object.keys(board)).toEqual(['version', 'name', 'columns', 'featureColumns']);
-    expect(board.version).toBe('1.1.0');
+    expect(Object.keys(board)).toEqual(['version', 'name', 'columns', 'featureColumns', 'fields']);
+    expect(board.version).toBe('1.2.0');
     expect(board.columns.slice(0, 3)).toEqual([{ id: 'backlog', name: 'Backlog' }, { id: 'needs-grilling', name: 'Needs grilling' }, { id: 'todo', name: 'To do' }]);
     expect(board.featureColumns.map((c: any) => c.id)).toEqual(['planned', 'active', 'done']);
     expect(store.create(root, { title: 'x' }).status).toBe('backlog');

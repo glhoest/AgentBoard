@@ -1,0 +1,22 @@
+{
+  "version": "1.2.0",
+  "id": "AB-000000000002",
+  "revision": 3,
+  "title": "Later",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:07.000Z",
+  "updatedAt": "2026-02-03T04:05:10.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [],
+  "fields": {
+    "team": "Web",
+    "blocked-by-legal": true
+  }
+}

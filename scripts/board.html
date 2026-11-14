@@ -174,6 +174,11 @@ dialog::backdrop{background:rgba(10,12,20,.5)}
 .err{color:var(--bad);font-size:12px;min-height:0}
 .err:empty{display:none}
 [aria-invalid=true]{border-color:var(--bad)!important}
+#ed-custom{border:0;padding:0;margin:0}
+#ed-custom legend{font-weight:600;padding:0;margin-bottom:4px}
+.cfields{display:flex;flex-wrap:wrap;gap:4px;list-style:none;margin:0;padding:0;font-size:12px;color:var(--muted)}
+.cfields li{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:0 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cfields b{font-weight:600;color:var(--text)}
 .chips-ed{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0;margin:0;list-style:none}
 .chips-ed .chip{display:inline-flex;align-items:center;gap:2px;background:var(--accent-soft);border-radius:999px;padding:0 4px 0 10px;max-width:100%}
 .chips-ed .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
@@ -282,8 +287,8 @@ const SLUG_RE = /^[a-z][a-z0-9-]{0,39}$/;
 const TS_RE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 const HASH_RE = /^[0-9a-f]{64}$/;
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/;
-const ITEM_KEYS = ['version','id','revision','title','status','priority','assignee','labels','description','acceptanceCriteria','notes','createdAt','updatedAt','archived','feature','thread'];
-const WRITABLE = ['title','status','priority','assignee','labels','description','acceptanceCriteria','notes','archived','feature'];
+const ITEM_KEYS = ['version','id','revision','title','status','priority','assignee','labels','description','acceptanceCriteria','notes','createdAt','updatedAt','archived','feature','thread','fields'];
+const WRITABLE = ['title','status','priority','assignee','labels','description','acceptanceCriteria','notes','archived','feature','fields'];
 const FEATURE_KEYS = ['version','id','revision','title','status','description','createdAt','updatedAt','archived'];
 const POLL_MS = 1500;
 
@@ -353,8 +358,8 @@ const prioLabel = p => typeof p === 'string' && p ? p : '?';
 function checkVersion(version, label) {
   if (typeof version !== 'string' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw new ApiError('data', label + ' has an invalid version');
   const parts = version.split('.').map(Number);
-  if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 1 || (parts[1] === 1 && parts[2] > 0)))) throw new ApiError('data', label + ' format ' + version + ' requires a newer AgentBoard');
-  if (version !== '1.1.0') throw new ApiError('data', label + ' format ' + version + ' is unsupported');
+  if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 2 || (parts[1] === 2 && parts[2] > 0)))) throw new ApiError('data', label + ' format ' + version + ' requires a newer AgentBoard');
+  if (version !== '1.2.0') throw new ApiError('data', label + ' format ' + version + ' is unsupported');
 }
 
 /* ---------- snapshot validation (server data is untrusted too) ---------- */
@@ -368,6 +373,7 @@ function checkItem(it) {
   if (!Array.isArray(it.acceptanceCriteria) || it.acceptanceCriteria.some(c => !isObj(c) || typeof c.text !== 'string' || typeof c.done !== 'boolean')) return 'acceptanceCriteria is malformed';
   if (typeof it.archived !== 'boolean') return 'archived is not true/false';
   validateThread(it.thread);
+  if (!isObj(it.fields) || Object.values(it.fields).some(v => !['string','number','boolean'].includes(typeof v))) return 'fields is malformed';
   return null;
 }
 function normalizeSnapshot(raw) {
@@ -377,6 +383,7 @@ function normalizeSnapshot(raw) {
   for (const item of raw.items) checkVersion(item && item.version, 'Card');
   if (!Array.isArray(raw.features) || !Array.isArray(raw.config.featureColumns)) throw new ApiError('data', 'Invalid features snapshot');
   if (raw.config.featureColumns.some(c => !isObj(c) || typeof c.id !== 'string' || !SLUG_RE.test(c.id) || typeof c.name !== 'string' || !c.name.trim())) throw new ApiError('data', 'Invalid feature columns');
+  const fields = validateFieldDefs(raw.config.fields);
   const features = new Map();
   for (const feature of raw.features) {
     validateFeature(feature, raw.config);
@@ -405,7 +412,7 @@ function normalizeSnapshot(raw) {
   for (const c of all) if (c.missing) problems.push(`Cards use status "${short(c.id, 40)}" which is not a configured column; they are listed under a warning column.`);
   const list = [...items.values()];
   return {
-    config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns},
+    config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns, fields},
     columns: all, items, list, features, problems, issues: (raw.issues || []).map(issue => ({...issue, hash: raw.hashes[issue.id]})), issuesError: typeof raw.issuesError === 'string' ? raw.issuesError : '',
     cfgKey: JSON.stringify(raw.config),
     archivedCount: list.filter(i => i.archived).length,
@@ -485,7 +492,7 @@ function validateFeature(feature, cfg) {
 }
 function validateStrict(item, cfg) {
   const bad = m => { throw new ApiError('invalid', m); };
-  if (!isObj(item) || Object.keys(item).length !== ITEM_KEYS.length || !ITEM_KEYS.every(k => k in item) || item.version !== '1.1.0') bad('Invalid item structure or version');
+  if (!isObj(item) || Object.keys(item).length !== ITEM_KEYS.length || !ITEM_KEYS.every(k => k in item) || item.version !== '1.2.0') bad('Invalid item structure or version');
   if (typeof item.id !== 'string' || !ID_RE.test(item.id)) bad('Invalid item ID');
   if (!Number.isInteger(item.revision) || item.revision < 1) bad('Invalid revision');
   if (typeof item.title !== 'string' || !item.title.trim() || item.title.length > LIM.title) bad('Title must be 1–300 characters');
@@ -499,7 +506,57 @@ function validateStrict(item, cfg) {
   if (typeof item.archived !== 'boolean') bad('Invalid archived flag');
   if (item.feature !== null && (typeof item.feature !== 'string' || !/^FT-[0-9A-F]{12}$/.test(item.feature))) bad('Invalid feature');
   validateThread(item.thread);
+  validateFieldValues(item.fields, cfg.fields);
   for (const k of ['createdAt', 'updatedAt']) if (typeof item[k] !== 'string' || !TS_RE.test(item[k])) bad('Invalid ' + k);
+}
+/* ---------- custom fields: definitions in board.json, values in cards ---------- */
+const FIELD_TYPES = ['text', 'number', 'boolean'];
+function validateFieldDefs(defs) {
+  const bad = m => { throw new ApiError('data', m); };
+  if (!Array.isArray(defs) || defs.length > 50) bad('Invalid fields in board.json');
+  const seen = new Set();
+  for (const d of defs) {
+    if (!isObj(d) || Object.keys(d).length !== 3 || !['id','name','type'].every(k => k in d)) bad('Invalid field definition');
+    if (typeof d.id !== 'string' || !SLUG_RE.test(d.id) || seen.has(d.id)) bad('Invalid or duplicate field id');
+    if (typeof d.name !== 'string' || !d.name.trim() || d.name.length > 80 || !FIELD_TYPES.includes(d.type)) bad('Invalid field name or type');
+    seen.add(d.id);
+  }
+  return defs;
+}
+function fieldValueProblem(def, v) {
+  if (def.type === 'number') return numberValueOk(v) ? '' : 'needs a finite number (whole numbers up to 9007199254740991)';
+  if (def.type === 'boolean') return typeof v === 'boolean' ? '' : 'needs true or false';
+  return typeof v === 'string' && v.trim() && v.length <= 1000 ? '' : 'needs text of 1–1000 characters';
+}
+function validateFieldValues(values, defs) {
+  if (!isObj(values)) throw new ApiError('invalid', 'Invalid fields');
+  for (const [key, v] of Object.entries(values)) {
+    const def = defs.find(d => d.id === key);
+    if (!def) throw new ApiError('invalid', 'Unknown field ' + key + '; define it with the CLI field-add command');
+    const problem = fieldValueProblem(def, v);
+    if (problem) throw new ApiError('invalid', 'Field ' + key + ' ' + problem);
+  }
+}
+/** Same values with keys in definition order, so the bytes match what the CLI writes. */
+function orderFieldValues(values, defs) {
+  const ordered = {};
+  for (const d of defs) if (hasOwn(values, d.id)) ordered[d.id] = values[d.id];
+  return ordered;
+}
+const isV1 = value => value.version === 1 || value.version === undefined || value.version === '1.0.0';
+/** Upgrades a parsed card to 1.2.0 in memory (same steps as scripts/lib/versions.ts); old tells whether it changed. */
+function upgradeItem(item) {
+  if (!isObj(item)) return {item, old:false};
+  let old = false;
+  if (isV1(item)) {
+    if ('feature' in item || 'thread' in item) throw new ApiError('data', 'Invalid item structure or version');
+    const {version, ...rest} = item; item = {version:'1.1.0', ...rest, feature:null, thread:[]}; old = true;
+  }
+  if (item.version === '1.1.0') {
+    if ('fields' in item) throw new ApiError('data', 'Invalid item structure or version');
+    const {version, ...rest} = item; item = {version:'1.2.0', ...rest, fields:{}}; old = true;
+  } else if (!old) checkVersion(item.version, 'Card');
+  return {item, old};
 }
 function validateThread(thread) {
   const bad = m => { throw new ApiError('invalid', m); };
@@ -529,8 +586,9 @@ async function directBackend(picked) {
   const wrapPerm = e => { if (e instanceof ApiError) throw e; if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw new ApiError('permission', 'Folder permission was lost. Re-select the folder.'); if (e && e.name === 'NotFoundError') throw new ApiError('data', 'A board file disappeared while reading.'); throw new ApiError('io', 'File access failed: ' + (e && e.message || e)); };
   const readConfig = async () => {
     let cfg = parse(await bytesOf(ab, 'board.json'), 'board.json');
-    const old = isObj(cfg) && (cfg.version === 1 || cfg.version === undefined || cfg.version === '1.0.0');
-    if (old) {
+    let old = false;
+    if (isObj(cfg) && isV1(cfg)) {
+      old = true;
       const {version, ...rest} = cfg;
       let columns = cfg.columns;
       if (Array.isArray(columns) && !columns.some(c => c && c.id === 'needs-grilling')) {
@@ -539,14 +597,19 @@ async function directBackend(picked) {
       }
       cfg = {version:'1.1.0', ...rest, columns};
       if (!('featureColumns' in cfg)) cfg.featureColumns = [{id:'planned',name:'Planned'},{id:'active',name:'Active'},{id:'done',name:'Done'}];
-    } else if (isObj(cfg)) checkVersion(cfg.version, 'Board');
-    if (!isObj(cfg) || cfg.version !== '1.1.0' || !Array.isArray(cfg.columns) || !cfg.columns.length) throw new ApiError('data', 'Invalid or unsupported board configuration.');
-    if (Object.keys(cfg).some(k => !['version','name','columns','featureColumns'].includes(k)) || typeof cfg.name !== 'string') throw new ApiError('data', 'Invalid board configuration');
+    }
+    if (isObj(cfg) && cfg.version === '1.1.0') {
+      if ('fields' in cfg) throw new ApiError('data', 'Unknown keys in board.json: fields');
+      const {version, ...rest} = cfg; cfg = {version:'1.2.0', ...rest, fields:[]}; old = true;
+    } else if (isObj(cfg) && !old) checkVersion(cfg.version, 'Board');
+    if (!isObj(cfg) || cfg.version !== '1.2.0' || !Array.isArray(cfg.columns) || !cfg.columns.length) throw new ApiError('data', 'Invalid or unsupported board configuration.');
+    if (Object.keys(cfg).some(k => !['version','name','columns','featureColumns','fields'].includes(k)) || typeof cfg.name !== 'string') throw new ApiError('data', 'Invalid board configuration');
     for (const columns of [cfg.columns, cfg.featureColumns]) {
       if (!Array.isArray(columns) || !columns.length) throw new ApiError('data', 'Invalid columns');
       const ids = new Set();
       for (const c of columns) { if (!isObj(c) || Object.keys(c).length !== 2 || typeof c.id !== 'string' || !SLUG_RE.test(c.id) || typeof c.name !== 'string' || !c.name.trim() || ids.has(c.id)) throw new ApiError('data', 'Invalid or duplicate column in board.json.'); ids.add(c.id); }
     }
+    validateFieldDefs(cfg.fields);
     if (old) await write(ab, 'board.json', cfg, false);
     return cfg;
   };
@@ -621,12 +684,7 @@ async function directBackend(picked) {
       const id = name.slice(0, -5);
       if (!ID_RE.test(id)) throw new ApiError('data', 'Invalid item filename');
       if (id === after.id) continue;
-      let item = parse(await bytesOf(itemsDir, name), name);
-      if (isObj(item) && (item.version === 1 || item.version === undefined || item.version === '1.0.0')) {
-        if ('feature' in item || 'thread' in item) throw new ApiError('data', 'Invalid item structure or version');
-        const {version, ...rest} = item;
-        item = {version:'1.1.0', ...rest, feature:null, thread:[]};
-      } else if (isObj(item)) checkVersion(item.version, 'Card');
+      const {item} = upgradeItem(parse(await bytesOf(itemsDir, name), name));
       validateStrict(item, config);
       if (item.id !== id) throw new ApiError('data', 'Item ID does not match filename');
       items.push(item);
@@ -730,12 +788,8 @@ async function directBackend(picked) {
           try {
             const stem = name.slice(0, -5);
             if (!ID_RE.test(stem)) throw new ApiError('data', 'Invalid item filename');
-            let bytes = await bytesOf(itemsDir, name), item = parse(bytes, name);
-            const old = isObj(item) && (item.version === 1 || item.version === undefined || item.version === '1.0.0');
-            if (old) {
-              if ('feature' in item || 'thread' in item) throw new ApiError('data', 'Invalid item structure or version');
-              const {version, ...rest} = item; item = {version:'1.1.0', ...rest, feature:null, thread:[]};
-            } else if (isObj(item)) checkVersion(item.version, 'Card');
+            let bytes = await bytesOf(itemsDir, name);
+            const {item, old} = upgradeItem(parse(bytes, name));
             validateStrict(item, config);
             if (item.id !== stem) throw new ApiError('data', 'Item ID does not match filename');
             if (old) { await write(itemsDir, name, item, false); bytes = encode(item); }
@@ -766,8 +820,9 @@ async function directBackend(picked) {
           let exists = true;
           try { await itemsDir.getFileHandle(id + '.json'); } catch (e) { if (e && e.name === 'NotFoundError') exists = false; else throw e; }
           if (exists) continue;
-          const x = Object.assign({version: '1.1.0', id, revision: 1, title: '', status: config.columns[0].id, priority: 'medium', assignee: null, labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false, feature: null, thread: []}, values);
+          const x = Object.assign({version: '1.2.0', id, revision: 1, title: '', status: config.columns[0].id, priority: 'medium', assignee: null, labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false, feature: null, thread: [], fields: {}}, values);
           validateStrict(x, config);
+          x.fields = orderFieldValues(x.fields, config.fields);
           const updates = x.archived ? [] : await planFeatures(config, null, x);
           await write(itemsDir, id + '.json', x, true);
           await writeFeatureUpdates(x.id, updates);
@@ -788,6 +843,7 @@ async function directBackend(picked) {
         if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
         const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
         validateStrict(x, config);
+        x.fields = orderFieldValues(x.fields, config.fields);
         if ('status' in changes || (item.archived && changes.archived === false)) await guardIssueStatusWrite();
         const updates = (!item.archived || !x.archived) && (item.feature !== x.feature || item.status !== x.status || item.archived !== x.archived || 'status' in changes)
           ? await planFeatures(config, item, x) : [];
@@ -884,9 +940,36 @@ function applySnapshot(snap) {
 
 /* ---------- filtering / sorting ---------- */
 const hay = new WeakMap();
+/* ---------- custom field values on cards ---------- */
+const fieldDefs = () => S.snap.config.fields || [];
+/* Field IDs are free slugs (even "constructor"), so look values up as own properties only. */
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+const setFields = it => fieldDefs().filter(d => hasOwn(it.fields, d.id));
+function fieldTexts(it) { return setFields(it).map(d => d.name + ': ' + it.fields[d.id]); }
+const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+/* Same rule as the CLI: finite, and a whole number must be exactly representable. */
+const numberValueOk = n => typeof n === 'number' && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n));
+const numberOk = text => NUM_RE.test(text.trim()) && numberValueOk(Number(text));
+const customText = (custom, id) => hasOwn(custom, id) ? custom[id] : '';
+function customFrom(it) { return Object.fromEntries(Object.entries(it.fields).map(([k, v]) => [k, String(v)])); }
+/* Draft text -> values. Blank means "not set"; text that does not parse is left out (validateDraft reports it). */
+function customValues(custom) {
+  const values = {};
+  for (const d of fieldDefs()) {
+    const t = customText(custom, d.id);
+    if (d.type === 'text') { if (t.trim()) values[d.id] = t; }
+    else if (d.type === 'number') { if (numberOk(t)) values[d.id] = Number(t); }
+    else if (t === 'true' || t === 'false') values[d.id] = t === 'true';
+  }
+  return values;
+}
+function customDirty(custom, base) {
+  const was = customFrom(base);
+  return fieldDefs().some(d => customText(custom, d.id) !== customText(was, d.id));
+}
 function haystack(it) {
   let s = hay.get(it);
-  if (!s) { s = [it.id, it.title, it.assignee || '', it.priority, it.labels.join(' '), it.description, it.notes, it.acceptanceCriteria.map(c => c.text).join(' ')].join('\n').toLowerCase(); hay.set(it, s); }
+  if (!s) { s = [it.id, it.title, it.assignee || '', it.priority, it.labels.join(' '), it.description, it.notes, it.acceptanceCriteria.map(c => c.text).join(' '), ...fieldTexts(it)].join('\n').toLowerCase(); hay.set(it, s); }
   return s;
 }
 function filtersActive() { const f = S.filters; return !!(f.q.trim() || f.priority || f.assignee || f.label || f.feature); }
@@ -908,11 +991,11 @@ const cmp = (a, b) => (PRANK[a.priority] ?? 9) - (PRANK[b.priority] ?? 9) || (a.
 /* ---------- drafts ---------- */
 function fieldsFrom(it) {
   return {title: it.title, status: it.status, priority: it.priority, assignee: it.assignee ?? '', labels: it.labels.slice(), description: it.description,
-    criteria: it.acceptanceCriteria.map(c => ({text: c.text, done: c.done})), notes: it.notes, archived: it.archived, feature: it.feature};
+    criteria: it.acceptanceCriteria.map(c => ({text: c.text, done: c.done})), notes: it.notes, archived: it.archived, feature: it.feature, custom: customFrom(it)};
 }
 function newDraft(status) {
   const cols = S.snap.config.columns;
-  return {key: 'new', id: null, base: null, fields: {title: '', status: status && cols.some(c => c.id === status) ? status : cols[0].id, priority: 'medium', assignee: '', labels: [], description: '', criteria: [], notes: '', archived: false, feature: null},
+  return {key: 'new', id: null, base: null, fields: {title: '', status: status && cols.some(c => c.id === status) ? status : cols[0].id, priority: 'medium', assignee: '', labels: [], description: '', criteria: [], notes: '', archived: false, feature: null, custom: {}},
     pendingLabel: '', pendingCriterion: '', conflict: null, refreshed: false, saveError: ''};
 }
 function draftFor(it) { return {key: it.id, id: it.id, base: it, fields: fieldsFrom(it), pendingLabel: '', pendingCriterion: '', conflict: null, refreshed: false, saveError: ''}; }
@@ -930,13 +1013,14 @@ function computeChanges(d) {
   if (f.notes !== b.notes) c.notes = f.notes;
   if (f.archived !== b.archived) c.archived = f.archived;
   if (f.feature !== b.feature) c.feature = f.feature;
+  if (customDirty(f.custom, b)) c.fields = customValues(f.custom);
   return c;
 }
 function fieldDirty(d) {
   if (d.pendingLabel.trim() || d.pendingCriterion.trim()) return true;
   if (d.id) return Object.keys(computeChanges(d)).length > 0;
   const f = d.fields;
-  return !!(f.title || f.assignee || f.labels.length || f.description || f.criteria.length || f.notes || f.feature || f.priority !== 'medium' || f.status !== S.snap.config.columns[0].id);
+  return !!(f.title || f.assignee || f.labels.length || f.description || f.criteria.length || f.notes || f.feature || Object.values(f.custom).some(v => v) || f.priority !== 'medium' || f.status !== S.snap.config.columns[0].id);
 }
 function isDirty(d) {
   if (fieldDirty(d) || d.threadBody) return true;
@@ -960,6 +1044,11 @@ function validateDraft(d) {
   if (f.description.length > LIM.text) e.description = `Description is too long (max ${LIM.text.toLocaleString()}).`;
   if (f.notes.length > LIM.text) e.notes = `Notes are too long (max ${LIM.text.toLocaleString()}).`;
   if (f.criteria.length > LIM.criteria) e.criteria = `At most ${LIM.criteria} criteria.`;
+  for (const def of fieldDefs()) {
+    const t = customText(f.custom, def.id);
+    if (def.type === 'number' && t.trim() && !numberOk(t)) e['cf-' + def.id] = 'Enter a number, for example 5 or 2.5 (whole numbers up to 9007199254740991).';
+    else if (def.type === 'text' && t.length > 1000) e['cf-' + def.id] = `Too long (${t.length}/1000).`;
+  }
   f.criteria.forEach((c, i) => { if (!c.text.trim()) e.crit[i] = 'Text is required — fill it in or remove this criterion.'; else if (c.text.length > LIM.criterion) e.crit[i] = `Too long (${c.text.length}/${LIM.criterion}).`; });
   return e;
 }
@@ -989,6 +1078,7 @@ function changedFieldNames(base, live) {
   for (const k of ['title', 'status', 'priority', 'assignee', 'description', 'notes', 'archived', 'feature']) if (fb[k] !== fl[k]) names.push(k);
   if (!arrEq(fb.labels, fl.labels)) names.push('labels');
   if (!critEq(fb.criteria, fl.criteria)) names.push('acceptance criteria');
+  if (customDirty(fb.custom, live)) names.push('custom fields');
   return names;
 }
 function draftText(d) {
@@ -1460,6 +1550,13 @@ function featureChip(id, snap) {
     text: available ? feature.title : 'Feature unavailable',
   });
 }
+function fieldChips(it) {
+  const set = setFields(it);
+  if (!set.length) return null;
+  const shown = d => d.type === 'boolean' ? (it.fields[d.id] ? 'yes' : 'no') : String(it.fields[d.id]);
+  return h('ul', {class: 'cfields', 'aria-label': 'Custom fields'},
+    set.map(d => h('li', {title: d.name + ': ' + shown(d)}, h('b', {text: d.name}), ' ' + shown(d))));
+}
 function cardEl(it, snap) {
   const draft = S.drafts.get(it.id), dirty = draft && isDirty(draft);
   const done = it.acceptanceCriteria.filter(c => c.done).length, total = it.acceptanceCriteria.length;
@@ -1488,6 +1585,7 @@ function cardEl(it, snap) {
     titleBtn,
     it.feature ? featureChip(it.feature, snap) : null,
     it.labels.length ? h('ul', {class: 'chips', 'aria-label': 'Labels'}, it.labels.slice(0, 4).map(l => h('li', {class: 'label', title: l, text: l})), it.labels.length > 4 ? h('li', {class: 'label', title: it.labels.slice(4).join(', '), text: `+${it.labels.length - 4}`}) : null) : null,
+    fieldChips(it),
     h('div', {class: 'card-foot'},
       h('button', {type: 'button', class: 'assignee' + (it.assignee ? ' set' : ''), 'data-fk': it.id + ':assignee', title: it.assignee ? 'Assignee: ' + it.assignee + ' (click to change)' : 'Unassigned (click to assign)', 'aria-label': it.assignee ? `Assignee ${it.assignee}. Change assignee` : 'Unassigned. Assign', disabled: S.writing || !it.hash, onclick: () => openAssign(it.id)}, it.assignee ? '@' + it.assignee : 'Unassigned'),
       total ? h('span', {class: 'crit', title: `${done} of ${total} acceptance criteria done`}, h('span', {class: 'bar', 'aria-hidden': 'true'}, h('i', {style: `width:${Math.round(done / total * 100)}%`})), h('span', {text: `${done}/${total}`}, h('span', {class: 'sr-only', text: ' criteria done'}))) : null,
@@ -1615,6 +1713,7 @@ function buildEditor(d) {
       h('div', {class: 'row3'}, field('ed-status', 'Status', status), field('ed-priority', 'Priority', prio),
         field('ed-assignee', 'Assignee', assignee, h('span', {class: 'help', id: 'help-assignee'}, 'Empty = unassigned. A label only; it does not lock the card.'))),
       field('ed-feature', 'Feature', feature),
+      customFieldsSection(d),
       labelsField(d),
       field('ed-description', 'Description', desc, h('div', {class: 'counter', id: 'ct-description'})),
       criteriaField(d),
@@ -1735,6 +1834,22 @@ function threadPanel(d) {
 function counter(id, n, max) { const el = $('#' + id); if (!el) return; el.textContent = `${n.toLocaleString()} / ${max.toLocaleString()}`; el.classList.toggle('near', n > max * .9); }
 function clearErr(name) { const e = $('#err-' + name), i = $('#ed-' + name); if (e) e.textContent = ''; if (i) i.removeAttribute('aria-invalid'); }
 
+function customFieldsSection(d) {
+  const defs = fieldDefs(), f = d.fields;
+  if (!defs.length) return null;
+  const tick = () => { d.saveError = ''; updateEditorControls(); };
+  return h('fieldset', {class: 'field', id: 'ed-custom'}, h('legend', {text: 'Custom fields'}),
+    defs.map(def => {
+      const id = 'ed-cf-' + def.id, current = customText(f.custom, def.id);
+      const set = value => { f.custom[def.id] = value; clearErr('cf-' + def.id); tick(); };
+      const control = def.type === 'boolean'
+        ? h('select', {id, onchange: e => set(e.target.value)}, [['', 'Not set'], ['true', 'Yes'], ['false', 'No']].map(([v, t]) => h('option', {value: v, text: t})))
+        : h('input', {type: 'text', id, value: current, autocomplete: 'off', inputmode: def.type === 'number' ? 'decimal' : 'text', oninput: e => set(e.target.value)});
+      if (def.type === 'boolean') control.value = current;
+      control.setAttribute('aria-describedby', 'err-cf-' + def.id);
+      return field(id, def.name, control);
+    }));
+}
 function labelsField(d) {
   const f = d.fields, list = h('ul', {class: 'chips-ed', id: 'ed-label-list', 'aria-label': 'Labels'});
   const input = h('input', {type: 'text', id: 'ed-labels', list: 'dl-labels', placeholder: 'Add a label, press Enter', autocomplete: 'off', value: d.pendingLabel, 'aria-describedby': 'err-labels'});
@@ -1864,6 +1979,7 @@ function showFieldErrors(e) {
   const set = (name, msg) => { const er = $('#err-' + name), inp = $('#ed-' + name); if (er) er.textContent = msg; if (inp) inp.setAttribute('aria-invalid', 'true'); };
   let first = null;
   for (const k of ['title', 'status', 'priority', 'assignee', 'labels', 'description', 'criteria', 'notes']) if (e[k]) { set(k, e[k]); first = first || $(k === 'criteria' ? '#ed-crit-new' : '#ed-' + k); }
+  for (const k of Object.keys(e)) if (k.startsWith('cf-')) { set(k, e[k]); first = first || $('#ed-' + k); }
   for (const [i, msg] of Object.entries(e.crit)) { const er = $('#err-crit-' + i), inp = er && er.parentElement.querySelector('input[type=text]'); if (er) er.textContent = msg; if (inp) { inp.setAttribute('aria-invalid', 'true'); first = first || inp; } }
   if (first) first.focus();
 }
@@ -1896,7 +2012,7 @@ async function saveDraft(d) {
       }
       await mutate(() => S.backend.patch(d.id, d.base.revision, d.base.hash, changes));
     } else {
-      const values = {title: f.title.trim(), status: f.status, priority: f.priority, assignee: f.assignee.trim() || null, labels: f.labels.slice(), description: f.description, acceptanceCriteria: f.criteria.map(c => ({text: c.text.trim(), done: c.done})), notes: f.notes, feature: f.feature};
+      const values = {title: f.title.trim(), status: f.status, priority: f.priority, assignee: f.assignee.trim() || null, labels: f.labels.slice(), description: f.description, acceptanceCriteria: f.criteria.map(c => ({text: c.text.trim(), done: c.done})), notes: f.notes, feature: f.feature, fields: customValues(f.custom)};
       createdId = (await createCard(values)).id;
     }
     S.needsFresh = true; await pollFresh();

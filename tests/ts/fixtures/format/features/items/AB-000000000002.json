@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-000000000002",
   "revision": 1,
   "title": "Linked",
@@ -14,5 +14,6 @@
   "updatedAt": "2026-02-03T04:05:09.000Z",
   "archived": false,
   "feature": "FT-000000000001",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

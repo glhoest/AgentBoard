@@ -50,7 +50,7 @@ describe('upgrade-on-read in the store and CLI', () => {
     const root = legacy();
     const shown = await run(root, 'show', A);
     expect(shown.code).toBe(0);
-    expect(JSON.parse(shown.out)).toMatchObject({ version: '1.1.0', revision: 3, thread: [], feature: null });
+    expect(JSON.parse(shown.out)).toMatchObject({ version: '1.2.0', revision: 3, thread: [], feature: null });
     expect(boardText(root)).toBe(expected('board.json'));
     expect(file(root, A)).toBe(expected(`items/${A}.json`));
     expect(file(root, IDS[1])).toBe(readFileSync(join(LEGACY, 'items', `${IDS[1]}.json`), 'utf8'));
@@ -63,7 +63,7 @@ describe('upgrade-on-read in the store and CLI', () => {
     const edited = await run(root, 'edit', A, '--revision', '3', '--title', 'Edited');
     expect(edited.code).toBe(0);
     const disk = JSON.parse(file(root, A));
-    expect(disk).toMatchObject({ version: '1.1.0', revision: 4, title: 'Edited', thread: [] });
+    expect(disk).toMatchObject({ version: '1.2.0', revision: 4, title: 'Edited', thread: [] });
   });
 
   test('a pure format upgrade keeps revision and updatedAt, so --revision from an earlier read still applies', async () => {
@@ -79,8 +79,8 @@ describe('upgrade-on-read in the store and CLI', () => {
     const root = legacy();
     const bytes = boardText(root);
     const snap = store.snapshot(root, { persist: false });
-    expect(snap.config.version).toBe('1.1.0');
-    expect(snap.items.every(item => item.version === '1.1.0')).toBe(true);
+    expect(snap.config.version).toBe('1.2.0');
+    expect(snap.items.every(item => item.version === '1.2.0')).toBe(true);
     expect(boardText(root)).toBe(bytes);
     expect(file(root, A)).toBe(readFileSync(join(LEGACY, 'items', `${A}.json`), 'utf8'));
     setup(root, resolve(import.meta.dir, '../..'));
@@ -111,16 +111,16 @@ describe('upgrade-on-read in the store and CLI', () => {
   test('files from a newer AgentBoard are rejected loudly and left alone (CLI exit 1, bridge 400)', async () => {
     const root = legacy();
     store.snapshot(root);
-    const newer = file(root, A).replace('"version": "1.1.0"', '"version": "1.2.0"');
+    const newer = file(root, A).replace('"version": "1.2.0"', '"version": "1.3.0"');
     writeFileSync(store.itemPath(root, A), newer);
     for (const args of [['show', A], ['list'], ['edit', A, '--title', 'x'], ['ask', A, 'q?']]) {
       const result = await run(root, ...args);
       expect(result.code, args.join(' ')).toBe(1);
-      expect(result.err).toContain('Card format 1.2.0 was written by a newer AgentBoard (this copy supports up to 1.1.0); update this copy');
+      expect(result.err).toContain('Card format 1.3.0 was written by a newer AgentBoard (this copy supports up to 1.2.0); update this copy');
     }
     expect(file(root, A)).toBe(newer);
 
-    writeFileSync(store.boardPath(root), boardText(root).replace('"version": "1.1.0"', '"version": "2.0.0"'));
+    writeFileSync(store.boardPath(root), boardText(root).replace('"version": "1.2.0"', '"version": "2.0.0"'));
     const shown = await run(root, 'show', IDS[1]);
     expect(shown.code).toBe(1);
     expect(shown.err).toContain('board.json format 2.0.0 was written by a newer AgentBoard');
@@ -176,8 +176,8 @@ describe('concurrent readers on an old board', () => {
     expect(results.map(r => r.code), results.map(r => r.err).join('|')).toEqual(Array(8).fill(0));
     const lines = readFileSync(log, 'utf8').trim().split('\n').map(line => line.split(' ').slice(1).join(' ')).sort();
     expect(lines).toEqual([
-      ...IDS.map(id => `${id}.json 1.0.0 1.1.0`),
-      'board.json 1.0.0 1.1.0',
+      ...IDS.map(id => `${id}.json 1.0.0 1.2.0`),
+      'board.json 1.0.0 1.2.0',
     ].sort());
     assertFullyUpgraded(root);
   });
@@ -192,7 +192,7 @@ describe('concurrent readers on an old board', () => {
     const results = await Promise.all(commands.map(args => run(root, ...args)));
     expect(results.map(r => r.code), results.map(r => r.err).join('|')).toEqual(Array(commands.length).fill(0));
     for (const result of results.slice(0, 4)) {
-      expect(JSON.parse(result.out).map((item: any) => item.version)).toEqual(['1.1.0', '1.1.0', '1.1.0']);
+      expect(JSON.parse(result.out).map((item: any) => item.version)).toEqual(['1.2.0', '1.2.0', '1.2.0']);
     }
     assertFullyUpgraded(root);
     expect(readdirSync(join(root, '.agentboard', 'items')).sort()).toEqual(IDS.map(id => `${id}.json`));   // no temp files left
@@ -210,9 +210,9 @@ describe('upgrade-on-read in the bridge', () => {
     const headers = { Authorization: `Bearer ${bridge.token}`, 'Content-Type': 'application/json' };
     try {
       const snap = (await (await fetch(`${base}/api/board`, { headers })).json()) as any;
-      expect(snap.config.version).toBe('1.1.0');
+      expect(snap.config.version).toBe('1.2.0');
       expect(snap.config.columns.map((c: any) => c.id)).toContain('needs-grilling');
-      expect(snap.items.map((item: any) => [item.version, item.thread, item.feature])).toEqual(IDS.map(() => ['1.1.0', [], null]));
+      expect(snap.items.map((item: any) => [item.version, item.thread, item.feature])).toEqual(IDS.map(() => ['1.2.0', [], null]));
       assertFullyUpgraded(root);
       for (const id of IDS) expect(snap.hashes[id]).toBe(sha(file(root, id)));
       expect(snap.hashes[A]).not.toBe(oldHash);
@@ -223,7 +223,7 @@ describe('upgrade-on-read in the bridge', () => {
       // A client that read after the upgrade is not affected by it.
       const fresh = await fetch(`${base}/api/items/${A}`, { method: 'PATCH', headers, body: JSON.stringify({ revision: 3, hash: snap.hashes[A], changes: { notes: 'after upgrade' } }) });
       expect(fresh.status).toBe(200);
-      expect(await fresh.json()).toMatchObject({ revision: 4, notes: 'after upgrade', version: '1.1.0' });
+      expect(await fresh.json()).toMatchObject({ revision: 4, notes: 'after upgrade', version: '1.2.0' });
     } finally {
       bridge.stop();
     }

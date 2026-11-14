@@ -167,7 +167,7 @@ test('feature operations preserve unrelated cards and do not leave temp files', 
     const f = store.createFeature(root, { title: 'F' });
     store.updateFeature(root, f.id, 1, { title: 'F2' });
     expect(readFileSync(path, 'utf8')).toBe(before);
-    expect(store.update(root, card.id, 1, { feature: f.id }).version).toBe('1.1.0');
+    expect(store.update(root, card.id, 1, { feature: f.id }).version).toBe('1.2.0');
     expect(store.getFeature(root, f.id).title).toBe('F2');
     expect(readdirSync(join(root, '.agentboard', 'features'))).toEqual([`${f.id}.json`]);
   } finally { rmSync(root, { recursive: true, force: true }); }
