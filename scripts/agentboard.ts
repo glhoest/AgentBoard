@@ -8,6 +8,7 @@ import { startBridge } from './lib/serve';
 import { setup } from './lib/setup';
 import { updateNotice } from './lib/update-check';
 import * as store from './lib/store';
+import { buildFieldChange, buildFieldFilter } from './lib/fields';
 import { BoardError, Conflict, type Changes, type Entry, type Item, type FeatureChanges } from './lib/types';
 import { NEEDS_GRILLING } from './lib/versions';
 
@@ -178,12 +179,35 @@ export function main(argv: string[], io: Io = consoleIo): number {
           result = issues.updateIssue(root, args.id, args.revision, changes);
           break;
         }
-        case 'list':
-          result = withLock(root, () => store.snapshot(root).items).filter(item =>
+        case 'list': {
+          const snap = withLock(root, () => store.snapshot(root));
+          const fieldMatch = buildFieldFilter(snap.config.fields, {
+            equals: args.field, min: args.fieldMin, max: args.fieldMax, contains: args.fieldContains,
+            has: args.hasField, missing: args.noField,
+          });
+          result = snap.items.filter(item =>
             (args.all || !item.archived) &&
             (!args.status || item.status === args.status) &&
             (!args.assignee || item.assignee === args.assignee) &&
-            (!args.feature || item.feature === args.feature));
+            (!args.feature || item.feature === args.feature) &&
+            fieldMatch(item));
+          break;
+        }
+        case 'fields': {
+          const snap = store.snapshot(root);
+          result = snap.config.fields.map(field => ({ ...field, cards: snap.items.filter(item => field.id in item.fields).length }));
+          break;
+        }
+        case 'field-add':
+          if (args.type === null) throw new BoardError('Pass --type text, number or boolean');
+          result = store.addField(root, { id: args.id, type: args.type, name: args.name });
+          break;
+        case 'field-edit':
+          if (args.name === null) throw new BoardError('Nothing to change: pass --name');
+          result = store.editField(root, args.id, { name: args.name });
+          break;
+        case 'field-remove':
+          result = store.removeField(root, args.id, args.yes);
           break;
         case 'show':
           result = store.get(root, args.id);
@@ -197,6 +221,8 @@ export function main(argv: string[], io: Io = consoleIo): number {
           if (args.description !== null) values.description = args.description;
           if (args.label !== null) values.labels = args.label;
           if (args.criterion?.length) values.acceptanceCriteria = args.criterion.map(text => ({ text, done: false }));
+          const change = buildFieldChange(store.config(root).fields, args.field, null);
+          if (change) values.fields = change.set;
           result = store.create(root, values);
           break;
         }
@@ -217,7 +243,8 @@ export function main(argv: string[], io: Io = consoleIo): number {
           if (args.archive || args.unarchive) changes.archived = args.archive;
           if (args.labelsJson !== null) changes.labels = JSON.parse(args.labelsJson);
           if (args.criteriaJson !== null) changes.acceptanceCriteria = JSON.parse(args.criteriaJson);
-          result = store.update(root, args.id, args.revision, changes);
+          const fieldChange = buildFieldChange(store.config(root).fields, args.field, args.clearField);
+          result = store.update(root, args.id, args.revision, changes, { fieldChange });
           break;
         }
         case 'feature-create': {

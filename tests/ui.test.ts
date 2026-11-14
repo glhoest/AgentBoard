@@ -1169,6 +1169,53 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     expect(x.createdAt).toBe(before.createdAt);
   });
 
+  test('custom fields: shown on cards, edited with validation, searched, and written for the CLI', async () => {
+    cliJson('field-add', 'points', '--type', 'number', '--name', 'Story points');
+    cliJson('field-add', 'team', '--type', 'text', '--name', 'Team');
+    cliJson('field-add', 'ready', '--type', 'boolean', '--name', 'Ready');
+    const card = cliJson('create', 'Has fields', '--field', 'points=5', '--field', 'team=<b>Core</b>');
+    await page.waitFor(hasCard('Has fields'), 8000);
+    // chips on the card, as text
+    await page.waitFor(`document.querySelector('${cardSel(card.id)} .cfields')?.innerText.includes('Story points')`);
+    expect(await page.eval(`document.querySelectorAll('${cardSel(card.id)} .cfields b').length`)).toBe(2);
+    expect(await page.eval(`document.querySelectorAll('${cardSel(card.id)} .cfields b b').length`)).toBe(0);
+    // search includes custom values
+    await page.set('#q', 'story points: 5');
+    await page.waitFor(`${hasCard('Has fields')} && !${hasCard('Seed card')}`);
+    await page.set('#q', '');
+    await page.waitFor(hasCard('Seed card'));
+    await openCard('Has fields');
+    expect(await page.eval(`document.querySelector('#ed-cf-points').value`)).toBe('5');
+    expect(await page.eval(`document.querySelector('#ed-cf-team').value`)).toBe('<b>Core</b>');
+    expect(await page.eval(`document.querySelector('#ed-cf-ready').value`)).toBe('');
+    // invalid number is reported and nothing is saved
+    await page.set('#ed-cf-points', 'abc');
+    await page.click('#ed-save');
+    await page.waitFor(`document.querySelector('#err-cf-points').textContent.includes('Enter a number')`);
+    expect(await page.eval(`document.querySelector('#editor').open`)).toBe(true);
+    expect(cliJson('show', card.id).revision).toBe(1);
+    await page.set('#ed-cf-points', '8.5');
+    await page.eval(`(() => { const r = document.querySelector('#ed-cf-ready'); r.value = 'true'; r.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+    await page.set('#ed-cf-team', '');
+    await page.click('#ed-save');
+    await page.waitFor(`!document.querySelector('#editor').open`);
+    await page.waitFor(`document.querySelector('${cardSel(card.id)} .cfields')?.innerText.includes('8.5')`);
+    const saved = cliJson('show', card.id);
+    expect(saved.fields).toEqual({points: 8.5, ready: true});
+    expect(saved.revision).toBe(2);
+    // numeric CLI filters see the UI's write
+    expect(cliJson('list', '--field-min', 'points=8').map((i: Json) => i.id)).toEqual([card.id]);
+    // a new card created in the UI carries its values
+    await page.click('#new-card');
+    await page.waitFor(`document.querySelector('#editor').open`);
+    await page.type('#ed-title', 'UI with fields');
+    await page.set('#ed-cf-points', '3');
+    await page.click('#ed-save');
+    await page.waitFor(`!document.querySelector('#editor').open`);
+    await page.waitFor(hasCard('UI with fields'));
+    expect(byTitle('UI with fields').fields).toEqual({points: 3});
+  });
+
   test('card text is never interpreted as HTML (XSS probes)', async () => {
     cliJson('create', '<img src=x onerror="window.__xss=1">', '--label', '<script>window.__xss=2</script>', '--description', '<svg onload="window.__xss=3">');
     await page.waitFor(hasCard('<img src=x onerror="window.__xss=1">'));
@@ -1904,6 +1951,59 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
     await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
     const written: Record<string, string> = await p.eval(`(async () => { const ab = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('proj')).getDirectoryHandle('.agentboard'); const items = await ab.getDirectoryHandle('items'); const out = {'board.json':await (await (await ab.getFileHandle('board.json')).getFile()).text()}; for await (const [n,h] of items.entries()) out[n] = await (await h.getFile()).text(); return out; })()`);
     for (const [name, value] of Object.entries(written)) expect(value).toBe(readFileSync(name === 'board.json' ? join(expected, '.agentboard/board.json') : join(expected, '.agentboard/items', name), 'utf8'));
+  });
+
+  test('custom fields: a 1.1.0 board upgrades to the CLI bytes and UI edits write values the CLI accepts', async () => {
+    const proj = join(tmpRoot, 'direct-fields'); mkdirSync(proj);
+    Bun.spawnSync([...CLI!, 'init', proj]);
+    const run = (...args: string[]) => { const r = Bun.spawnSync([...CLI!, '--root', proj, '--json', ...args]); if (r.exitCode !== 0) throw new Error(String(r.stderr)); return JSON.parse(String(r.stdout)); };
+    run('field-add', 'points', '--type', 'number');
+    const card = run('create', 'Old card');
+    // Rewrite the files the way version 1.1.0 wrote them (no fields), keeping the field definition out.
+    const boardPath = join(proj, '.agentboard/board.json'), cardPath = join(proj, '.agentboard/items', card.id + '.json');
+    const strip = (path: string) => { const { fields: _f, ...rest } = JSON.parse(readFileSync(path, 'utf8')); writeFileSync(path, JSON.stringify({ ...rest, version: '1.1.0' }, null, 2) + '\n'); };
+    strip(boardPath); strip(cardPath);
+    const files: Record<string, string> = { 'board.json': readFileSync(boardPath, 'utf8'), [card.id + '.json']: readFileSync(cardPath, 'utf8') };
+    // The CLI's upgrade of the same bytes is the reference.
+    const reference = join(tmpRoot, 'direct-fields-ref'); cpSync(proj, reference, { recursive: true });
+    expect(Bun.spawnSync([...CLI!, '--root', reference, 'list', '--all']).exitCode).toBe(0);
+    const p = await chrome.newPage();
+    await p.send('Page.addScriptToEvaluateOnNewDocument', { source: picker(files) });
+    await p.goto(base + '/'); await p.eval(`document.querySelector('.direct-box').open = true`); await p.click('#pick-folder');
+    await p.waitFor(`document.querySelector('#conn').dataset.state === 'ok'`);
+    const read = `(async () => { const ab = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('proj')).getDirectoryHandle('.agentboard'); const items = await ab.getDirectoryHandle('items'); const out = {'board.json': await (await (await ab.getFileHandle('board.json')).getFile()).text()}; for await (const [n, h] of items.entries()) out[n] = await (await h.getFile()).text(); return out; })()`;
+    const upgraded: Record<string, string> = await p.eval(read);
+    expect(JSON.parse(upgraded['board.json'])).toMatchObject({ version: '1.2.0', fields: [] });
+    expect(upgraded[card.id + '.json']).toContain('"fields": {}');
+    expect(upgraded[card.id + '.json']).toBe(readFileSync(join(reference, '.agentboard/items', card.id + '.json'), 'utf8'));
+  });
+
+  test('custom fields: direct mode edits values and writes bytes the CLI accepts', async () => {
+    const proj = join(tmpRoot, 'direct-fields-edit'); mkdirSync(proj);
+    Bun.spawnSync([...CLI!, 'init', proj]);
+    const run = (...args: string[]) => { const r = Bun.spawnSync([...CLI!, '--root', proj, '--json', ...args]); if (r.exitCode !== 0) throw new Error(String(r.stderr)); return JSON.parse(String(r.stdout)); };
+    run('field-add', 'points', '--type', 'number');
+    run('field-add', 'ready', '--type', 'boolean');
+    run('create', 'Estimate me', '--field', 'points=2');
+    const files: Record<string, string> = { 'board.json': readFileSync(join(proj, '.agentboard/board.json'), 'utf8') };
+    for (const f of readdirSync(join(proj, '.agentboard/items'))) files[f] = readFileSync(join(proj, '.agentboard/items', f), 'utf8');
+    const p = await chrome.newPage();
+    await p.send('Page.addScriptToEvaluateOnNewDocument', { source: picker(files) });
+    await p.goto(base + '/'); await p.eval(`document.querySelector('.direct-box').open = true`); await p.click('#pick-folder');
+    await p.waitFor(`document.querySelector('.cfields')?.innerText.includes('2')`, 10000, 'direct load with fields');
+    await p.click('.card-title[title="Estimate me"]'); await p.waitFor(`document.querySelector('#editor').open`);
+    await p.set('#ed-cf-points', '13');
+    await p.eval(`(() => { const r = document.querySelector('#ed-cf-ready'); r.value = 'false'; r.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+    await p.click('#ed-save'); await p.waitFor(`!document.querySelector('#editor').open`);
+    await p.waitFor(`document.querySelector('.cfields')?.innerText.includes('13')`);
+    const read = `(async () => { const ab = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('proj')).getDirectoryHandle('.agentboard'); const items = await ab.getDirectoryHandle('items'); const out = {'board.json': await (await (await ab.getFileHandle('board.json')).getFile()).text()}; for await (const [n, h] of items.entries()) out[n] = await (await h.getFile()).text(); return out; })()`;
+    const written: Record<string, string> = await p.eval(read);
+    const check = join(tmpRoot, 'direct-fields-check'); mkdirSync(join(check, '.agentboard/items'), { recursive: true });
+    for (const [n, t] of Object.entries(written)) writeFileSync(n === 'board.json' ? join(check, '.agentboard/board.json') : join(check, '.agentboard/items', n), t);
+    const listed = JSON.parse(String(Bun.spawnSync([...CLI!, '--root', check, '--json', 'list', '--field', 'points=13']).stdout));
+    expect(listed.map((i: Json) => i.title)).toEqual(['Estimate me']);
+    expect(listed[0]).toMatchObject({ revision: 2, fields: { points: 13, ready: false } });
+    expect(Object.keys(listed[0].fields)).toEqual(['points', 'ready']);   // definition order, like the CLI writes
   });
 
   test('newer card is reported and never rewritten', async () => {

@@ -1,0 +1,19 @@
+{
+  "version": "1.2.0",
+  "id": "AB-000000000001",
+  "revision": 3,
+  "title": "Estimate me",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:10.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [],
+  "fields": {}
+}

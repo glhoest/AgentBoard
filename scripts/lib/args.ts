@@ -3,10 +3,14 @@ import { PRIORITIES, type Priority } from './types';
 export type Common = { root: string | null; json: boolean; quiet: boolean };
 export type Command =
   | { cmd: 'init' | 'setup'; path: string }
-  | { cmd: 'list'; all: boolean; status: string | null; assignee: string | null; feature: string | null }
+  | { cmd: 'list'; all: boolean; status: string | null; assignee: string | null; feature: string | null; field: string[] | null; fieldMin: string[] | null; fieldMax: string[] | null; fieldContains: string[] | null; hasField: string[] | null; noField: string[] | null }
   | { cmd: 'show'; id: string }
-  | { cmd: 'create'; title: string; status: string | null; priority: Priority | null; assignee: string | null; description: string | null; label: string[] | null; criterion: string[] | null; feature: string | null }
-  | { cmd: 'edit'; id: string; revision: number | null; title: string | null; status: string | null; priority: Priority | null; assignee: string | null; unassign: boolean; description: string | null; notes: string | null; labelsJson: string | null; criteriaJson: string | null; archive: boolean; unarchive: boolean; feature: string | null; clearFeature: boolean }
+  | { cmd: 'create'; title: string; status: string | null; priority: Priority | null; assignee: string | null; description: string | null; label: string[] | null; criterion: string[] | null; feature: string | null; field: string[] | null }
+  | { cmd: 'edit'; id: string; revision: number | null; title: string | null; status: string | null; priority: Priority | null; assignee: string | null; unassign: boolean; description: string | null; notes: string | null; labelsJson: string | null; criteriaJson: string | null; archive: boolean; unarchive: boolean; feature: string | null; clearFeature: boolean; field: string[] | null; clearField: string[] | null }
+  | { cmd: 'fields' }
+  | { cmd: 'field-add'; id: string; type: string | null; name: string | null }
+  | { cmd: 'field-edit'; id: string; name: string | null }
+  | { cmd: 'field-remove'; id: string; yes: boolean }
   | { cmd: 'feature-create'; title: string; status: string | null; description: string | null }
   | { cmd: 'feature-edit'; id: string; revision: number | null; title: string | null; status: string | null; description: string | null; archive: boolean; unarchive: boolean }
   | { cmd: 'feature-move'; id: string; status: string; revision: number | null }
@@ -48,10 +52,14 @@ const specs: Record<string, [string, string][]> = {
   'issue-promote': [['id', 'pos'], ['revision', 'int'], ['work-item', 'str']],
   init: [['path', 'pos']],
   setup: [['path', 'pos']],
-  list: [['all', 'bool'], ['status', 'str'], ['assignee', 'str'], ['feature', 'str']],
+  list: [['all', 'bool'], ['status', 'str'], ['assignee', 'str'], ['feature', 'str'], ['field', 'append'], ['field-min', 'append'], ['field-max', 'append'], ['field-contains', 'append'], ['has-field', 'append'], ['no-field', 'append']],
+  fields: [],
+  'field-add': [['id', 'pos'], ['type', 'str'], ['name', 'str']],
+  'field-edit': [['id', 'pos'], ['name', 'str']],
+  'field-remove': [['id', 'pos'], ['yes', 'bool']],
   show: [['id', 'pos']],
-  create: [['title', 'pos'], ['status', 'str'], ['priority', 'priority'], ['assignee', 'str'], ['description', 'str'], ['label', 'append'], ['criterion', 'append'], ['feature', 'str']],
-  edit: [['id', 'pos'], ['revision', 'int'], ['title', 'str'], ['status', 'str'], ['priority', 'priority'], ['assignee', 'str'], ['unassign', 'bool'], ['description', 'str'], ['notes', 'str'], ['labels-json', 'str'], ['criteria-json', 'str'], ['archive', 'bool'], ['unarchive', 'bool'], ['feature', 'str'], ['clear-feature', 'bool']],
+  create: [['title', 'pos'], ['status', 'str'], ['priority', 'priority'], ['assignee', 'str'], ['description', 'str'], ['label', 'append'], ['criterion', 'append'], ['feature', 'str'], ['field', 'append']],
+  edit: [['id', 'pos'], ['revision', 'int'], ['title', 'str'], ['status', 'str'], ['priority', 'priority'], ['assignee', 'str'], ['unassign', 'bool'], ['description', 'str'], ['notes', 'str'], ['labels-json', 'str'], ['criteria-json', 'str'], ['archive', 'bool'], ['unarchive', 'bool'], ['feature', 'str'], ['clear-feature', 'bool'], ['field', 'append'], ['clear-field', 'append']],
   'feature-create': [['title', 'pos'], ['status', 'str'], ['description', 'str']],
   'feature-edit': [['id', 'pos'], ['revision', 'int'], ['title', 'str'], ['status', 'str'], ['description', 'str'], ['archive', 'bool'], ['unarchive', 'bool']],
   'feature-move': [['id', 'pos'], ['status', 'pos'], ['revision', 'int']],
@@ -83,6 +91,10 @@ const summaries: Record<string, string> = {
   thread: 'Print the thread of a card',
   questions: 'List open questions on non-archived cards',
   grill: 'Print a grilling brief for cards in Needs grilling',
+  fields: 'List custom field definitions and how many cards use each',
+  'field-add': 'Define a custom field (text, number or boolean)',
+  'field-edit': 'Rename a custom field',
+  'field-remove': 'Delete a custom field and its values on all cards',
 };
 
 // Split at the first '=' only (String.split's limit would drop the rest of the value).
@@ -137,7 +149,9 @@ export function parseArgs(argv: string[]): ParseResult {
     if (!onlyPositionals && (token === '-h' || token === '--help')) return { kind: 'help', text: helpText(cmd) };
     if (onlyPositionals || !token.startsWith('-')) { if (p >= positionals.length) return error(`unrecognized arguments: ${token}`); values[positionals[p++]] = token; continue; }
     const [name, inline] = splitEq(token);
-    const matches = entries.filter(([key, type]) => type !== 'pos' && `--${key}`.startsWith(name));
+    const candidates = entries.filter(([key, type]) => type !== 'pos' && `--${key}`.startsWith(name));
+    // An exact option name wins over longer options it prefixes (--field vs --field-min).
+    const matches = candidates.filter(([key]) => `--${key}` === name).length ? candidates.filter(([key]) => `--${key}` === name) : candidates;
     if (!matches.length) return error(`unrecognized arguments: ${token}`);
     if (matches.length > 1) return error(`ambiguous option: ${name} could match ${matches.map(([key]) => `--${key}`).join(', ')}`);
     const [key, type] = matches[0];

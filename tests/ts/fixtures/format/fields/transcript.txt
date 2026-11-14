@@ -1,0 +1,250 @@
+$ agentboard field-add points --type number --name "Story points"
+[exit 0]
+--- stdout
+{
+  "id": "points",
+  "name": "Story points",
+  "type": "number"
+}
+
+$ agentboard field-add team --type text
+[exit 0]
+--- stdout
+{
+  "id": "team",
+  "name": "team",
+  "type": "text"
+}
+
+$ agentboard field-add blocked-by-legal --type boolean
+[exit 0]
+--- stdout
+{
+  "id": "blocked-by-legal",
+  "name": "blocked-by-legal",
+  "type": "boolean"
+}
+
+$ agentboard field-edit team --name "Owning team"
+[exit 0]
+--- stdout
+{
+  "id": "team",
+  "name": "Owning team",
+  "type": "text"
+}
+
+$ agentboard fields
+[exit 0]
+--- stdout
+[
+  {
+    "id": "points",
+    "name": "Story points",
+    "type": "number",
+    "cards": 0
+  },
+  {
+    "id": "team",
+    "name": "Owning team",
+    "type": "text",
+    "cards": 0
+  },
+  {
+    "id": "blocked-by-legal",
+    "name": "blocked-by-legal",
+    "type": "boolean",
+    "cards": 0
+  }
+]
+
+$ agentboard --json create "Estimate me" --field points=5 --field team=Platform
+[exit 0]
+--- stdout
+{"version": "1.2.0", "id": "AB-000000000001", "revision": 1, "title": "Estimate me", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:06.000Z", "updatedAt": "2026-02-03T04:05:06.000Z", "archived": false, "feature": null, "thread": [], "fields": {"points": 5, "team": "Platform"}}
+
+$ agentboard --json create Later
+[exit 0]
+--- stdout
+{"version": "1.2.0", "id": "AB-000000000002", "revision": 1, "title": "Later", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:07.000Z", "updatedAt": "2026-02-03T04:05:07.000Z", "archived": false, "feature": null, "thread": [], "fields": {}}
+
+$ agentboard edit AB-000000000002 --field team=Web --field blocked-by-legal=true --field points=2.5
+[exit 0]
+--- stdout
+{
+  "version": "1.2.0",
+  "id": "AB-000000000002",
+  "revision": 2,
+  "title": "Later",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:07.000Z",
+  "updatedAt": "2026-02-03T04:05:08.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [],
+  "fields": {
+    "points": 2.5,
+    "team": "Web",
+    "blocked-by-legal": true
+  }
+}
+
+$ agentboard --json list --field points=5
+[exit 0]
+--- stdout
+[{"version": "1.2.0", "id": "AB-000000000001", "revision": 1, "title": "Estimate me", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:06.000Z", "updatedAt": "2026-02-03T04:05:06.000Z", "archived": false, "feature": null, "thread": [], "fields": {"points": 5, "team": "Platform"}}]
+
+$ agentboard list --field-min points=3
+[exit 0]
+--- stdout
+[
+  {
+    "version": "1.2.0",
+    "id": "AB-000000000001",
+    "revision": 1,
+    "title": "Estimate me",
+    "status": "backlog",
+    "priority": "medium",
+    "assignee": null,
+    "labels": [],
+    "description": "",
+    "acceptanceCriteria": [],
+    "notes": "",
+    "createdAt": "2026-02-03T04:05:06.000Z",
+    "updatedAt": "2026-02-03T04:05:06.000Z",
+    "archived": false,
+    "feature": null,
+    "thread": [],
+    "fields": {
+      "points": 5,
+      "team": "Platform"
+    }
+  }
+]
+
+$ agentboard list --field-contains team=plat
+[exit 0]
+--- stdout
+[
+  {
+    "version": "1.2.0",
+    "id": "AB-000000000001",
+    "revision": 1,
+    "title": "Estimate me",
+    "status": "backlog",
+    "priority": "medium",
+    "assignee": null,
+    "labels": [],
+    "description": "",
+    "acceptanceCriteria": [],
+    "notes": "",
+    "createdAt": "2026-02-03T04:05:06.000Z",
+    "updatedAt": "2026-02-03T04:05:06.000Z",
+    "archived": false,
+    "feature": null,
+    "thread": [],
+    "fields": {
+      "points": 5,
+      "team": "Platform"
+    }
+  }
+]
+
+$ agentboard list --no-field points
+[exit 0]
+--- stdout
+[]
+
+$ agentboard edit AB-000000000001 --clear-field team
+[exit 0]
+--- stdout
+{
+  "version": "1.2.0",
+  "id": "AB-000000000001",
+  "revision": 2,
+  "title": "Estimate me",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:09.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [],
+  "fields": {
+    "points": 5
+  }
+}
+
+$ agentboard show AB-000000000001
+[exit 0]
+--- stdout
+{
+  "version": "1.2.0",
+  "id": "AB-000000000001",
+  "revision": 2,
+  "title": "Estimate me",
+  "status": "backlog",
+  "priority": "medium",
+  "assignee": null,
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-02-03T04:05:06.000Z",
+  "updatedAt": "2026-02-03T04:05:09.000Z",
+  "archived": false,
+  "feature": null,
+  "thread": [],
+  "fields": {
+    "points": 5
+  }
+}
+
+$ agentboard field-remove points
+[exit 1]
+--- stderr
+Error: 2 card(s) hold a value for points; repeat with --yes to delete the field and those values
+
+$ agentboard field-remove points --yes
+[exit 0]
+--- stdout
+{
+  "field": {
+    "id": "points",
+    "name": "Story points",
+    "type": "number"
+  },
+  "cards": [
+    "AB-000000000001",
+    "AB-000000000002"
+  ]
+}
+
+$ agentboard fields
+[exit 0]
+--- stdout
+[
+  {
+    "id": "team",
+    "name": "Owning team",
+    "type": "text",
+    "cards": 1
+  },
+  {
+    "id": "blocked-by-legal",
+    "name": "blocked-by-legal",
+    "type": "boolean",
+    "cards": 1
+  }
+]

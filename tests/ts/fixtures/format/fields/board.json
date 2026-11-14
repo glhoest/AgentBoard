@@ -1,0 +1,56 @@
+{
+  "version": "1.2.0",
+  "name": "fields",
+  "columns": [
+    {
+      "id": "backlog",
+      "name": "Backlog"
+    },
+    {
+      "id": "needs-grilling",
+      "name": "Needs grilling"
+    },
+    {
+      "id": "todo",
+      "name": "To do"
+    },
+    {
+      "id": "in-progress",
+      "name": "In progress"
+    },
+    {
+      "id": "blocked",
+      "name": "Blocked"
+    },
+    {
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "featureColumns": [
+    {
+      "id": "planned",
+      "name": "Planned"
+    },
+    {
+      "id": "active",
+      "name": "Active"
+    },
+    {
+      "id": "done",
+      "name": "Done"
+    }
+  ],
+  "fields": [
+    {
+      "id": "team",
+      "name": "Owning team",
+      "type": "text"
+    },
+    {
+      "id": "blocked-by-legal",
+      "name": "blocked-by-legal",
+      "type": "boolean"
+    }
+  ]
+}

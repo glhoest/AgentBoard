@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-0000000000B2",
   "revision": 2,
   "title": "Old archived idea",
@@ -14,5 +14,6 @@
   "updatedAt": "2026-01-02T03:04:08.009Z",
   "archived": true,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

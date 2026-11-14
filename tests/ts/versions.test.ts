@@ -35,7 +35,7 @@ describe('versions', () => {
   });
 
   test('newer versions are rejected loudly, even a newer patch or minor', () => {
-    for (const newer of ['1.1.1', '1.2.0', '2.0.0']) {
+    for (const newer of ['1.2.1', '1.3.0', '2.0.0']) {
       expect(() => upgrade('item', { version: newer }), newer).toThrow(`Card format ${newer} was written by a newer AgentBoard`);
       expect(() => upgrade('board', { version: newer }), newer).toThrow('update this copy');
     }
@@ -47,26 +47,26 @@ describe('versions', () => {
   });
 
   test('current files pass through untouched', () => {
-    const value = { version: '1.1.0', x: 1 };
+    const value = { version: '1.2.0', x: 1 };
     const result = upgrade('item', value);
-    expect(result).toEqual({ value, from: '1.1.0', upgraded: false });
+    expect(result).toEqual({ value, from: '1.2.0', upgraded: false });
     expect(result.value).toBe(value);
   });
 
-  test('card 1.0.0 -> 1.1.0 appends feature and thread, keeps key order and values', () => {
+  test('card 1.0.0 -> 1.2.0 appends feature, thread and fields, keeps key order and values', () => {
     for (const version of [1, undefined]) {
       const old: any = { id: 'AB-000000000001', revision: 3, archived: false };
       if (version !== undefined) old.version = version;
       const result = upgrade('item', old);
       expect(result.upgraded).toBe(true);
       expect(result.from).toBe('1.0.0');
-      expect(Object.keys(result.value)).toEqual(['version', 'id', 'revision', 'archived', 'feature', 'thread']);
-      expect(result.value).toEqual({ version: '1.1.0', id: 'AB-000000000001', revision: 3, archived: false, feature: null, thread: [] });
+      expect(Object.keys(result.value)).toEqual(['version', 'id', 'revision', 'archived', 'feature', 'thread', 'fields']);
+      expect(result.value).toEqual({ version: '1.2.0', id: 'AB-000000000001', revision: 3, archived: false, feature: null, thread: [], fields: {} });
     }
     expect(() => upgrade('item', { version: 1, thread: [] })).toThrow('Invalid item structure or version');
   });
 
-  test('board 1.0.0 -> 1.1.0 inserts needs-grilling after backlog, else first, never twice; adds featureColumns', () => {
+  test('board 1.0.0 -> 1.1.0 inserts needs-grilling after backlog, else first, never twice; adds featureColumns and fields', () => {
     const col = (id: string) => ({ id, name: id });
     const ids = (value: any) => value.columns.map((c: any) => c.id);
     expect(ids(upgrade('board', { version: 1, name: 'b', columns: [col('backlog'), col('todo')] }).value))
@@ -80,19 +80,19 @@ describe('versions', () => {
     const result = upgrade('board', { version: 1, name: 'b', columns: [col('backlog')] });
     expect(result.value.columns).toEqual([col('backlog'), { id: 'needs-grilling', name: 'Needs grilling' }]);
     expect(result.value.featureColumns).toEqual([{ id: 'planned', name: 'Planned' }, { id: 'active', name: 'Active' }, { id: 'done', name: 'Done' }]);
-    expect(Object.keys(result.value)).toEqual(['version', 'name', 'columns', 'featureColumns']);
+    expect(Object.keys(result.value)).toEqual(['version', 'name', 'columns', 'featureColumns', 'fields']);
   });
 
   test('the pipeline runs several steps in order, so a future major can transform data', () => {
     const steps: UpgradeStep[] = [
       ...PIPELINES.item,
-      { from: '1.1.0', to: '1.2.0', upgrade: value => ({ ...value, version: '1.2.0', extra: 'default' }) },
-      { from: '1.2.0', to: '2.0.0', upgrade: ({ title, ...rest }) => ({ ...rest, version: '2.0.0', name: title }) },
+      { from: '1.2.0', to: '1.3.0', upgrade: value => ({ ...value, version: '1.3.0', extra: 'default' }) },
+      { from: '1.3.0', to: '2.0.0', upgrade: ({ title, ...rest }) => ({ ...rest, version: '2.0.0', name: title }) },
     ];
     const pipelines = { item: steps, board: PIPELINES.board };
     const result = upgrade('item', { version: 1, title: 'T' }, pipelines, '2.0.0');
-    expect(result).toEqual({ value: { version: '2.0.0', feature: null, thread: [], extra: 'default', name: 'T' }, from: '1.0.0', upgraded: true });
-    expect(upgrade('item', { version: '1.2.0', title: 'U' }, pipelines, '2.0.0').value.name).toBe('U');
+    expect(result).toEqual({ value: { version: '2.0.0', feature: null, thread: [], fields: {}, extra: 'default', name: 'T' }, from: '1.0.0', upgraded: true });
+    expect(upgrade('item', { version: '1.3.0', title: 'U' }, pipelines, '2.0.0').value.name).toBe('U');
   });
 
   test('non-objects are rejected', () => {

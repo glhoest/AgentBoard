@@ -9,6 +9,10 @@ import {
   type Board, type Feature, type FeatureChanges, type Changes, type Column, type Entry, type EntryChanges, type Item, type NewEntry, type Snapshot,
 } from './types';
 import { CURRENT, DEFAULT_FEATURE_COLUMNS, NEEDS_GRILLING, upgrade, type FileKind } from './versions';
+import {
+  applyFieldChange, findField, orderFieldValues, validateFieldDefs, validateFieldValues, FIELD_TYPES,
+  type FieldChange, type FieldDef, type FieldType,
+} from './fields';
 
 /**
  * Sources of time and randomness, and an observer for upgrade-on-read writes. Production code never
@@ -126,6 +130,7 @@ export function validateBoard(value: unknown): Board {
   if (typeof value.name !== 'string') throw new BoardError('Invalid board name');
   validateColumns(value.columns, 'columns');
   validateColumns(value.featureColumns, 'featureColumns');
+  validateFieldDefs(value.fields);
   return value as Board;
 }
 
@@ -188,6 +193,7 @@ export function validate(value: unknown, cfg: Board): Item {
   }
   if (x.feature !== null && (typeof x.feature !== 'string' || !FEATURE_ID_RE.test(x.feature))) throw new BoardError('Invalid feature');
   validateThread(x.thread);
+  validateFieldValues(x.fields, cfg.fields);
   return x;
 }
 
@@ -274,10 +280,11 @@ export function createUnlocked(root: string, values: Changes): Item {
   const x: any = {
     version: CURRENT.item, id, revision: 1, title: '', status: c.columns[0].id, priority: 'medium', assignee: null,
     labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false,
-    feature: null, thread: [],
+    feature: null, thread: [], fields: {},
   };
   Object.assign(x, values);
   validate(x, c);
+  x.fields = orderFieldValues(x.fields, c.fields);
   if (x.feature !== null) checkFeatureLink(root, x.feature, c);
   const p = itemPath(root, id);
   if (existsSync(p)) throw new Conflict('ID collision; retry');
@@ -305,6 +312,7 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
     x.revision++;
     x.updatedAt = stamp;
     validate(x, c);
+    x.fields = orderFieldValues(x.fields, c.fields);
     const updates = (!before.archived || !x.archived) && (before.feature !== x.feature || before.status !== x.status || before.archived !== x.archived || opts.recalculate)
       ? planFeatures(root, c, before, x) : [];
     const syncIssues = before.status !== x.status || (before.archived && !x.archived) || opts.recalculate;
@@ -320,17 +328,81 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
   });
 }
 
-export function update(root: string, id: string, revision: number | null, changes: Changes, opts: WriteOptions & { claim?: boolean } = {}): Item {
-  if (!isObject(changes) || Object.keys(changes).some(k => !allowed.has(k)) || !Object.keys(changes).length) {
+/**
+ * `fieldChange` sets and clears single custom field values inside the same locked write (the CLI path);
+ * `changes.fields` replaces the whole values object (the bridge path).
+ */
+export function update(root: string, id: string, revision: number | null, changes: Changes,
+  opts: WriteOptions & { claim?: boolean; fieldChange?: FieldChange | null } = {}): Item {
+  if (!isObject(changes) || Object.keys(changes).some(k => !allowed.has(k)) || (!Object.keys(changes).length && !opts.fieldChange)) {
     throw new BoardError('Invalid or empty changes');
   }
   return mutate(root, id, revision, {...opts, recalculate: 'status' in changes}, x => {
     if (opts.claim && x.assignee !== null && x.assignee !== changes.assignee) throw new Conflict(`Already claimed by ${x.assignee}`);
     if ('feature' in changes && changes.feature !== null) checkFeatureLink(root, changes.feature, config(root));
     Object.assign(x, changes);
+    if (opts.fieldChange) x.fields = applyFieldChange(x.fields, opts.fieldChange);
   });
 }
 
+// ---- Custom field definitions (board.json) ----
+
+/** Writes board.json; the lock serializes it with card writes. board.json has no revision. */
+function changeBoard(root: string, change: (board: Board) => void): Board {
+  return withLock(root, () => {
+    const board = config(root);
+    change(board);
+    validateBoard(board);
+    atomicWrite(boardPath(root), board);
+    return board;
+  });
+}
+
+export function addField(root: string, def: { id: string; type: string; name?: string | null }): FieldDef {
+  if (!(FIELD_TYPES as readonly string[]).includes(def.type)) throw new BoardError(`Field type must be one of: ${FIELD_TYPES.join(', ')}`);
+  const created: FieldDef = { id: def.id, name: def.name ?? def.id, type: def.type as FieldType };
+  changeBoard(root, board => {
+    if (board.fields.some(field => field.id === created.id)) throw new BoardError(`Field ${created.id} already exists`);
+    board.fields.push(created);
+  });
+  return created;
+}
+
+/** Only the display name can change; the type is fixed so existing values stay valid. */
+export function editField(root: string, id: string, changes: { name: string }): FieldDef {
+  let edited!: FieldDef;
+  changeBoard(root, board => {
+    edited = findField(board.fields, id);
+    edited.name = changes.name;
+  });
+  return edited;
+}
+
+/**
+ * Removes a definition and, in the same locked operation, the field's value from every card (archived
+ * ones too; each affected card gets revision + 1). Refuses when cards hold values unless `force` is set.
+ * Cards are written first and board.json last, so a crash leaves a valid board and the command can be repeated.
+ */
+export function removeField(root: string, id: string, force: boolean): { field: FieldDef; cards: string[] } {
+  return withLock(root, () => {
+    const snap = snapshot(root);
+    const field = findField(snap.config.fields, id);
+    const holders = snap.items.filter(item => id in item.fields);
+    if (holders.length && !force) {
+      throw new BoardError(`${holders.length} card(s) hold a value for ${id}; repeat with --yes to delete the field and those values`);
+    }
+    const stamp = now();
+    for (const item of holders) {
+      delete item.fields[id];
+      item.revision++;
+      item.updatedAt = stamp;
+      atomicWrite(itemPath(root, item.id), item);
+    }
+    const board = { ...snap.config, fields: snap.config.fields.filter(candidate => candidate.id !== id) };
+    atomicWrite(boardPath(root), board);
+    return { field, cards: holders.map(item => item.id) };
+  });
+}
 function newEntryId(thread: Entry[]): string {
   for (let attempt = 0; attempt < 10; attempt++) {
     const id = 'TH-' + seams.randomHex(6);
@@ -400,6 +472,7 @@ export function init(path: string): { root: string; board: string } {
         { id: 'done', name: 'Done' },
       ],
       featureColumns: DEFAULT_FEATURE_COLUMNS.map(column => ({ ...column })),
+      fields: [],
     });
     const ex = join(root, '.git', 'info', 'exclude');
     if (existsSync(dirname(ex))) appendFileSync(ex, '\n/.agentboard.lock\n', 'utf8');

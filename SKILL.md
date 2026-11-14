@@ -31,6 +31,10 @@ Close duplicates, invalid reports, and non-defects with a reason and a duplicate
 
 Group related cards with `feature-create TITLE`, then link them with `create TITLE --feature FT-ID` or `edit CARD-ID --feature FT-ID`. Use `features` to inspect progress and dangling links, and `feature-show FT-ID` for linked cards. Feature status follows linked card changes; use `feature-move FT-ID STATUS` for a manual override until the next relevant card change. Clear a link with `edit CARD-ID --clear-feature`. Never delete features; use `feature-edit FT-ID --archive` instead.
 
+## Custom fields
+
+Boards can carry their own scalar fields, for example story points. Define one with `field-add points --type number --name "Story points"` (types: `text`, `number`, `boolean`), list them with `fields`, rename with `field-edit`, and remove with `field-remove ID --yes` (this also deletes the values on all cards; without `--yes` it refuses while cards hold values). Set values with repeatable `--field ID=VALUE` on `create` or `edit`, and clear them with `edit --clear-field ID`. Values appear in the card JSON under `fields`. Filter with `list --field points=5` (exact; numbers compare numerically, text is whole-value and case-sensitive), `--field-min points=3 --field-max points=8` (inclusive), `--field-contains team=plat` (case-insensitive substring in text fields), `--has-field ID` and `--no-field ID`. All filters combine with AND. Misuse is an error, not an empty list. Do not edit field definitions in `board.json` by hand.
+
 ## Questions and Needs grilling
 
 Each card has a thread of comments, questions and answers. Write to it only through the CLI (`ask`, `answer`, `comment`, `edit-entry`); read it with `thread ID`. Set `--author NAME` or the `AGENTBOARD_AUTHOR` environment variable so humans can see who asked. Entries can be edited but never deleted. A body that starts with `-` goes after `--`.
