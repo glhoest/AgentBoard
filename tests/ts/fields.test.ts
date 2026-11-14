@@ -95,7 +95,9 @@ describe('field values', () => {
     expect(cli(root, 'edit', card.id, '--field', 'points=9007199254740993').code).toBe(1);
     expect(cli(root, 'edit', card.id, '--field', 'points=-9007199254740993').code).toBe(1);
     expect(cli(root, 'edit', card.id, '--field', 'points=9007199254740991').json().fields).toEqual({ points: 9007199254740991 });
-    expect(cli(root, 'edit', card.id, '--field', 'points=12345678901234567890.5').json().fields.points).toBeGreaterThan(1e19);
+    for (const bad of ['9007199254740993.0', '1e16', '1e20', '12345678901234567890.5']) expect(cli(root, 'edit', card.id, '--field', 'points=' + bad).code, bad).toBe(1);
+    expect(cli(root, 'edit', card.id, '--field', 'points=0.1').json().fields).toEqual({ points: 0.1 });
+    expect(() => store.update(root, card.id, null, { fields: { points: 1e20 } })).toThrow('whole numbers');
     expect(cli(root, 'list', '--field', 'points=9007199254740993').code).toBe(1);
   });
 
@@ -156,8 +158,8 @@ describe('field ids that are also Object.prototype names', () => {
     expect(cli(root, 'fields').json().map((f: any) => [f.id, f.cards])).toEqual([['points', 0], ['team', 0], ['legal', 0], ['constructor', 0], ['valueof', 0]]);
     expect(ids(root, '--has-field', 'constructor')).toEqual([]);
     expect(ids(root, '--no-field', 'constructor')).toEqual(['bare']);
-    const card = cli(root, 'create', 'with', '--field', 'points=1e308').json();
-    expect(card.fields).toEqual({ points: 1e308 });
+    const card = cli(root, 'create', 'with', '--field', 'points=1e15').json();
+    expect(card.fields).toEqual({ points: 1e15 });
     expect(Object.keys(JSON.parse(readFileSync(store.itemPath(root, card.id), 'utf8')).fields)).toEqual(['points']);
     const set = cli(root, 'edit', bare.id, '--field', 'constructor=7').json();
     expect(set.fields).toEqual({ constructor: 7 });

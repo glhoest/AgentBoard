@@ -9,7 +9,6 @@ export const FIELD_LIMITS = { fields: 50, name: 80, text: 1000 } as const;
 
 const isObject = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 const NUMBER_RE = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
-const INTEGER_RE = /^[+-]?\d+$/;
 
 /** Own-property test. Field IDs are free slugs such as `constructor`, so `in` and plain lookups would see Object.prototype. */
 export const hasValue = (values: Record<string, FieldValue>, id: string): boolean => Object.hasOwn(values, id);
@@ -32,6 +31,10 @@ export function validateFieldDefs(defs: unknown): FieldDef[] {
 export function validateFieldValue(def: FieldDef, value: unknown): FieldValue {
   if (def.type === 'number') {
     if (typeof value !== 'number' || !Number.isFinite(value)) throw new BoardError(`Field ${def.id} needs a finite number`);
+    // A whole number beyond 2^53 may be a rounded copy of what was typed, and would then match the wrong cards.
+    if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+      throw new BoardError(`Field ${def.id}: whole numbers must be within ±9007199254740991`);
+    }
   } else if (def.type === 'boolean') {
     if (typeof value !== 'boolean') throw new BoardError(`Field ${def.id} needs true or false`);
   } else if (typeof value !== 'string' || !value.trim() || value.length > FIELD_LIMITS.text) {
@@ -67,13 +70,8 @@ export function findField(defs: FieldDef[], id: string): FieldDef {
 /** Parses command-line text into a value of the field's type. */
 export function parseFieldValue(def: FieldDef, text: string): FieldValue {
   if (def.type === 'number') {
-    const trimmed = text.trim();
-    if (!NUMBER_RE.test(trimmed)) throw new BoardError(`Field ${def.id} needs a number, got '${text}'`);
-    // A whole number beyond 2^53 would silently round to another number and then match the wrong cards.
-    if (INTEGER_RE.test(trimmed) && !Number.isSafeInteger(Number(trimmed))) {
-      throw new BoardError(`Field ${def.id}: whole numbers must be within ±9007199254740991; got '${text}'`);
-    }
-    return validateFieldValue(def, Number(trimmed));
+    if (!NUMBER_RE.test(text.trim())) throw new BoardError(`Field ${def.id} needs a number, got '${text}'`);
+    return validateFieldValue(def, Number(text));
   }
   if (def.type === 'boolean') {
     if (text !== 'true' && text !== 'false') throw new BoardError(`Field ${def.id} needs true or false, got '${text}'`);

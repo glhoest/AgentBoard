@@ -402,6 +402,7 @@ export function removeField(root: string, id: string, force: boolean): { field: 
     return { field, cards: holders.map(item => item.id) };
   });
 }
+
 function newEntryId(thread: Entry[]): string {
   for (let attempt = 0; attempt < 10; attempt++) {
     const id = 'TH-' + seams.randomHex(6);

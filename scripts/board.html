@@ -524,7 +524,7 @@ function validateFieldDefs(defs) {
   return defs;
 }
 function fieldValueProblem(def, v) {
-  if (def.type === 'number') return typeof v === 'number' && Number.isFinite(v) ? '' : 'needs a finite number';
+  if (def.type === 'number') return numberValueOk(v) ? '' : 'needs a finite number (whole numbers up to 9007199254740991)';
   if (def.type === 'boolean') return typeof v === 'boolean' ? '' : 'needs true or false';
   return typeof v === 'string' && v.trim() && v.length <= 1000 ? '' : 'needs text of 1–1000 characters';
 }
@@ -947,11 +947,9 @@ const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 const setFields = it => fieldDefs().filter(d => hasOwn(it.fields, d.id));
 function fieldTexts(it) { return setFields(it).map(d => d.name + ': ' + it.fields[d.id]); }
 const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
-/* Numbers must parse, be finite, and whole numbers must stay exact (same rule as the CLI). */
-function numberOk(text) {
-  const t = text.trim(), n = Number(t);
-  return NUM_RE.test(t) && Number.isFinite(n) && !(/^[+-]?\d+$/.test(t) && !Number.isSafeInteger(n));
-}
+/* Same rule as the CLI: finite, and a whole number must be exactly representable. */
+const numberValueOk = n => typeof n === 'number' && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n));
+const numberOk = text => NUM_RE.test(text.trim()) && numberValueOk(Number(text));
 const customText = (custom, id) => hasOwn(custom, id) ? custom[id] : '';
 function customFrom(it) { return Object.fromEntries(Object.entries(it.fields).map(([k, v]) => [k, String(v)])); }
 /* Draft text -> values. Blank means "not set"; text that does not parse is left out (validateDraft reports it). */
