@@ -540,7 +540,7 @@ function validateFieldValues(values, defs) {
 /** Same values with keys in definition order, so the bytes match what the CLI writes. */
 function orderFieldValues(values, defs) {
   const ordered = {};
-  for (const d of defs) if (d.id in values) ordered[d.id] = values[d.id];
+  for (const d of defs) if (hasOwn(values, d.id)) ordered[d.id] = values[d.id];
   return ordered;
 }
 const isV1 = value => value.version === 1 || value.version === undefined || value.version === '1.0.0';
@@ -942,23 +942,32 @@ function applySnapshot(snap) {
 const hay = new WeakMap();
 /* ---------- custom field values on cards ---------- */
 const fieldDefs = () => S.snap.config.fields || [];
-function fieldTexts(it) { return fieldDefs().filter(d => d.id in it.fields).map(d => d.name + ': ' + it.fields[d.id]); }
+/* Field IDs are free slugs (even "constructor"), so look values up as own properties only. */
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+const setFields = it => fieldDefs().filter(d => hasOwn(it.fields, d.id));
+function fieldTexts(it) { return setFields(it).map(d => d.name + ': ' + it.fields[d.id]); }
 const NUM_RE = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+/* Numbers must parse, be finite, and whole numbers must stay exact (same rule as the CLI). */
+function numberOk(text) {
+  const t = text.trim(), n = Number(t);
+  return NUM_RE.test(t) && Number.isFinite(n) && !(/^[+-]?\d+$/.test(t) && !Number.isSafeInteger(n));
+}
+const customText = (custom, id) => hasOwn(custom, id) ? custom[id] : '';
 function customFrom(it) { return Object.fromEntries(Object.entries(it.fields).map(([k, v]) => [k, String(v)])); }
 /* Draft text -> values. Blank means "not set"; text that does not parse is left out (validateDraft reports it). */
 function customValues(custom) {
   const values = {};
   for (const d of fieldDefs()) {
-    const t = custom[d.id] ?? '';
+    const t = customText(custom, d.id);
     if (d.type === 'text') { if (t.trim()) values[d.id] = t; }
-    else if (d.type === 'number') { if (NUM_RE.test(t.trim()) && Number.isFinite(Number(t))) values[d.id] = Number(t); }
+    else if (d.type === 'number') { if (numberOk(t)) values[d.id] = Number(t); }
     else if (t === 'true' || t === 'false') values[d.id] = t === 'true';
   }
   return values;
 }
 function customDirty(custom, base) {
   const was = customFrom(base);
-  return fieldDefs().some(d => (custom[d.id] ?? '') !== (was[d.id] ?? ''));
+  return fieldDefs().some(d => customText(custom, d.id) !== customText(was, d.id));
 }
 function haystack(it) {
   let s = hay.get(it);
@@ -1038,8 +1047,8 @@ function validateDraft(d) {
   if (f.notes.length > LIM.text) e.notes = `Notes are too long (max ${LIM.text.toLocaleString()}).`;
   if (f.criteria.length > LIM.criteria) e.criteria = `At most ${LIM.criteria} criteria.`;
   for (const def of fieldDefs()) {
-    const t = f.custom[def.id] ?? '';
-    if (def.type === 'number' && t.trim() && !(NUM_RE.test(t.trim()) && Number.isFinite(Number(t)))) e['cf-' + def.id] = 'Enter a number, for example 5 or 2.5.';
+    const t = customText(f.custom, def.id);
+    if (def.type === 'number' && t.trim() && !numberOk(t)) e['cf-' + def.id] = 'Enter a number, for example 5 or 2.5 (whole numbers up to 9007199254740991).';
     else if (def.type === 'text' && t.length > 1000) e['cf-' + def.id] = `Too long (${t.length}/1000).`;
   }
   f.criteria.forEach((c, i) => { if (!c.text.trim()) e.crit[i] = 'Text is required — fill it in or remove this criterion.'; else if (c.text.length > LIM.criterion) e.crit[i] = `Too long (${c.text.length}/${LIM.criterion}).`; });
@@ -1543,6 +1552,13 @@ function featureChip(id, snap) {
     text: available ? feature.title : 'Feature unavailable',
   });
 }
+function fieldChips(it) {
+  const set = setFields(it);
+  if (!set.length) return null;
+  const shown = d => d.type === 'boolean' ? (it.fields[d.id] ? 'yes' : 'no') : String(it.fields[d.id]);
+  return h('ul', {class: 'cfields', 'aria-label': 'Custom fields'},
+    set.map(d => h('li', {title: d.name + ': ' + shown(d)}, h('b', {text: d.name}), ' ' + shown(d))));
+}
 function cardEl(it, snap) {
   const draft = S.drafts.get(it.id), dirty = draft && isDirty(draft);
   const done = it.acceptanceCriteria.filter(c => c.done).length, total = it.acceptanceCriteria.length;
@@ -1571,7 +1587,7 @@ function cardEl(it, snap) {
     titleBtn,
     it.feature ? featureChip(it.feature, snap) : null,
     it.labels.length ? h('ul', {class: 'chips', 'aria-label': 'Labels'}, it.labels.slice(0, 4).map(l => h('li', {class: 'label', title: l, text: l})), it.labels.length > 4 ? h('li', {class: 'label', title: it.labels.slice(4).join(', '), text: `+${it.labels.length - 4}`}) : null) : null,
-    fieldDefs().some(d => d.id in it.fields) ? h('ul', {class: 'cfields', 'aria-label': 'Custom fields'}, fieldDefs().filter(d => d.id in it.fields).map(d => h('li', {title: d.name + ': ' + it.fields[d.id]}, h('b', {text: d.name}), ' ' + (d.type === 'boolean' ? (it.fields[d.id] ? 'yes' : 'no') : String(it.fields[d.id]))))) : null,
+    fieldChips(it),
     h('div', {class: 'card-foot'},
       h('button', {type: 'button', class: 'assignee' + (it.assignee ? ' set' : ''), 'data-fk': it.id + ':assignee', title: it.assignee ? 'Assignee: ' + it.assignee + ' (click to change)' : 'Unassigned (click to assign)', 'aria-label': it.assignee ? `Assignee ${it.assignee}. Change assignee` : 'Unassigned. Assign', disabled: S.writing || !it.hash, onclick: () => openAssign(it.id)}, it.assignee ? '@' + it.assignee : 'Unassigned'),
       total ? h('span', {class: 'crit', title: `${done} of ${total} acceptance criteria done`}, h('span', {class: 'bar', 'aria-hidden': 'true'}, h('i', {style: `width:${Math.round(done / total * 100)}%`})), h('span', {text: `${done}/${total}`}, h('span', {class: 'sr-only', text: ' criteria done'}))) : null,
@@ -1826,7 +1842,7 @@ function customFieldsSection(d) {
   const tick = () => { d.saveError = ''; updateEditorControls(); };
   return h('fieldset', {class: 'field', id: 'ed-custom'}, h('legend', {text: 'Custom fields'}),
     defs.map(def => {
-      const id = 'ed-cf-' + def.id, current = f.custom[def.id] ?? '';
+      const id = 'ed-cf-' + def.id, current = customText(f.custom, def.id);
       const set = value => { f.custom[def.id] = value; clearErr('cf-' + def.id); tick(); };
       const control = def.type === 'boolean'
         ? h('select', {id, onchange: e => set(e.target.value)}, [['', 'Not set'], ['true', 'Yes'], ['false', 'No']].map(([v, t]) => h('option', {value: v, text: t})))

@@ -159,7 +159,7 @@ Boards define their own scalar fields in `board.json` under `fields`, in the ord
 | `text` | a string of 1–1,000 characters | any text, not blank |
 | `boolean` | `true` or `false` | `true` or `false` (lowercase) |
 
-A field ID is a lowercase slug matching `^[a-z][a-z0-9-]{0,39}$`. The name is 1–80 characters and defaults to the ID. A board holds at most 50 fields. The type cannot change after creation, because existing values would become invalid. To change a type, remove the field and add it again. `field-remove` refuses to run when cards hold values for the field, unless you pass `--yes`. With `--yes` it deletes the definition and the values in one locked operation, and each card that held a value gets revision + 1. It writes cards first and `board.json` last, so after a crash you can run it again. A card file with a value for an undefined field, or with a value of the wrong type, is invalid. Because of that, edit `board.json` fields only through the CLI.
+A field ID is a lowercase slug matching `^[a-z][a-z0-9-]{0,39}$`. A number is a finite JSON number, and a whole number must lie within ±9007199254740991 so that exact matches stay exact. The name is 1–80 characters and defaults to the ID. A board holds at most 50 fields. The type cannot change after creation, because existing values would become invalid. To change a type, remove the field and add it again. `field-remove` refuses to run when cards hold values for the field, unless you pass `--yes`. With `--yes` it deletes the definition and the values in one locked operation, and each card that held a value gets revision + 1. It writes cards first and `board.json` last, so after a crash you can run it again. A card file with a value for an undefined field, or with a value of the wrong type, is invalid. Because of that, edit `board.json` fields only through the CLI.
 
 Filters of `list` combine with AND, together with `--status`, `--assignee`, `--feature` and `--all`. A card without a value only matches `--no-field`.
 
@@ -216,7 +216,7 @@ Upgrades so far:
 - Cards 1.0.0 to 1.1.0 append `feature: null` and `thread: []`.
 - `board.json` 1.0.0 to 1.1.0 adds the default `featureColumns`. It also inserts the needs-grilling column after `backlog`, or first if there is no `backlog`, unless a column with that ID already exists. The version records that this upgrade ran, so the column does not come back if you remove it later.
 
-Old copies of AgentBoard reject upgraded files with an error. Update every vendored copy with `setup` before newer code touches a shared board.
+Old copies of AgentBoard, including old watchers, reject upgraded files with an error. A running watcher reports every card as updated (and the board as updated) when a 1.2.0 upgrade first rewrites the files. Update every vendored copy with `setup` before newer code touches a shared board.
 
 ### Automatic feature status
 

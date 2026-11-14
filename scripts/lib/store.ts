@@ -4,14 +4,13 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { withLock } from './lock';
 import {
-  BoardError, Conflict, FeatureSyncError, IssueSyncError, BOARD_KEYS, ENTRY_ID_RE, ENTRY_KEYS, ENTRY_KINDS, FEATURE_ID_RE, FEATURE_KEYS, FEATURE_WRITABLE, ID_RE, ITEM_KEYS, LIMITS,
+  BoardError, Conflict, FeatureSyncError, FIELD_TYPES, IssueSyncError, BOARD_KEYS, ENTRY_ID_RE, ENTRY_KEYS, ENTRY_KINDS, FEATURE_ID_RE, FEATURE_KEYS, FEATURE_WRITABLE, ID_RE, ITEM_KEYS, LIMITS,
   PRIORITIES, SLUG_RE, TIMESTAMP_RE, WRITABLE,
-  type Board, type Feature, type FeatureChanges, type Changes, type Column, type Entry, type EntryChanges, type Item, type NewEntry, type Snapshot,
+  type Board, type Feature, type FieldDef, type FieldType, type FeatureChanges, type Changes, type Column, type Entry, type EntryChanges, type Item, type NewEntry, type Snapshot,
 } from './types';
 import { CURRENT, DEFAULT_FEATURE_COLUMNS, NEEDS_GRILLING, upgrade, type FileKind } from './versions';
 import {
-  applyFieldChange, findField, orderFieldValues, validateFieldDefs, validateFieldValues, FIELD_TYPES,
-  type FieldChange, type FieldDef, type FieldType,
+  applyFieldChange, findField, hasValue, orderFieldValues, validateFieldDefs, validateFieldValues, type FieldChange,
 } from './fields';
 
 /**
@@ -387,7 +386,7 @@ export function removeField(root: string, id: string, force: boolean): { field: 
   return withLock(root, () => {
     const snap = snapshot(root);
     const field = findField(snap.config.fields, id);
-    const holders = snap.items.filter(item => id in item.fields);
+    const holders = snap.items.filter(item => hasValue(item.fields, id));
     if (holders.length && !force) {
       throw new BoardError(`${holders.length} card(s) hold a value for ${id}; repeat with --yes to delete the field and those values`);
     }

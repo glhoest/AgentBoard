@@ -8,7 +8,7 @@ import { startBridge } from './lib/serve';
 import { setup } from './lib/setup';
 import { updateNotice } from './lib/update-check';
 import * as store from './lib/store';
-import { buildFieldChange, buildFieldFilter } from './lib/fields';
+import { buildFieldChange, buildFieldFilter, hasValue } from './lib/fields';
 import { BoardError, Conflict, type Changes, type Entry, type Item, type FeatureChanges } from './lib/types';
 import { NEEDS_GRILLING } from './lib/versions';
 
@@ -195,7 +195,10 @@ export function main(argv: string[], io: Io = consoleIo): number {
         }
         case 'fields': {
           const snap = store.snapshot(root);
-          result = snap.config.fields.map(field => ({ ...field, cards: snap.items.filter(item => field.id in item.fields).length }));
+          result = snap.config.fields.map(field => ({
+            ...field,
+            cards: snap.items.filter(item => hasValue(item.fields, field.id)).length,
+          }));
           break;
         }
         case 'field-add':

@@ -1173,6 +1173,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     cliJson('field-add', 'points', '--type', 'number', '--name', 'Story points');
     cliJson('field-add', 'team', '--type', 'text', '--name', 'Team');
     cliJson('field-add', 'ready', '--type', 'boolean', '--name', 'Ready');
+    cliJson('field-add', 'constructor', '--type', 'number', '--name', 'Constructor');   // an ID that is also an Object.prototype name
     const card = cliJson('create', 'Has fields', '--field', 'points=5', '--field', 'team=<b>Core</b>');
     await page.waitFor(hasCard('Has fields'), 8000);
     // chips on the card, as text

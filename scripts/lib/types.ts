@@ -2,9 +2,7 @@
 // Owned by the integrator; leaf modules import from here and must not redefine these.
 // File format versions and upgrades live in versions.ts.
 
-import type { FieldDef, FieldValue } from './fields';
-
-export const ID_RE =/^AB-[0-9A-F]{12}$/;
+export const ID_RE = /^AB-[0-9A-F]{12}$/;
 export const ENTRY_ID_RE = /^TH-[0-9A-F]{12}$/;
 export const FEATURE_ID_RE = /^FT-[0-9A-F]{12}$/;
 export const SLUG_RE = /^[a-z][a-z0-9-]{0,39}$/;
@@ -36,6 +34,11 @@ export const BOARD_KEYS = ['version', 'name', 'columns', 'featureColumns', 'fiel
  */
 export const WRITABLE = ['title', 'status', 'priority', 'assignee', 'labels', 'description', 'acceptanceCriteria', 'notes', 'archived', 'feature', 'fields'] as const;
 export type WritableKey = (typeof WRITABLE)[number];
+
+export const FIELD_TYPES = ['text', 'number', 'boolean'] as const;
+export type FieldType = (typeof FIELD_TYPES)[number];
+export type FieldValue = string | number | boolean;
+export type FieldDef = { id: string; name: string; type: FieldType };
 
 export type Criterion = { text: string; done: boolean };
 export type Entry = {

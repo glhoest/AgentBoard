@@ -151,7 +151,8 @@ export function parseArgs(argv: string[]): ParseResult {
     const [name, inline] = splitEq(token);
     const candidates = entries.filter(([key, type]) => type !== 'pos' && `--${key}`.startsWith(name));
     // An exact option name wins over longer options it prefixes (--field vs --field-min).
-    const matches = candidates.filter(([key]) => `--${key}` === name).length ? candidates.filter(([key]) => `--${key}` === name) : candidates;
+    const exact = candidates.filter(([key]) => `--${key}` === name);
+    const matches = exact.length ? exact : candidates;
     if (!matches.length) return error(`unrecognized arguments: ${token}`);
     if (matches.length > 1) return error(`ambiguous option: ${name} could match ${matches.map(([key]) => `--${key}`).join(', ')}`);
     const [key, type] = matches[0];

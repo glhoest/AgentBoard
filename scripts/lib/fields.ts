@@ -1,18 +1,18 @@
 // Custom card fields: definitions live in board.json (`fields`), values in each card (`fields` object).
 // This module owns validation, value parsing and the exact/numeric/contains filters.
-import { BoardError, SLUG_RE, type Item } from './types';
+import { BoardError, FIELD_TYPES, SLUG_RE, type FieldDef, type FieldType, type FieldValue, type Item } from './types';
 
-export const FIELD_TYPES = ['text', 'number', 'boolean'] as const;
-export type FieldType = (typeof FIELD_TYPES)[number];
-export type FieldValue = string | number | boolean;
-export type FieldDef = { id: string; name: string; type: FieldType };
 /** Key order of a definition in board.json. */
-export const FIELD_DEF_KEYS = ['id', 'name', 'type'];
+const FIELD_DEF_KEYS = ['id', 'name', 'type'];
 
 export const FIELD_LIMITS = { fields: 50, name: 80, text: 1000 } as const;
 
 const isObject = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 const NUMBER_RE = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+const INTEGER_RE = /^[+-]?\d+$/;
+
+/** Own-property test. Field IDs are free slugs such as `constructor`, so `in` and plain lookups would see Object.prototype. */
+export const hasValue = (values: Record<string, FieldValue>, id: string): boolean => Object.hasOwn(values, id);
 
 export function validateFieldDefs(defs: unknown): FieldDef[] {
   if (!Array.isArray(defs)) throw new BoardError('Invalid fields');
@@ -54,7 +54,7 @@ export function validateFieldValues(values: unknown, defs: FieldDef[]): Record<s
 /** Same values, keys in definition order, so file bytes do not depend on the order of edits. */
 export function orderFieldValues(values: Record<string, FieldValue>, defs: FieldDef[]): Record<string, FieldValue> {
   const ordered: Record<string, FieldValue> = {};
-  for (const def of defs) if (def.id in values) ordered[def.id] = values[def.id];
+  for (const def of defs) if (hasValue(values, def.id)) ordered[def.id] = values[def.id];
   return ordered;
 }
 
@@ -67,8 +67,13 @@ export function findField(defs: FieldDef[], id: string): FieldDef {
 /** Parses command-line text into a value of the field's type. */
 export function parseFieldValue(def: FieldDef, text: string): FieldValue {
   if (def.type === 'number') {
-    if (!NUMBER_RE.test(text.trim())) throw new BoardError(`Field ${def.id} needs a number, got '${text}'`);
-    return validateFieldValue(def, Number(text));
+    const trimmed = text.trim();
+    if (!NUMBER_RE.test(trimmed)) throw new BoardError(`Field ${def.id} needs a number, got '${text}'`);
+    // A whole number beyond 2^53 would silently round to another number and then match the wrong cards.
+    if (INTEGER_RE.test(trimmed) && !Number.isSafeInteger(Number(trimmed))) {
+      throw new BoardError(`Field ${def.id}: whole numbers must be within ±9007199254740991; got '${text}'`);
+    }
+    return validateFieldValue(def, Number(trimmed));
   }
   if (def.type === 'boolean') {
     if (text !== 'true' && text !== 'false') throw new BoardError(`Field ${def.id} needs true or false, got '${text}'`);
@@ -96,7 +101,7 @@ export function buildFieldChange(defs: FieldDef[], sets: string[] | null, clears
   }
   for (const id of clears ?? []) {
     findField(defs, id);
-    if (id in set) throw new BoardError(`Field ${id} is both set and cleared`);
+    if (Object.hasOwn(set, id)) throw new BoardError(`Field ${id} is both set and cleared`);
   }
   return { set, clear: clears ?? [] };
 }
@@ -127,7 +132,7 @@ export function buildFieldFilter(defs: FieldDef[], filters: FieldFilters): Predi
     const [id, raw] = splitAssignment(text);
     const def = findField(defs, id);
     const wanted = parseFieldValue(def, raw);
-    checks.push(item => item.fields[id] === wanted);
+    checks.push(item => hasValue(item.fields, id) && item.fields[id] === wanted);
   }
   for (const [option, list, test] of [
     ['--field-min', filters.min, (value: number, bound: number) => value >= bound],
@@ -138,7 +143,7 @@ export function buildFieldFilter(defs: FieldDef[], filters: FieldFilters): Predi
       const def = findField(defs, id);
       need(def, 'number', option);
       const bound = parseFieldValue(def, raw) as number;
-      checks.push(item => typeof item.fields[id] === 'number' && test(item.fields[id] as number, bound));
+      checks.push(item => hasValue(item.fields, id) && typeof item.fields[id] === 'number' && test(item.fields[id] as number, bound));
     }
   }
   for (const text of filters.contains ?? []) {
@@ -147,9 +152,15 @@ export function buildFieldFilter(defs: FieldDef[], filters: FieldFilters): Predi
     need(def, 'text', '--field-contains');
     const needle = raw.toLowerCase();
     if (!needle) throw new BoardError('--field-contains needs non-empty text');
-    checks.push(item => typeof item.fields[id] === 'string' && (item.fields[id] as string).toLowerCase().includes(needle));
+    checks.push(item => hasValue(item.fields, id) && typeof item.fields[id] === 'string' && (item.fields[id] as string).toLowerCase().includes(needle));
   }
-  for (const id of filters.has ?? []) { findField(defs, id); checks.push(item => id in item.fields); }
-  for (const id of filters.missing ?? []) { findField(defs, id); checks.push(item => !(id in item.fields)); }
+  for (const id of filters.has ?? []) {
+    findField(defs, id);
+    checks.push(item => hasValue(item.fields, id));
+  }
+  for (const id of filters.missing ?? []) {
+    findField(defs, id);
+    checks.push(item => !hasValue(item.fields, id));
+  }
   return item => checks.every(check => check(item));
 }
