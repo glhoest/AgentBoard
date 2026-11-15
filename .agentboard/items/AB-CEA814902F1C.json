@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-CEA814902F1C",
   "revision": 5,
   "title": "Diff-based reconciliation of conflicting edits",
@@ -49,5 +49,6 @@
       "createdAt": "2026-11-01T00:55:02.178Z",
       "updatedAt": "2026-11-01T00:55:02.178Z"
     }
-  ]
+  ],
+  "fields": {}
 }

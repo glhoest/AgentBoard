@@ -82,10 +82,16 @@ export function readJson(path: string): unknown {
   }
 }
 
-export function locate(start: string): string {
+export function locate(start: string, stopAtRepository = false): string {
   let p = resolve(start);
   while (true) {
     if (existsSync(join(p, '.agentboard', 'board.json'))) return p;
+    if (stopAtRepository && existsSync(join(p, '.agentboard'))) {
+      throw new BoardError(`Incomplete board at ${join(p, '.agentboard')}: board.json is missing. Repair the board before continuing.`);
+    }
+    if (stopAtRepository && existsSync(join(p, '.git'))) {
+      throw new BoardError(`No board found between ${resolve(start)} and repository root ${p}. Pass --root with the directory containing the intended .agentboard, or initialize a board here if desired.`);
+    }
     const parent = dirname(p);
     if (parent === p) break;
     p = parent;

@@ -5,7 +5,7 @@ description: Manage repository-local AgentBoard Kanban boards via the bundled CL
 
 # AgentBoard
 
-Run `bun <skill-directory>/scripts/agentboard.ts --help`; use its absolute path. Bun is required. Run commands in the project or put `--root PROJECT_ROOT` before the command. Use `--json` before the command for structured output. Do not initialize a board unless requested. The board is stored in `.agentboard/` and may be committed with the project; do not put secrets in it.
+Run `bun <skill-directory>/scripts/agentboard.ts --help`; use the absolute path to the directory containing this SKILL.md. Bun is required. Run commands in the project or put `--root PROJECT_ROOT` before the command. Use `--json` before the command for structured output. Do not initialize a board unless requested. The board is stored in `.agentboard/` and may be committed with the project; do not put secrets in it.
 
 ## Setting up a repository
 
@@ -45,3 +45,7 @@ Each card has a thread of comments, questions and answers. Write to it only thro
 - **Grilling session:** `grill` prints a brief of every card in Needs grilling with its open questions (`grill ID` for one card). Grill the human, record each decision with `answer`, and when a card has no open question left, `move ID todo`.
 
 After each command, the CLI prints one line on stderr while non-archived cards have open questions, for example `2 open questions on AB-…, AB-… — run "questions"`. stdout is unaffected. When you see it, run `--json questions` and answer what you can or bring them to the human. Put `--quiet` before the command to suppress the line.
+
+Without `--root`, board discovery searches upward only as far as the nearest Git repository boundary. Outside a Git repository, the search continues to the filesystem root. An incomplete `.agentboard` stops discovery with an error. Use `--root` to select another starting directory explicitly.
+
+From a nested directory in a Git repository, locate the installed executable with `repo=$(git rev-parse --show-toplevel) && bun "$repo/.agents/skills/agentboard/scripts/agentboard.ts" --quiet list` in a POSIX shell. In PowerShell, run `$repo = git rev-parse --show-toplevel` then `if ($LASTEXITCODE -eq 0) { bun "$repo/.agents/skills/agentboard/scripts/agentboard.ts" --quiet list }`. Git must succeed and the nearest repository must have the skill installed. Otherwise use an absolute path to a trusted installed script. This locates the executable only; board selection still starts at the working directory, unless `--root` is supplied.

@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-6E3E18C1B444",
   "revision": 5,
   "title": "Grill the open design questions for grilling, Q&A threads and features",
@@ -29,5 +29,6 @@
   "updatedAt": "2026-11-01T12:59:55.099Z",
   "archived": false,
   "feature": "FT-FA5430587366",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

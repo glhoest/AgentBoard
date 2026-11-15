@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-7DE663B669B5",
   "revision": 2,
   "title": "Search cards from the CLI",
@@ -25,5 +25,6 @@
   "updatedAt": "2026-11-09T00:16:46.471Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

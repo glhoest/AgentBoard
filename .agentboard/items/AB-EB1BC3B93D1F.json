@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-EB1BC3B93D1F",
   "revision": 1,
   "title": "setup: pin LF line endings for .agentboard in target repos",
@@ -26,5 +26,6 @@
   "updatedAt": "2026-10-31T21:11:09.096Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

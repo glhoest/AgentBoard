@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-FEA488539B1E",
   "revision": 2,
   "title": "Fill remaining test gaps for features and atomic-write retry",
@@ -26,5 +26,6 @@
   "updatedAt": "2026-11-01T12:59:55.963Z",
   "archived": false,
   "feature": "FT-26B365FDB846",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-9E012DEE4360",
   "revision": 1,
   "title": "Features UI polish (review leftovers)",
@@ -26,5 +26,6 @@
   "updatedAt": "2026-11-01T13:00:08.044Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

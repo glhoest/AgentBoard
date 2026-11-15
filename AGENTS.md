@@ -12,5 +12,5 @@ AgentBoard is a repository-backed Kanban for humans and agents, packaged as an a
 
 <!-- agentboard:begin -->
 ## AgentBoard
-Project work is tracked on the repository AgentBoard in `.agentboard/` (commit it). Agents: follow `.agents/skills/agentboard/SKILL.md`; CLI `bun .agents/skills/agentboard/scripts/agentboard.ts --help`. Humans: run `bun .agents/skills/agentboard/scripts/agentboard.ts serve` and open the printed URL.
+Project work is tracked on the repository AgentBoard in `.agentboard/` (commit it). Agents: follow `.agents/skills/agentboard/SKILL.md` and invoke its CLI by absolute path. From the repository root, CLI: `bun .agents/skills/agentboard/scripts/agentboard.ts --help`. Humans: run `bun .agents/skills/agentboard/scripts/agentboard.ts serve` from the repository root and open the printed URL.
 <!-- agentboard:end -->

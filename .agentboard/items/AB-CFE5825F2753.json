@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-CFE5825F2753",
   "revision": 8,
   "title": "Update installed AgentBoard from published releases",
@@ -27,5 +27,6 @@
   "updatedAt": "2026-11-09T00:37:56.641Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

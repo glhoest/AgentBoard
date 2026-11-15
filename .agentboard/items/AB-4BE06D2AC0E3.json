@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-4BE06D2AC0E3",
   "revision": 4,
   "title": "Update a legacy installation to the Bun version of AgentBoard",
@@ -23,5 +23,6 @@
   "updatedAt": "2026-11-09T00:22:11.672Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

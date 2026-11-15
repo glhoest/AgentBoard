@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-C49A09664AEE",
   "revision": 6,
   "title": "Add CI and manual release workflows",
@@ -27,5 +27,6 @@
   "updatedAt": "2026-11-09T00:26:46.095Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

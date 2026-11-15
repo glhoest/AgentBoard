@@ -1,0 +1,69 @@
+{
+  "version": "1.2.0",
+  "id": "AB-570E74ECF25E",
+  "revision": 7,
+  "title": "Safe nested board discovery",
+  "status": "in-progress",
+  "priority": "medium",
+  "assignee": "codex",
+  "labels": [],
+  "description": "",
+  "acceptanceCriteria": [
+    {
+      "text": "Discover local boards without crossing repository boundaries or choosing an unintended board.",
+      "done": false
+    },
+    {
+      "text": "Preserve explicit root behavior and report actionable diagnostics.",
+      "done": false
+    },
+    {
+      "text": "Document and test discovery, including nested repositories.",
+      "done": false
+    }
+  ],
+  "notes": "",
+  "createdAt": "2026-11-15T16:58:15.619Z",
+  "updatedAt": "2026-11-15T17:20:30.106Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-ADD59CAFDE75",
+      "kind": "comment",
+      "author": "codex",
+      "body": "Implemented repository-boundary board lookup and incomplete-board diagnostics; explicit root retains upward lookup. Full bun test: 270 pass, 0 fail. CLI executable discovery from nested directories still needs investigation and implementation.",
+      "replyTo": null,
+      "createdAt": "2026-11-15T17:01:41.687Z",
+      "updatedAt": "2026-11-15T17:01:41.687Z"
+    },
+    {
+      "id": "TH-0FE13DA780D7",
+      "kind": "comment",
+      "author": "codex",
+      "body": "Documented Git-based lookup of the installed CLI from nested directories, separate from board selection; absolute executable invocation tests cover boundary, incomplete board and explicit root. PowerShell invocation exercised from scripts. Independent reviews remain outstanding because delegation was prohibited; Metropolis reproduction not located yet. Full suite running.",
+      "replyTo": null,
+      "createdAt": "2026-11-15T17:04:39.843Z",
+      "updatedAt": "2026-11-15T17:04:39.843Z"
+    },
+    {
+      "id": "TH-5434D310A152",
+      "kind": "comment",
+      "author": "codex",
+      "body": "Full bun test completed: 271 pass, 0 fail, 1648 assertions across 20 files. Card remains in progress pending independent reviews and Metropolis reproduction.",
+      "replyTo": null,
+      "createdAt": "2026-11-15T17:05:08.152Z",
+      "updatedAt": "2026-11-15T17:05:08.152Z"
+    },
+    {
+      "id": "TH-4B7360EE85E1",
+      "kind": "comment",
+      "author": "codex",
+      "body": "Metropolis vendored CLI succeeded from src and returned No board found from its parent; original working directory is unknown. Git-based executable lookup is documented separately from board discovery. Sol standards/spec review and repeated Opus light reviews completed; watcher safety and diagnostics findings fixed. Full bun test: 273 pass, 0 fail, 1660 assertions. Board files upgraded to 1.2.0 on read. PR pending.",
+      "replyTo": null,
+      "createdAt": "2026-11-15T17:20:30.106Z",
+      "updatedAt": "2026-11-15T17:20:30.106Z"
+    }
+  ],
+  "fields": {}
+}

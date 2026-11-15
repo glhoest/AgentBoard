@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-C5ACECA7DD52",
   "revision": 6,
   "title": "Draft strip test clicks before the control appears",
@@ -19,5 +19,6 @@
   "updatedAt": "2026-11-12T03:25:57.516Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

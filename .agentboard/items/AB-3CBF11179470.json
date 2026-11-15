@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-3CBF11179470",
   "revision": 2,
   "title": "Test the POSIX flock lock path on macOS/Linux",
@@ -26,5 +26,6 @@
   "updatedAt": "2026-11-01T12:59:55.781Z",
   "archived": false,
   "feature": "FT-26B365FDB846",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

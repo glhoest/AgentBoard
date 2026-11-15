@@ -10,7 +10,7 @@ const skipped = new Set(['tests', 'docs', '.github', '.git', 'node_modules', '.g
 const begin = '<!-- agentboard:begin -->';
 const end = '<!-- agentboard:end -->';
 const guide = begin + '\n## AgentBoard\n' +
-  'Project work is tracked on the repository AgentBoard in `.agentboard/` (commit it). Agents: follow `.agents/skills/agentboard/SKILL.md`; CLI `bun .agents/skills/agentboard/scripts/agentboard.ts --help`. Humans: run `bun .agents/skills/agentboard/scripts/agentboard.ts serve` and open the printed URL.\n' + end + '\n';
+  'Project work is tracked on the repository AgentBoard in `.agentboard/` (commit it). Agents: follow `.agents/skills/agentboard/SKILL.md` and invoke its CLI by absolute path. From the repository root, CLI: `bun .agents/skills/agentboard/scripts/agentboard.ts --help`. Humans: run `bun .agents/skills/agentboard/scripts/agentboard.ts serve` from the repository root and open the printed URL.\n' + end + '\n';
 
 function files(directory: string): string[] {
   const found: string[] = [];

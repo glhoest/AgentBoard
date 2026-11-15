@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-D3EB216B8BCF",
   "revision": 11,
   "title": "Watch board changes and trigger local actions",
@@ -60,5 +60,6 @@
       "createdAt": "2026-11-09T13:57:06.086Z",
       "updatedAt": "2026-11-09T13:57:06.086Z"
     }
-  ]
+  ],
+  "fields": {}
 }
