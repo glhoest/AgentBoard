@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-617F3548C66B",
   "revision": 6,
   "title": "Compact CLI board overview",
@@ -39,5 +39,6 @@
       "createdAt": "2026-11-08T03:46:36.265Z",
       "updatedAt": "2026-11-09T00:22:11.417Z"
     }
-  ]
+  ],
+  "fields": {}
 }

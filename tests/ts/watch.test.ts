@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { init, create, update, addEntry, snapshot, createFeature, updateFeature } from '../../scripts/lib/store';
@@ -9,6 +9,30 @@ import { createIssue, listIssues, updateIssue } from '../../scripts/lib/issues';
 const watcher = resolve(import.meta.dir, '../../scripts/watch.ts');
 const cli = resolve(import.meta.dir, '../../scripts/agentboard.ts');
 const bun = process.execPath;
+
+test('watcher respects implicit git boundary and explicit root searches upward', async () => {
+  const outer = mkdtempSync(join(tmpdir(), 'ab-watch-discovery-'));
+  let proc: ReturnType<typeof Bun.spawn> | undefined;
+  try {
+    init(outer);
+    const deep = join(outer, 'nested', 'deep');
+    mkdirSync(join(outer, 'nested', '.git'), { recursive: true });
+    mkdirSync(deep);
+    const args = ['--interval', '150', '--', bun, '-e', ''];
+    const rejected = Bun.spawnSync([bun, watcher, ...args], { cwd: deep, stdout: 'pipe', stderr: 'pipe' });
+    expect(rejected.exitCode).not.toBe(0);
+    expect(rejected.stderr.toString()).toContain('repository root');
+    proc = Bun.spawn([bun, watcher, '--root', deep, ...args], { cwd: deep, stdout: 'pipe', stderr: 'pipe' });
+    const reader = proc.stderr.getReader();
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toContain('watcher ready');
+    reader.releaseLock();
+  } finally {
+    proc?.kill();
+    if (proc) await proc.exited;
+    rmSync(outer, { recursive: true, force: true });
+  }
+});
 
 test('issue events report creation, field changes, status and removal', () => {
   const root = mkdtempSync(join(tmpdir(), 'ab-issue-events-'));

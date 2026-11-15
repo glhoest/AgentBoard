@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-1FC75E7823BB",
   "revision": 4,
   "title": "Incremental CLI updates for labels and criteria",
@@ -39,5 +39,6 @@
       "createdAt": "2026-11-08T03:46:36.417Z",
       "updatedAt": "2026-11-09T00:22:11.283Z"
     }
-  ]
+  ],
+  "fields": {}
 }

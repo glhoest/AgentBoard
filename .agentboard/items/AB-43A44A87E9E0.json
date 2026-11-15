@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-43A44A87E9E0",
   "revision": 7,
   "title": "Q&A thread inside the card (card 1.1.0)",
@@ -42,5 +42,6 @@
   "updatedAt": "2026-11-01T12:59:54.864Z",
   "archived": false,
   "feature": "FT-FA5430587366",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

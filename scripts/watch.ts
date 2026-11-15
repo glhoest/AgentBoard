@@ -17,6 +17,7 @@ type Options = { root: string; interval: number; timeout: number; events: Set<st
 
 function parse(argv: string[]): Options {
   let root = process.cwd();
+  let explicitRoot = false;
   let interval = 2000;
   let timeout = 60000;
   let webhook = false;
@@ -29,7 +30,7 @@ function parse(argv: string[]): Options {
     if (arg === '--webhook') { webhook = true; continue; }
     if (!['--root', '--interval', '--timeout', '--on'].includes(arg) || i + 1 >= argv.length) throw new Error(`Invalid option: ${arg}`);
     const value = argv[++i];
-    if (arg === '--root') root = value;
+    if (arg === '--root') { root = value; explicitRoot = true; }
     if (arg === '--on') {
       if (!EVENT_TYPES.includes(value as EventType)) throw new Error(`Unknown event type: ${value}`);
       events.add(value);
@@ -43,7 +44,7 @@ function parse(argv: string[]): Options {
     }
   }
   if (webhook === (command.length > 0)) throw new Error('Choose exactly one of --webhook or -- PROGRAM [ARG ...]');
-  root = locate(root);
+  root = locate(root, !explicitRoot);
   if (command.length) {
     const executable = command[0];
     const pathLike = isAbsolute(executable) || executable.includes('/') || executable.includes('\\');

@@ -57,6 +57,8 @@ If an existing copy still has the old standalone `scripts/update.ts`, run `setup
 
 ## Use
 
+Without `--root`, board commands search upward from the current directory and stop at the first `.git` repository boundary. Outside a Git repository, the search continues to the filesystem root. The nearest board wins. An incomplete `.agentboard` directory stops the search with an error. Pass `--root` to select a different starting directory explicitly; it retains upward search behavior. Discovery never creates a board.
+
 ```sh
 bun /path/to/agentboard.ts init /path/to/project  # setup does this for you
 cd /path/to/project
@@ -75,6 +77,24 @@ Replace the example IDs with the IDs that `create` and `ask` return. Global flag
 Output is JSON, and `--json` makes it compact. `grill` is the exception: it prints plain text unless you pass `--json`. Errors go to stderr. Exit code 1 means a failure, and exit code 2 means a conflict or a usage error. `--` ends the options, so text that starts with `-` can follow it.
 
 Commands: `init [path]`, `setup [path]`, `list [--all] [--status S] [--assignee A] [--feature ID] [field filters]`, `show ID`, `create TITLE …`, `edit ID …`, `move ID STATUS`, `claim ID ASSIGNEE` and `serve [--port P] [--ui FILE]`.
+
+### Running from a nested directory
+
+Installed-skill paths such as `.agents/skills/agentboard/scripts/agentboard.ts` are relative to the repository root. In a Git repository, resolve the installed script from the repository root before invoking Bun:
+
+```sh
+repo=$(git rev-parse --show-toplevel) && bun "$repo/.agents/skills/agentboard/scripts/agentboard.ts" --quiet list
+```
+
+In PowerShell:
+
+```powershell
+$repo = git rev-parse --show-toplevel
+if ($LASTEXITCODE -eq 0) { bun "$repo/.agents/skills/agentboard/scripts/agentboard.ts" --quiet list }
+```
+
+Git must succeed and that repository must have the skill installed; otherwise use the absolute path to a trusted installed `agentboard.ts`. This finds the executable, not the board: the CLI searches upward from your current directory, stopping at the nearest Git boundary. A nested repository needs its own installation for the command above; an absolute script path can instead run against it. Use `--root /path/to/project` before the command to explicitly select a board starting point. A missing or incomplete board is an error; discovery never creates one.
+
 
 Thread commands:
 

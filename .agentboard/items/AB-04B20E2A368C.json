@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-04B20E2A368C",
   "revision": 5,
   "title": "Fix withLock wrapping errors from the locked callback",
@@ -34,5 +34,6 @@
   "updatedAt": "2026-11-01T12:59:55.715Z",
   "archived": false,
   "feature": "FT-B8F9877ED6CB",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

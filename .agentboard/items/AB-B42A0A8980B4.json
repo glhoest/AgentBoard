@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-B42A0A8980B4",
   "revision": 1,
   "title": "Webhook notification for new open questions",
@@ -26,5 +26,6 @@
   "updatedAt": "2026-10-31T22:14:51.449Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

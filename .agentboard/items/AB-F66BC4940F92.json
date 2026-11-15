@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-F66BC4940F92",
   "revision": 2,
   "title": "Bridge maps server bugs and lock failures to 400 invalid",
@@ -30,5 +30,6 @@
   "updatedAt": "2026-11-01T12:59:55.548Z",
   "archived": false,
   "feature": "FT-B8F9877ED6CB",
-  "thread": []
+  "thread": [],
+  "fields": {}
 }

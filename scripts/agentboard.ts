@@ -52,10 +52,10 @@ const NOTICE_IDS = 10;
  * The stderr line shown after a command while questions are open, or null. Reads the board without
  * the lock and without writing (older files are upgraded in memory only); any failure means no notice.
  */
-export function questionNotice(start: string): string | null {
+export function questionNotice(start: string, stopAtRepository = false): string | null {
   let items: Item[];
   try {
-    items = store.snapshot(store.locate(start), { persist: false }).items;
+    items = store.snapshot(store.locate(start, stopAtRepository), { persist: false }).items;
   } catch {
     return null;
   }
@@ -144,7 +144,7 @@ export function main(argv: string[], io: Io = consoleIo): number {
     } else if (args.cmd === 'setup') {
       result = setup(args.path, dirname(dirname(import.meta.path)));
     } else {
-      const root = store.locate(args.root ?? process.cwd());
+      const root = store.locate(args.root ?? process.cwd(), args.root === null);
       switch (args.cmd) {
         case 'issues':
           result = issues.listIssues(root).map(issue => issues.issueSummary(root, issue));
@@ -338,7 +338,7 @@ export function main(argv: string[], io: Io = consoleIo): number {
   }
   // The notice goes to stderr only, after the command, and never changes the exit code.
   if (!args.quiet && args.cmd !== 'setup' && args.cmd !== 'serve') {
-    const notice = questionNotice(args.cmd === 'init' ? args.path : args.root ?? process.cwd());
+    const notice = questionNotice(args.cmd === 'init' ? args.path : args.root ?? process.cwd(), args.cmd !== 'init' && args.root === null);
     if (notice) io.err(notice);
   }
   return code;

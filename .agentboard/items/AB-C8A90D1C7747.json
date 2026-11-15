@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "id": "AB-C8A90D1C7747",
   "revision": 1,
   "title": "Harden watcher lock interruption and EPIPE regression coverage",
@@ -23,5 +23,6 @@
   "updatedAt": "2026-11-09T13:37:04.616Z",
   "archived": false,
   "feature": null,
-  "thread": []
+  "thread": [],
+  "fields": {}
 }
