@@ -1442,6 +1442,21 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     }
   });
 
+  test('Backlog and Done collapse on desktop without losing counts or focus', async () => {
+    for (const id of ['backlog', 'done']) {
+      const col = `.col[data-col="${id}"]`;
+      const toggle = `${col} .col-toggle`;
+      const count = await page.eval<string>(`document.querySelector(${JSON.stringify(col + ' .count')}).textContent`);
+      await page.click(toggle);
+      expect(await page.eval(`document.querySelector(${JSON.stringify(toggle)}).getAttribute('aria-expanded')`)).toBe('false');
+      expect(await page.eval(`document.activeElement === document.querySelector(${JSON.stringify(toggle)})`)).toBe(true);
+      expect(await page.eval(`getComputedStyle(document.querySelector(${JSON.stringify(col + ' .col-body')})).display`)).toBe('none');
+      expect(await page.eval(`document.querySelector(${JSON.stringify(col + ' .count')}).textContent`)).toBe(count);
+      await page.click(toggle);
+      expect(await page.eval(`document.querySelector(${JSON.stringify(toggle)}).getAttribute('aria-expanded')`)).toBe('true');
+    }
+  });
+
   test('narrow layout: no horizontal overflow, controls reachable; desktop layout screenshot', async () => {
     await shot('04-desktop-final');
     await page.resize(390, 800, true);
