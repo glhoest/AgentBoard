@@ -101,7 +101,16 @@ code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font
 .col-head h2{font-size:14px;margin:0;flex:1;min-width:0;display:flex;gap:8px;align-items:center}
 .col-head h2 span.name{overflow-wrap:anywhere}
 .count{font-size:12px;font-weight:700;background:var(--surface);border:1px solid var(--line);color:var(--muted);padding:0 8px;border-radius:999px}
-.col-toggle{display:none;border:0;background:none;padding:4px 8px;font-size:16px}
+.col-toggle{display:none;border:0;background:none;padding:4px 8px;font-size:16px;cursor:pointer}
+.col[data-col="backlog"] .col-toggle,.col[data-col="done"] .col-toggle{display:inline-block}
+.col[data-col="backlog"].collapsed .col-body,.col[data-col="done"].collapsed .col-body{display:none}
+@media (min-width:721px){
+  .col[data-col="backlog"].collapsed,.col[data-col="done"].collapsed{flex:0 0 64px;min-width:64px;min-height:120px}
+  .col[data-col="backlog"].collapsed .col-head,.col[data-col="done"].collapsed .col-head{flex-direction:column;padding:10px 4px}
+  .col[data-col="backlog"].collapsed .col-head h2,.col[data-col="done"].collapsed .col-head h2{flex-direction:column;writing-mode:vertical-rl}
+  .col[data-col="backlog"].collapsed .col-head .count,.col[data-col="done"].collapsed .col-head .count{writing-mode:horizontal-tb}
+  .col[data-col="backlog"].collapsed .col-head .btn,.col[data-col="done"].collapsed .col-head .btn{display:none}
+}
 .col-body{list-style:none;margin:0;padding:4px 8px 10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:48px}
 .col-empty{color:var(--muted);font-size:13px;padding:10px 6px;text-align:center}
 
@@ -1290,7 +1299,7 @@ function renderBoard() {
     if (col.missing && !cards.length) continue;
     const collapsed = S.collapsed.has(col.id), real = !col.missing;
     const head = h('div', {class: 'col-head'},
-      h('button', {type: 'button', class: 'col-toggle', 'aria-expanded': String(!collapsed), 'aria-label': (collapsed ? 'Expand ' : 'Collapse ') + col.name, onclick: () => { collapsed ? S.collapsed.delete(col.id) : S.collapsed.add(col.id); renderBoard(); }}, collapsed ? '▸' : '▾'),
+      h('button', {type: 'button', class: 'col-toggle', 'aria-expanded': String(!collapsed), 'data-fk': 'toggle-' + col.id, 'aria-label': (collapsed ? 'Expand ' : 'Collapse ') + col.name, onclick: () => { collapsed ? S.collapsed.delete(col.id) : S.collapsed.add(col.id); renderBoard(); }}, collapsed ? '▸' : '▾'),
       h('h2', {id: 'h-' + col.id}, col.missing ? h('span', {class: 'badge bad', text: 'Missing column'}) : null, h('span', {class: 'name wrap-any', text: col.name}),
         h('span', {class: 'count', title: filtersActive() ? `${cards.length} of ${totalByCol.get(col.id)} shown` : '', text: filtersActive() ? `${cards.length}/${totalByCol.get(col.id)}` : String(cards.length)}, h('span', {class: 'sr-only', text: ' cards'}))),
       real ? h('button', {type: 'button', class: 'btn small ghost', 'aria-label': 'Add card to ' + col.name, onclick: e => openEditor('new', {status: col.id, returnFocus: null})}, '+') : null);

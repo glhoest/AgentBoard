@@ -1417,6 +1417,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
           expect(await page.eval(`(() => { const r = document.querySelector('.col[data-col="${id}"] .col-head').getBoundingClientRect(); return r.right > 0 && r.left < innerWidth; })()`)).toBe(true);
         }
       }
+      await page.click('.col[data-col="backlog"] .col-toggle');
       await page.eval(`document.querySelector(${JSON.stringify(cardSel(x.id))}).scrollIntoView({block:'nearest', inline:'nearest'})`);
       await page.send('Input.setInterceptDrags', {enabled:true});
       let dragData: any = null;
@@ -1431,15 +1432,56 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       for (let i = 0; i < 40 && !dragData; i++) await Bun.sleep(50);
       expect(dragData).not.toBeNull();
       await page.eval(`document.querySelector('.col[data-col="backlog"]').scrollIntoView({block:'nearest', inline:'nearest'})`);
-      const dst = await page.eval<{x:number; y:number}>(`(() => { const r = document.querySelector('.col[data-col="backlog"] .col-head').getBoundingClientRect(); return {x:r.x + 60, y:r.bottom + 20}; })()`);
+      const dst = await page.eval<{x:number; y:number}>(`(() => { const r = document.querySelector('.col[data-col="backlog"] .col-head').getBoundingClientRect(); return {x:r.x + r.width / 2, y:r.y + r.height / 2}; })()`);
       for (const type of ['dragEnter', 'dragOver', 'drop']) await page.send('Input.dispatchDragEvent', {type, x:dst.x, y:dst.y, data:dragData});
       await page.send('Input.dispatchMouseEvent', {type:'mouseReleased', x:dst.x, y:dst.y, button:'left', clickCount:1});
       await page.waitFor(`${colOf('Seed card')} === 'backlog'`, 8000);
     } finally {
       off();
       await page.send('Input.setInterceptDrags', {enabled:false});
+      if (await page.eval(`document.querySelector('.col[data-col="backlog"] .col-toggle')?.getAttribute('aria-expanded') === 'false'`)) {
+        await page.click('.col[data-col="backlog"] .col-toggle');
+      }
       await page.resize(1400, 900);
     }
+  });
+
+  test('Backlog and Done collapse on desktop without losing counts or focus', async () => {
+    for (const id of ['backlog', 'done']) {
+      const col = `.col[data-col="${id}"]`;
+      const toggle = `${col} .col-toggle`;
+      const count = await page.eval<string>(`document.querySelector(${JSON.stringify(col + ' .count')}).textContent`);
+      await page.click(toggle);
+      expect(await page.eval(`document.querySelector(${JSON.stringify(toggle)}).getAttribute('aria-expanded')`)).toBe('false');
+      expect(await page.eval(`document.activeElement === document.querySelector(${JSON.stringify(toggle)})`)).toBe(true);
+      expect(await page.eval(`getComputedStyle(document.querySelector(${JSON.stringify(col + ' .col-body')})).display`)).toBe('none');
+      expect(await page.eval(`document.querySelector(${JSON.stringify(col + ' .count')}).textContent`)).toBe(count);
+      await page.click(toggle);
+      expect(await page.eval(`document.querySelector(${JSON.stringify(toggle)}).getAttribute('aria-expanded')`)).toBe('true');
+    }
+  });
+
+  test('collapsed columns survive filtering, polling and view changes but reset on reload', async () => {
+    const toggle = '.col[data-col="backlog"] .col-toggle';
+    await page.goto(base + '/?collapse-test#token=' + token);
+    await page.waitFor(`document.querySelector('${toggle}')`);
+    await page.focus(toggle);
+    await page.key(' ');
+    await page.waitFor(`document.querySelector('${toggle}').getAttribute('aria-expanded') === 'false'`);
+    expect(await page.eval(`document.querySelector('${toggle}').getAttribute('aria-expanded')`)).toBe('false');
+    await page.type('#q', 'no-such-card-xyz');
+    await page.waitFor(`document.querySelector('.col[data-col="backlog"] .count').textContent.startsWith('0/')`);
+    cliJson('create', 'Polling collapse check');
+    await page.set('#q', 'Polling collapse check');
+    await page.waitFor(hasCard('Polling collapse check'));
+    expect(await page.eval(`document.querySelector('${toggle}').getAttribute('aria-expanded')`)).toBe('false');
+    await page.click('#f-clear');
+    await page.click('#view-features');
+    await page.click('#view-board');
+    expect(await page.eval(`document.querySelector('${toggle}').getAttribute('aria-expanded')`)).toBe('false');
+    await page.goto(base + '/?collapse-reset#token=' + token);
+    await page.waitFor(`document.querySelector('${toggle}')`);
+    expect(await page.eval(`document.querySelector('${toggle}').getAttribute('aria-expanded')`)).toBe('true');
   });
 
   test('narrow layout: no horizontal overflow, controls reachable; desktop layout screenshot', async () => {
