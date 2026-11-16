@@ -1436,10 +1436,12 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       for (const type of ['dragEnter', 'dragOver', 'drop']) await page.send('Input.dispatchDragEvent', {type, x:dst.x, y:dst.y, data:dragData});
       await page.send('Input.dispatchMouseEvent', {type:'mouseReleased', x:dst.x, y:dst.y, button:'left', clickCount:1});
       await page.waitFor(`${colOf('Seed card')} === 'backlog'`, 8000);
-      await page.click('.col[data-col="backlog"] .col-toggle');
     } finally {
       off();
       await page.send('Input.setInterceptDrags', {enabled:false});
+      if (await page.eval(`document.querySelector('.col[data-col="backlog"] .col-toggle')?.getAttribute('aria-expanded') === 'false'`)) {
+        await page.click('.col[data-col="backlog"] .col-toggle');
+      }
       await page.resize(1400, 900);
     }
   });
