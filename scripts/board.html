@@ -234,8 +234,8 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 
 .graph-panel{width:100%;max-width:1100px;overflow:auto}
 .graph-list{list-style:none;padding:0;display:grid;gap:12px}
-.graph-node{border:2px solid var(--line);border-left:8px solid #16804a;border-radius:8px;padding:12px;background:var(--surface)}
-.graph-node.blocked{border-left-color:#b56b00}.graph-node.unavailable{border-left-color:#676b73}
+.graph-node{border:2px solid var(--line);border-left:8px solid var(--ok);border-radius:8px;padding:12px;background:var(--surface)}
+.graph-node.blocked{border-left-color:var(--warn)}.graph-node.unavailable{border-left-color:var(--muted)}
 .graph-node ul{margin:8px 0 0;padding-left:28px}.graph-arrow{font-weight:bold}
 </style>
 </head>
@@ -889,15 +889,16 @@ async function directBackend(picked) {
       if (!graph.has(id) && !previous.includes(id)) throw new ApiError('invalid', 'Unknown dependency ' + id);
     }
     graph.set(item.id, item.dependencies);
-    const seen = new Set(), active = new Set();
-    function visit(id) {
-      if (active.has(id)) throw new ApiError('invalid', 'Dependency cycle detected');
-      if (seen.has(id) || !graph.has(id)) return;
-      active.add(id);
-      for (const next of graph.get(id)) visit(next);
-      active.delete(id); seen.add(id);
+    for (const added of item.dependencies.filter(id => !previous.includes(id))) {
+      const seen = new Set(), pending = [added];
+      while (pending.length) {
+        const id = pending.pop();
+        if (id === item.id) throw new ApiError('invalid', 'Dependency cycle detected');
+        if (seen.has(id)) continue;
+        seen.add(id);
+        for (const next of graph.get(id) || []) pending.push(next);
+      }
     }
-    visit(item.id);
   }
   return api;
 }
@@ -1303,11 +1304,11 @@ function launchPanel() {
 
 function dependencyState(id, snap = S.snap) {
   const item = snap.items.get(id);
-  if (!item) return {label:'Missing — satisfied', satisfied:true, css:'unavailable'};
+  if (!item) return {label:'Missing — satisfied', satisfied:true};
   const status = snap.config.columns.find(c => c.id === item.status)?.name || item.status;
-  if (item.archived) return {label:'Archived (' + status + ') — satisfied', satisfied:true, css:'unavailable'};
+  if (item.archived) return {label:'Archived (' + status + ') — satisfied', satisfied:true};
   const satisfied = item.status === snap.config.columns.at(-1).id;
-  return {label:status + (satisfied ? ' — satisfied' : ' — blocking'), satisfied, css:satisfied ? 'satisfied' : ''};
+  return {label:status + (satisfied ? ' — satisfied' : ' — blocking'), satisfied};
 }
 function dependencyEditor(d, dirtyTick) {
   const f = d.fields;
@@ -1331,7 +1332,7 @@ function dependencyEditor(d, dirtyTick) {
     options.map(x => h('option', {value:x.id, text:x.title + ' (' + x.id + ')' + (x.archived ? ' — archived' : '')})));
   const dependents = d.id ? S.snap.list.filter(x => x.dependencies.includes(d.id)) : [];
   return h('section', {class:'field', 'aria-label':'Card dependencies'}, h('h3', {text:'Dependencies'}),
-    h('p', {class:'help', text:'This card depends on the cards below. Done, archived and missing cards are satisfied. Readiness is advisory.'}),
+    h('p', {class:'help', text:'This card depends on the cards below. Cards in the final column, archived cards and missing cards are satisfied. Readiness is advisory.'}),
     list, field('ed-dependency', 'Add dependency', select),
     h('button', {type:'button', class:'btn small', onclick:() => {
       if (!select.value) return;

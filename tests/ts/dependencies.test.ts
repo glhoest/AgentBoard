@@ -111,3 +111,28 @@ test('ready respects final column, archived and missing links; blocked cards can
     expect(await readReady()).toContain(blocked.id);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+test('pre-existing downstream cycles do not prevent removals or safe new links', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ab-deps-existing-cycle-'));
+  try {
+    store.init(root);
+    const a = store.create(root, { title: 'A' });
+    const b = store.create(root, { title: 'B' });
+    const c = store.create(root, { title: 'C' });
+    const d = store.create(root, { title: 'D' });
+    store.changeDependency(root, a.id, b.id, null, true);
+    store.changeDependency(root, a.id, d.id, null, true);
+    store.changeDependency(root, b.id, c.id, null, true);
+    // Simulate an existing cycle introduced by an external writer.
+    const cPath = store.itemPath(root, c.id);
+    const changed = JSON.parse(readFileSync(cPath, 'utf8'));
+    changed.dependencies = [b.id];
+    writeFileSync(cPath, JSON.stringify(changed));
+    expect(store.changeDependency(root, a.id, d.id, null, false).dependencies).toEqual([b.id]);
+    expect(store.changeDependency(root, d.id, b.id, null, true).dependencies).toEqual([b.id]);
+    // Despite the downstream cycle, traversal still finds a path that would close a new cycle.
+    expect(() => store.changeDependency(root, c.id, a.id, null, true)).toThrow('Dependency cycle');
+    expect(store.changeDependency(root, c.id, b.id, null, false).dependencies).toEqual([]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

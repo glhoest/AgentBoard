@@ -1648,6 +1648,28 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
     } finally { await p.send('Page.close'); }
   });
 
+  test('direct dependency removal works with a reachable existing cycle', async () => {
+    const seedName = Object.keys(fixture).find(n => n.startsWith('AB-'))!;
+    const seed = JSON.parse(fixture[seedName]);
+    const b = {...seed, id:'AB-BBBBBBBBBBBB', title:'Cycle B', dependencies:['AB-CCCCCCCCCCCC']};
+    const c = {...seed, id:'AB-CCCCCCCCCCCC', title:'Cycle C', dependencies:[b.id]};
+    const d = {...seed, id:'AB-DDDDDDDDDDDD', title:'Remove me', dependencies:[]};
+    seed.dependencies = [b.id, d.id];
+    const files = {...fixture, [seedName]:JSON.stringify(seed), [b.id + '.json']:JSON.stringify(b), [c.id + '.json']:JSON.stringify(c), [d.id + '.json']:JSON.stringify(d)};
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker(files)});
+      await p.goto(base + '/'); await p.eval(`document.querySelector('.direct-box').open = true`); await p.click('#pick-folder');
+      await p.waitFor(hasCard('Direct seed'));
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('[aria-label="Remove dependency AB-DDDDDDDDDDDD"]').click()`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      const saved = await p.eval(`(async () => { const top = await navigator.storage.getDirectory(); const ab = await (await top.getDirectoryHandle('proj')).getDirectoryHandle('.agentboard'); const items = await ab.getDirectoryHandle('items'); return JSON.parse(await (await (await items.getFileHandle(${JSON.stringify(seedName)})).getFile()).text()); })()`);
+      expect(saved.dependencies).toEqual([b.id]);
+    } finally { await p.send('Page.close'); }
+  });
+
   test('direct mode ignores temporary item and feature files', async () => {
     const p = await chrome.newPage();
     try {

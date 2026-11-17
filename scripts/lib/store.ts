@@ -305,25 +305,24 @@ export function createUnlocked(root: string, values: Changes): Item {
 
 /** Validate new links and cycles while holding the board lock. Existing dangling links remain readable. */
 function checkDependencies(root: string, item: Item, previous: string[]): void {
+  const added = item.dependencies.filter(id => !previous.includes(id));
+  if (!added.length) return;
   const items = snapshot(root, { persist: false }).items;
   const byId = new Map(items.map(card => [card.id, card]));
-  for (const id of item.dependencies) {
-    if (!previous.includes(id) && !byId.has(id)) {
-      throw new BoardError(`Dependency ${id} does not exist`);
+  for (const id of added) {
+    if (!byId.has(id)) throw new BoardError(`Dependency ${id} does not exist`);
+    // A new edge creates a cycle only if its target already reaches this card.
+    // Visited nodes bound traversal even when a pre-existing cycle is present.
+    const visited = new Set<string>();
+    const pending = [id];
+    while (pending.length) {
+      const next = pending.pop()!;
+      if (next === item.id) throw new BoardError('Dependency cycle');
+      if (visited.has(next)) continue;
+      visited.add(next);
+      pending.push(...(byId.get(next)?.dependencies ?? []));
     }
   }
-  byId.set(item.id, item);
-  const visited = new Set<string>();
-  const active = new Set<string>();
-  function visit(id: string): void {
-    if (active.has(id)) throw new BoardError('Dependency cycle');
-    if (visited.has(id)) return;
-    active.add(id);
-    for (const next of byId.get(id)?.dependencies ?? []) visit(next);
-    active.delete(id);
-    visited.add(id);
-  }
-  visit(item.id);
 }
 
 type WriteOptions = { expectedHash?: string | null };
