@@ -1673,6 +1673,7 @@ function cardEl(it, snap) {
   const done = it.acceptanceCriteria.filter(c => c.done).length, total = it.acceptanceCriteria.length;
   const colName = (snap.columns.find(c => c.id === it.status) || {}).name || it.status;
   const real = snap.config.columns.some(c => c.id === it.status);
+  const dependentCount = snap.list.filter(card => card.dependencies.includes(it.id)).length;
   const titleId = 't-' + it.id;
   const titleBtn = h('button', {type: 'button', class: 'card-title', id: titleId, title: it.title, 'data-fk': it.id + ':title', onclick: () => openEditor(it.id, {returnFocus: it.id + ':title'}),
     onkeydown: e => {
@@ -1696,6 +1697,7 @@ function cardEl(it, snap) {
     titleBtn,
     it.feature ? featureChip(it.feature, snap) : null,
     it.dependencies.length ? h('span', {class:'badge', text: (() => { const count = it.dependencies.filter(id => !dependencyState(id, snap).satisfied).length; return count + ' blocker' + (count === 1 ? '' : 's') + ' / ' + it.dependencies.length + ' dependenc' + (it.dependencies.length === 1 ? 'y' : 'ies'); })()}) : null,
+    dependentCount ? h('span', {class: 'badge', text: dependentCount + (dependentCount === 1 ? ' dependent' : ' dependents')}) : null,
     it.labels.length ? h('ul', {class: 'chips', 'aria-label': 'Labels'}, it.labels.slice(0, 4).map(l => h('li', {class: 'label', title: l, text: l})), it.labels.length > 4 ? h('li', {class: 'label', title: it.labels.slice(4).join(', '), text: `+${it.labels.length - 4}`}) : null) : null,
     fieldChips(it),
     h('div', {class: 'card-foot'},

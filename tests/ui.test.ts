@@ -95,6 +95,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.waitFor(`!document.querySelector('#editor').open`);
       expect(cliJson('show', dependent.id).dependencies).toEqual([blocker.id]);
       expect(await p.eval(`document.querySelector(${JSON.stringify(cardSel(dependent.id))}).innerText`)).toContain('1 blocker / 1 dependency');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(cardSel(blocker.id))}).innerText`)).toContain('1 dependent');
       await p.click('#view-graph');
       await p.waitFor(`document.querySelector('.graph-panel')`);
       expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Depends on → Graph blocker');
