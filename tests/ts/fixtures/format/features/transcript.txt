@@ -36,18 +36,18 @@ $ agentboard feature-move FT-000000000001 active
 $ agentboard --json create Linked --feature FT-000000000001
 [exit 0]
 --- stdout
-{"version": "1.2.0", "id": "AB-000000000002", "revision": 1, "title": "Linked", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:09.000Z", "updatedAt": "2026-02-03T04:05:09.000Z", "archived": false, "feature": "FT-000000000001", "thread": [], "fields": {}}
+{"version": "1.3.0", "id": "AB-000000000002", "revision": 1, "title": "Linked", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:09.000Z", "updatedAt": "2026-02-03T04:05:09.000Z", "archived": false, "feature": "FT-000000000001", "thread": [], "fields": {}, "dependencies": []}
 
 $ agentboard --json create Later
 [exit 0]
 --- stdout
-{"version": "1.2.0", "id": "AB-000000000003", "revision": 1, "title": "Later", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:11.000Z", "updatedAt": "2026-02-03T04:05:11.000Z", "archived": false, "feature": null, "thread": [], "fields": {}}
+{"version": "1.3.0", "id": "AB-000000000003", "revision": 1, "title": "Later", "status": "backlog", "priority": "medium", "assignee": null, "labels": [], "description": "", "acceptanceCriteria": [], "notes": "", "createdAt": "2026-02-03T04:05:11.000Z", "updatedAt": "2026-02-03T04:05:11.000Z", "archived": false, "feature": null, "thread": [], "fields": {}, "dependencies": []}
 
 $ agentboard edit AB-000000000003 --feature FT-000000000001
 [exit 0]
 --- stdout
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "id": "AB-000000000003",
   "revision": 2,
   "title": "Later",
@@ -63,7 +63,8 @@ $ agentboard edit AB-000000000003 --feature FT-000000000001
   "archived": false,
   "feature": "FT-000000000001",
   "thread": [],
-  "fields": {}
+  "fields": {},
+  "dependencies": []
 }
 
 $ agentboard list --feature FT-000000000001
@@ -71,7 +72,7 @@ $ agentboard list --feature FT-000000000001
 --- stdout
 [
   {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "id": "AB-000000000002",
     "revision": 1,
     "title": "Linked",
@@ -87,10 +88,11 @@ $ agentboard list --feature FT-000000000001
     "archived": false,
     "feature": "FT-000000000001",
     "thread": [],
-    "fields": {}
+    "fields": {},
+    "dependencies": []
   },
   {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "id": "AB-000000000003",
     "revision": 2,
     "title": "Later",
@@ -106,7 +108,8 @@ $ agentboard list --feature FT-000000000001
     "archived": false,
     "feature": "FT-000000000001",
     "thread": [],
-    "fields": {}
+    "fields": {},
+    "dependencies": []
   }
 ]
 
@@ -182,7 +185,7 @@ $ agentboard edit AB-000000000003 --clear-feature
 [exit 0]
 --- stdout
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "id": "AB-000000000003",
   "revision": 3,
   "title": "Later",
@@ -198,5 +201,6 @@ $ agentboard edit AB-000000000003 --clear-feature
   "archived": false,
   "feature": null,
   "thread": [],
-  "fields": {}
+  "fields": {},
+  "dependencies": []
 }

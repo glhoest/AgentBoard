@@ -112,6 +112,11 @@ Feature commands:
 - `feature-show ID` prints the feature with its progress, counts and linked cards.
 - `features [--include-archived]` prints `{features, dangling}`. Each feature summary has `id`, `title`, `status`, `archived`, `progress` and `counts`.
 
+Dependency commands (see [Dependencies](#dependencies)):
+
+- `dependency-add CARD_ID DEPENDENCY_ID [--revision N]` and `dependency-remove CARD_ID DEPENDENCY_ID [--revision N]` update one link under the board lock.
+- `dependencies CARD_ID` shows dependencies, blockers and dependents; `ready` lists non-archived cards outside the last column with no blockers. Use `--json` for machine-readable output.
+
 Custom field commands (see [Custom fields](#custom-fields)):
 
 - `field-add ID --type text|number|boolean [--name N]` defines a field. `field-edit ID --name N` renames it. `field-remove ID [--yes]` deletes it and its values on every card. `fields` lists the definitions with the number of cards that hold a value.
@@ -135,16 +140,16 @@ type Priority = 'low' | 'medium' | 'high' | 'urgent';
 type Criterion = { text: string; done: boolean };
 type Entry = { id: string; kind: 'comment' | 'question' | 'answer'; author: string | null; body: string;
  replyTo: string | null; createdAt: string; updatedAt: string };
-type Item = { version: '1.2.0'; id: string; revision: number; title: string; status: string;
+type Item = { version: '1.3.0'; id: string; revision: number; title: string; status: string;
  priority: Priority; assignee: string | null; labels: string[]; description: string;
  acceptanceCriteria: Criterion[]; notes: string; createdAt: string; updatedAt: string; archived: boolean;
- feature: string | null; thread: Entry[]; fields: Record<string, string | number | boolean> };
+ feature: string | null; thread: Entry[]; fields: Record<string, string | number | boolean>; dependencies: string[] };
 type Column = { id: string; name: string };
 type FieldDef = { id: string; name: string; type: 'text' | 'number' | 'boolean' };
 type Board = { version: '1.2.0'; name: string; columns: Column[]; featureColumns: Column[]; fields: FieldDef[] };
 type Feature = { version: '1.0.0'; id: string; revision: number; title: string; status: string; description: string; createdAt: string; updatedAt: string; archived: boolean };
 type Snapshot = { config: Board; items: Item[]; features: Feature[]; hashes: Record<string, string> };
-type Changes = Partial<Pick<Item, 'title' | 'status' | 'priority' | 'assignee' | 'labels' | 'description' | 'acceptanceCriteria' | 'notes' | 'archived' | 'feature' | 'fields'>>;
+type Changes = Partial<Pick<Item, 'title' | 'status' | 'priority' | 'assignee' | 'labels' | 'description' | 'acceptanceCriteria' | 'notes' | 'archived' | 'feature' | 'fields' | 'dependencies'>>;
 ```
 
 ### Cards
@@ -160,6 +165,14 @@ Every item field is required, and extra fields are not allowed. A file's name mu
 | `acceptanceCriteria` | up to 200 criteria, each with nonempty text of up to 1,000 characters |
 
 `status` must match a column ID. `feature` is null or `FT-<12 uppercase hex>`. `Changes` replace whole fields, including entire arrays. In `Changes`, `fields` replaces the whole values object, like `labels` replaces the whole array (the CLI patches single values instead). You cannot set `thread` through `Changes` or `create`. Cards have no manual order, so sort them deterministically. Archive cards instead of deleting them.
+
+### Dependencies
+
+Each card's `dependencies` is an array of distinct card IDs on the same board. A new link must name an existing card; self-links and cycles are rejected. Existing links to missing cards are retained and can be removed. The CLI's incremental commands update the card revision under the board lock; create and patch requests through the bridge can replace the entire array. A patch uses the normal revision and hash checks.
+
+A dependency is satisfied when its card is in the board's final column, archived, or missing. Other dependencies are blockers. Missing and archived links remain visible. Readiness is advisory: it does not prevent claims or moves, and does not assess assignment or open questions. `ready` excludes archived cards and cards in the final column themselves. The UI's dependency editor displays dependents and the graph view shows each card's outgoing links, statuses and textual state cues; arrows point from a card to the card it depends on.
+
+Direct folder mode validates links against its current snapshot, but cannot take the board lock or perform compare-and-swap. Concurrent changes can overwrite each other or create cycles; use the bridge when multiple writers are active.
 
 ### Board and columns
 
@@ -232,11 +245,12 @@ When the CLI or bridge reads an older file, it upgrades the file on the spot:
 
 Upgrades so far:
 
+- Cards 1.2.0 to 1.3.0 append `dependencies: []`.
 - Cards 1.1.0 to 1.2.0 append `fields: {}`. `board.json` 1.1.0 to 1.2.0 appends `fields: []`.
 - Cards 1.0.0 to 1.1.0 append `feature: null` and `thread: []`.
 - `board.json` 1.0.0 to 1.1.0 adds the default `featureColumns`. It also inserts the needs-grilling column after `backlog`, or first if there is no `backlog`, unless a column with that ID already exists. The version records that this upgrade ran, so the column does not come back if you remove it later.
 
-Old copies of AgentBoard, including old watchers, reject upgraded files with an error. A running watcher reports every card as updated (and the board as updated) when a 1.2.0 upgrade first rewrites the files. Update every vendored copy with `setup` before newer code touches a shared board.
+Old copies of AgentBoard, including old watchers, reject upgraded files with an error. A running watcher reports rewritten cards as updated when a format upgrade first rewrites them; it reports the board as updated if that file is also rewritten. Update every vendored copy with `setup` before newer code touches a shared board.
 
 ### Automatic feature status
 

@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "id": "AB-000000000002",
   "revision": 3,
   "title": "Later",
@@ -18,5 +18,6 @@
   "fields": {
     "team": "Web",
     "blocked-by-legal": true
-  }
+  },
+  "dependencies": []
 }

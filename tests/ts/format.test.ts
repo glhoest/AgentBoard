@@ -192,8 +192,8 @@ describe('format snapshots', () => {
     for (const id of ['AB-0000000000A1', 'AB-0000000000B2', 'AB-0000000000C3']) {
       const old = JSON.parse(before[`items/${id}.json`]);
       const now = JSON.parse(after[`items/${id}.json`]);
-      expect(now).toEqual({ ...old, version: '1.2.0', feature: null, thread: [], fields: {} });
-      expect(Object.keys(now)).toEqual([...Object.keys(old), 'feature', 'thread', 'fields']);
+      expect(now).toEqual({ ...old, version: '1.3.0', feature: null, thread: [], fields: {}, dependencies: [] });
+      expect(Object.keys(now)).toEqual([...Object.keys(old), 'feature', 'thread', 'fields', 'dependencies']);
     }
     expect(tick).toBe(0);   // no clock reads: nothing was edited
     cli('list', '--all');   // already current: nothing changes any more

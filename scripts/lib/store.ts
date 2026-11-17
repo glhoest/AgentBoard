@@ -197,6 +197,9 @@ export function validate(value: unknown, cfg: Board): Item {
     if (typeof x[k] !== 'string' || !TIMESTAMP_RE.test(x[k])) throw new BoardError(`Invalid ${k}`);
   }
   if (x.feature !== null && (typeof x.feature !== 'string' || !FEATURE_ID_RE.test(x.feature))) throw new BoardError('Invalid feature');
+  if (!Array.isArray(x.dependencies) || x.dependencies.some((id: unknown) => typeof id !== 'string' || !ID_RE.test(id) || id === x.id) || new Set(x.dependencies).size !== x.dependencies.length) {
+    throw new BoardError('Invalid dependencies');
+  }
   validateThread(x.thread);
   validateFieldValues(x.fields, cfg.fields);
   return x;
@@ -285,11 +288,12 @@ export function createUnlocked(root: string, values: Changes): Item {
   const x: any = {
     version: CURRENT.item, id, revision: 1, title: '', status: c.columns[0].id, priority: 'medium', assignee: null,
     labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false,
-    feature: null, thread: [], fields: {},
+    feature: null, thread: [], fields: {}, dependencies: [],
   };
   Object.assign(x, values);
   validate(x, c);
   x.fields = orderFieldValues(x.fields, c.fields);
+  checkDependencies(root, x, []);
   if (x.feature !== null) checkFeatureLink(root, x.feature, c);
   const p = itemPath(root, id);
   if (existsSync(p)) throw new Conflict('ID collision; retry');
@@ -297,6 +301,27 @@ export function createUnlocked(root: string, values: Changes): Item {
   atomicWrite(p, x);
   writeFeatureUpdates(root, x.id, updates);
   return x;
+}
+
+/** Validate new links and cycles while holding the board lock. Existing dangling links remain readable. */
+function checkDependencies(root: string, item: Item, previous: string[]): void {
+  const items = snapshot(root, { persist: false }).items;
+  const byId = new Map(items.map(card => [card.id, card]));
+  for (const id of item.dependencies) {
+    if (!previous.includes(id) && !byId.has(id)) throw new BoardError(`Dependency ${id} does not exist`);
+  }
+  byId.set(item.id, item);
+  const visited = new Set<string>();
+  const active = new Set<string>();
+  function visit(id: string): void {
+    if (active.has(id)) throw new BoardError('Dependency cycle');
+    if (visited.has(id)) return;
+    active.add(id);
+    for (const next of byId.get(id)?.dependencies ?? []) visit(next);
+    active.delete(id);
+    visited.add(id);
+  }
+  visit(item.id);
 }
 
 type WriteOptions = { expectedHash?: string | null };
@@ -318,6 +343,7 @@ function mutate(root: string, id: string, revision: number | null, opts: WriteOp
     x.updatedAt = stamp;
     validate(x, c);
     x.fields = orderFieldValues(x.fields, c.fields);
+    if (x.dependencies !== before.dependencies) checkDependencies(root, x, before.dependencies);
     const updates = (!before.archived || !x.archived) && (before.feature !== x.feature || before.status !== x.status || before.archived !== x.archived || opts.recalculate)
       ? planFeatures(root, c, before, x) : [];
     const syncIssues = before.status !== x.status || (before.archived && !x.archived) || opts.recalculate;
@@ -347,6 +373,15 @@ export function update(root: string, id: string, revision: number | null, change
     if ('feature' in changes && changes.feature !== null) checkFeatureLink(root, changes.feature, config(root));
     Object.assign(x, changes);
     if (opts.fieldChange) x.fields = applyFieldChange(x.fields, opts.fieldChange);
+  });
+}
+
+/** Add or remove a single dependency inside the locked card mutation. */
+export function changeDependency(root: string, id: string, dependency: string, revision: number | null, add: boolean): Item {
+  return mutate(root, id, revision, {}, item => {
+    if (add && item.dependencies.includes(dependency)) throw new BoardError('Dependency already exists');
+    if (!add && !item.dependencies.includes(dependency)) throw new BoardError('Dependency does not exist');
+    item.dependencies = add ? [...item.dependencies, dependency] : item.dependencies.filter(value => value !== dependency);
   });
 }
 

@@ -21,7 +21,7 @@ export const LIMITS = {
 
 /** Item keys in on-disk order (key order affects the file bytes and therefore the hash). */
 export const ITEM_KEYS = ['version', 'id', 'revision', 'title', 'status', 'priority', 'assignee', 'labels', 'description',
-  'acceptanceCriteria', 'notes', 'createdAt', 'updatedAt', 'archived', 'feature', 'thread', 'fields'] as const;
+  'acceptanceCriteria', 'notes', 'createdAt', 'updatedAt', 'archived', 'feature', 'thread', 'fields', 'dependencies'] as const;
 export const FEATURE_KEYS = ['version', 'id', 'revision', 'title', 'status', 'description', 'createdAt', 'updatedAt', 'archived'];
 export const FEATURE_WRITABLE: string[] = ['title', 'status', 'description', 'archived'];
 /** Thread entry keys in on-disk order. */
@@ -32,7 +32,7 @@ export const BOARD_KEYS = ['version', 'name', 'columns', 'featureColumns', 'fiel
  * Fields that create/edit (CLI) and POST/PATCH (bridge) may set. The thread only changes through thread commands.
  * Over the bridge `fields` replaces the card's whole custom-values object; the CLI patches single values.
  */
-export const WRITABLE = ['title', 'status', 'priority', 'assignee', 'labels', 'description', 'acceptanceCriteria', 'notes', 'archived', 'feature', 'fields'] as const;
+export const WRITABLE = ['title', 'status', 'priority', 'assignee', 'labels', 'description', 'acceptanceCriteria', 'notes', 'archived', 'feature', 'fields', 'dependencies'] as const;
 export type WritableKey = (typeof WRITABLE)[number];
 
 export const FIELD_TYPES = ['text', 'number', 'boolean'] as const;
@@ -49,7 +49,7 @@ export type Item = {
   version: string; id: string; revision: number; title: string; status: string; priority: Priority;
   assignee: string | null; labels: string[]; description: string; acceptanceCriteria: Criterion[];
   notes: string; createdAt: string; updatedAt: string; archived: boolean;
-  feature: string | null; thread: Entry[]; fields: Record<string, FieldValue>;
+  feature: string | null; thread: Entry[]; fields: Record<string, FieldValue>; dependencies: string[];
 };
 export type Column = { id: string; name: string };
 export type Board = { version: string; name: string; columns: Column[]; featureColumns: Column[]; fields: FieldDef[] };
