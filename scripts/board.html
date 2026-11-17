@@ -234,8 +234,8 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 
 .graph-panel{width:100%;max-width:1100px;overflow:auto}
 .graph-list{list-style:none;padding:0;display:grid;gap:12px}
-.graph-node{border:2px solid var(--line);border-left:8px solid #b56b00;border-radius:8px;padding:12px;background:var(--surface)}
-.graph-node.satisfied{border-left-color:#16804a}.graph-node.unavailable{border-left-color:#676b73}
+.graph-node{border:2px solid var(--line);border-left:8px solid #16804a;border-radius:8px;padding:12px;background:var(--surface)}
+.graph-node.blocked{border-left-color:#b56b00}.graph-node.unavailable{border-left-color:#676b73}
 .graph-node ul{margin:8px 0 0;padding-left:28px}.graph-arrow{font-weight:bold}
 </style>
 </head>
@@ -563,7 +563,7 @@ function orderFieldValues(values, defs) {
   return ordered;
 }
 const isV1 = value => value.version === 1 || value.version === undefined || value.version === '1.0.0';
-/** Upgrades a parsed card to 1.2.0 in memory (same steps as scripts/lib/versions.ts); old tells whether it changed. */
+/** Upgrades a parsed card to 1.3.0 in memory (same steps as scripts/lib/versions.ts); old tells whether it changed. */
 function upgradeItem(item) {
   if (!isObj(item)) return {item, old:false};
   let old = false;
@@ -1311,11 +1311,19 @@ function dependencyState(id, snap = S.snap) {
 }
 function dependencyEditor(d, dirtyTick) {
   const f = d.fields;
+  function refreshDependencies() {
+    const scrollTop = $('.ed-body')?.scrollTop || 0;
+    buildEditor(d);
+    dirtyTick();
+    const body = $('.ed-body');
+    if (body) body.scrollTop = scrollTop;
+    $('#ed-dependency')?.focus({preventScroll:true});
+  }
   const list = h('ul', {class:'crit-list', 'aria-label':'Dependencies'}, f.dependencies.map(id => {
     const item = S.snap.items.get(id), state = dependencyState(id);
     return h('li', {}, h('span', {text:(item?.title || id) + ' (' + id + ') — ' + state.label}),
       h('button', {type:'button', class:'btn small', 'aria-label':'Remove dependency ' + id, onclick:() => {
-        f.dependencies = f.dependencies.filter(x => x !== id); buildEditor(d); dirtyTick();
+        f.dependencies = f.dependencies.filter(x => x !== id); refreshDependencies();
       }}, 'Remove'));
   }));
   const options = S.snap.list.filter(x => x.id !== d.id && !f.dependencies.includes(x.id));
@@ -1327,7 +1335,7 @@ function dependencyEditor(d, dirtyTick) {
     list, field('ed-dependency', 'Add dependency', select),
     h('button', {type:'button', class:'btn small', onclick:() => {
       if (!select.value) return;
-      f.dependencies.push(select.value); buildEditor(d); dirtyTick();
+      f.dependencies.push(select.value); refreshDependencies();
     }}, 'Add dependency'),
     h('p', {text:'Dependents: ' + (dependents.length ? dependents.map(x => x.title + ' (' + x.id + ')').join(', ') : 'None')}));
 }
@@ -1335,9 +1343,10 @@ function renderGraph(root) {
   const snap = S.snap;
   const linked = new Set(snap.list.filter(x => x.dependencies.length).flatMap(x => [x.id, ...x.dependencies]));
   const cards = [...linked].sort().map(id => {
-    const item = snap.items.get(id), state = dependencyState(id, snap);
+    const item = snap.items.get(id);
     const blockers = item ? item.dependencies.filter(dep => !dependencyState(dep, snap).satisfied).length : 0;
-    return h('li', {class:'graph-node ' + state.css},
+    const nodeClass = !item || item.archived ? 'unavailable' : blockers ? 'blocked' : '';
+    return h('li', {class:'graph-node ' + nodeClass},
       h('strong', {text:(item?.title || 'Missing card') + ' (' + id + ')'}),
       h('div', {text:(item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing') + (item ? ' · ' + (blockers ? blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'No blockers') : '')}),
       item?.dependencies.length ? h('ul', {'aria-label':'Dependencies of ' + item.title}, item.dependencies.map(dep => {
@@ -1348,7 +1357,7 @@ function renderGraph(root) {
   });
   root.append(h('section', {class:'panel graph-panel', 'aria-label':'Dependency graph'},
     h('h2', {text:'Dependency graph'}),
-    h('p', {text:'Arrows point from each card to the cards it depends on. Status and blocker labels describe every connection; readiness is advisory.'}),
+    h('p', {text:'Arrows point from each card to the cards it depends on. Green borders mean no blockers, amber means blocked, and gray means archived or missing. Text labels describe each state; readiness is advisory.'}),
     cards.length ? h('ul', {class:'graph-list'}, cards) : h('p', {text:'No dependency links yet.'})));
 }
 

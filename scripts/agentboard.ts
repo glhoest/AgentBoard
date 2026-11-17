@@ -219,26 +219,9 @@ export function main(argv: string[], io: Io = consoleIo): number {
         case 'dependencies':
         case 'ready': {
           const snap = withLock(root, () => store.snapshot(root));
-          const byId = new Map(snap.items.map(item => [item.id, item]));
-          const done = snap.config.columns[snap.config.columns.length - 1].id;
-          const summary = (item: Item) => {
-            const dependencies = item.dependencies.map(id => {
-              const card = byId.get(id);
-              return { id, title: card?.title ?? null, status: card?.status ?? null,
-                archived: card?.archived ?? false, missing: !card,
-                satisfied: !card || card.archived || card.status === done };
-            });
-            return { id: item.id, title: item.title, dependencies,
-              blockers: dependencies.filter(dependency => !dependency.satisfied),
-              dependents: snap.items.filter(card => card.dependencies.includes(item.id)).map(card => ({ id: card.id, title: card.title, status: card.status, archived: card.archived })) };
-          };
-          if (args.cmd === 'dependencies') {
-            const item = byId.get(args.id);
-            if (!item) throw new BoardError(`Card ${args.id} does not exist`);
-            result = summary(item);
-          } else {
-            result = snap.items.filter(item => !item.archived && item.status !== done).map(summary).filter(item => !item.blockers.length);
-          }
+          result = args.cmd === 'dependencies'
+            ? store.dependencySummary(snap, args.id)
+            : store.readyCards(snap);
           break;
         }
         case 'show':

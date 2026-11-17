@@ -25,7 +25,7 @@ test('dependency mutations validate references and cycles and readiness reports 
     store.changeDependency(root, a.id, b.id, null, true);
     store.changeDependency(root, b.id, c.id, null, true);
     expect(() => store.changeDependency(root, c.id, a.id, null, true)).toThrow('cycle');
-    expect(() => store.changeDependency(root, a.id, a.id, null, true)).toThrow();
+    expect(() => store.changeDependency(root, a.id, a.id, null, true)).toThrow('Invalid dependencies');
     expect(() => store.changeDependency(root, a.id, 'AB-000000000000', null, true)).toThrow('does not exist');
     expect(() => store.changeDependency(root, a.id, b.id, 1, false)).toThrow('Revision mismatch');
     const run = (...args: string[]) => {

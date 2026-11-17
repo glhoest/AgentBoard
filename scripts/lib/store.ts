@@ -308,7 +308,9 @@ function checkDependencies(root: string, item: Item, previous: string[]): void {
   const items = snapshot(root, { persist: false }).items;
   const byId = new Map(items.map(card => [card.id, card]));
   for (const id of item.dependencies) {
-    if (!previous.includes(id) && !byId.has(id)) throw new BoardError(`Dependency ${id} does not exist`);
+    if (!previous.includes(id) && !byId.has(id)) {
+      throw new BoardError(`Dependency ${id} does not exist`);
+    }
   }
   byId.set(item.id, item);
   const visited = new Set<string>();
@@ -376,12 +378,56 @@ export function update(root: string, id: string, revision: number | null, change
   });
 }
 
+/** Summarize direct dependencies against one consistent board snapshot. */
+export function dependencySummary(snap: Snapshot, id: string) {
+  const byId = new Map(snap.items.map(item => [item.id, item]));
+  const item = byId.get(id);
+  if (!item) throw new BoardError(`Card ${id} does not exist`);
+  const done = snap.config.columns[snap.config.columns.length - 1].id;
+  const dependencies = item.dependencies.map(dependencyId => {
+    const card = byId.get(dependencyId);
+    return {
+      id: dependencyId,
+      title: card?.title ?? null,
+      status: card?.status ?? null,
+      archived: card?.archived ?? false,
+      missing: !card,
+      satisfied: !card || card.archived || card.status === done,
+    };
+  });
+  const dependents = snap.items
+    .filter(card => card.dependencies.includes(item.id))
+    .map(card => ({ id: card.id, title: card.title, status: card.status, archived: card.archived }));
+  return {
+    id: item.id,
+    title: item.title,
+    dependencies,
+    blockers: dependencies.filter(dependency => !dependency.satisfied),
+    dependents,
+  };
+}
+
+/** Readiness covers dependencies only; assignment and questions remain independent. */
+export function readyCards(snap: Snapshot) {
+  const done = snap.config.columns[snap.config.columns.length - 1].id;
+  return snap.items
+    .filter(item => !item.archived && item.status !== done)
+    .map(item => dependencySummary(snap, item.id))
+    .filter(item => item.blockers.length === 0);
+}
+
 /** Add or remove a single dependency inside the locked card mutation. */
 export function changeDependency(root: string, id: string, dependency: string, revision: number | null, add: boolean): Item {
   return mutate(root, id, revision, {}, item => {
-    if (add && item.dependencies.includes(dependency)) throw new BoardError('Dependency already exists');
-    if (!add && !item.dependencies.includes(dependency)) throw new BoardError('Dependency does not exist');
-    item.dependencies = add ? [...item.dependencies, dependency] : item.dependencies.filter(value => value !== dependency);
+    if (add && item.dependencies.includes(dependency)) {
+      throw new BoardError('Dependency already exists');
+    }
+    if (!add && !item.dependencies.includes(dependency)) {
+      throw new BoardError('Dependency does not exist');
+    }
+    item.dependencies = add
+      ? [...item.dependencies, dependency]
+      : item.dependencies.filter(value => value !== dependency);
   });
 }
 

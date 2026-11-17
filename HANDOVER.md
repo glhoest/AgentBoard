@@ -4,7 +4,7 @@ Written 2026-10-31 at the end of the session that built this tool, for the first
 
 ## Card dependencies
 
-Card format 1.3.0 adds a `dependencies` array of card IDs. CLI dependency operations and card create/edit use the board lock to reject new missing links, self-links and cycles; existing missing links remain visible and removable. Readiness is advisory: dependencies in the last column, archived dependencies and missing dependencies are satisfied. The graph and card editor show dependency direction and status, and the CLI exposes blockers, dependents and dependency-ready cards. Direct mode validates links but cannot share the CLI lock; concurrent direct writes can race. Update every installed copy before the new format touches a shared board; older copies reject it. See README “Dependencies” for commands and semantics.
+Card format 1.3.0 adds a `dependencies` array of card IDs. CLI dependency operations and bridge card create/patch use the board lock to reject new missing links, self-links and cycles; existing missing links remain visible and removable. Readiness is advisory: dependencies in the last column, archived dependencies and missing dependencies are satisfied. The graph and card editor show dependency direction and status, and the CLI exposes blockers, dependents and dependency-ready cards. Direct mode validates links but cannot share the CLI lock; concurrent direct writes can race. Update every installed copy before the new format touches a shared board; older copies reject it. See README “Dependencies” for commands and semantics.
 
 ## Watcher update
 
