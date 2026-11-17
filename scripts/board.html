@@ -1333,13 +1333,13 @@ function dependencyEditor(d, dirtyTick) {
 }
 function renderGraph(root) {
   const snap = S.snap;
-  const linked = new Set(snap.list.flatMap(x => [x.id, ...x.dependencies]));
+  const linked = new Set(snap.list.filter(x => x.dependencies.length).flatMap(x => [x.id, ...x.dependencies]));
   const cards = [...linked].sort().map(id => {
     const item = snap.items.get(id), state = dependencyState(id, snap);
     const blockers = item ? item.dependencies.filter(dep => !dependencyState(dep, snap).satisfied).length : 0;
     return h('li', {class:'graph-node ' + state.css},
       h('strong', {text:(item?.title || 'Missing card') + ' (' + id + ')'}),
-      h('div', {text:state.label + (item ? ' · ' + (blockers ? blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'No blockers') : '')}),
+      h('div', {text:(item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing') + (item ? ' · ' + (blockers ? blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'No blockers') : '')}),
       item?.dependencies.length ? h('ul', {'aria-label':'Dependencies of ' + item.title}, item.dependencies.map(dep => {
         const target = snap.items.get(dep), ds = dependencyState(dep, snap);
         return h('li', {}, h('span', {class:'graph-arrow', text:'Depends on → '}),
@@ -1349,7 +1349,7 @@ function renderGraph(root) {
   root.append(h('section', {class:'panel graph-panel', 'aria-label':'Dependency graph'},
     h('h2', {text:'Dependency graph'}),
     h('p', {text:'Arrows point from each card to the cards it depends on. Status and blocker labels describe every connection; readiness is advisory.'}),
-    cards.length ? h('ul', {class:'graph-list'}, cards) : h('p', {text:'No cards yet.'})));
+    cards.length ? h('ul', {class:'graph-list'}, cards) : h('p', {text:'No dependency links yet.'})));
 }
 
 function renderBoard() {
@@ -1685,7 +1685,7 @@ function cardEl(it, snap) {
       dirty ? h('span', {class: 'badge ' + (draft.conflict ? 'bad' : 'info'), text: draft.conflict ? 'Draft: conflict' : 'Draft'}) : null),
     titleBtn,
     it.feature ? featureChip(it.feature, snap) : null,
-    it.dependencies.length ? h('span', {class:'badge', text: it.dependencies.filter(id => !dependencyState(id, snap).satisfied).length + ' blockers / ' + it.dependencies.length + ' dependencies'}) : null,
+    it.dependencies.length ? h('span', {class:'badge', text: (() => { const count = it.dependencies.filter(id => !dependencyState(id, snap).satisfied).length; return count + ' blocker' + (count === 1 ? '' : 's') + ' / ' + it.dependencies.length + ' dependenc' + (it.dependencies.length === 1 ? 'y' : 'ies'); })()}) : null,
     it.labels.length ? h('ul', {class: 'chips', 'aria-label': 'Labels'}, it.labels.slice(0, 4).map(l => h('li', {class: 'label', title: l, text: l})), it.labels.length > 4 ? h('li', {class: 'label', title: it.labels.slice(4).join(', '), text: `+${it.labels.length - 4}`}) : null) : null,
     fieldChips(it),
     h('div', {class: 'card-foot'},

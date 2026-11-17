@@ -2,6 +2,10 @@
 
 Written 2026-10-31 at the end of the session that built this tool, for the first thread in this repository. Read `AGENTS.md` (rules) and `README.md` (file contract, concurrency, bridge API) alongside it.
 
+## Card dependencies
+
+Card format 1.3.0 adds a `dependencies` array of card IDs. CLI dependency operations and card create/edit use the board lock to reject new missing links, self-links and cycles; existing missing links remain visible and removable. Readiness is advisory: dependencies in the last column, archived dependencies and missing dependencies are satisfied. The graph and card editor show dependency direction and status, and the CLI exposes blockers, dependents and dependency-ready cards. Direct mode validates links but cannot share the CLI lock; concurrent direct writes can race. Update every installed copy before the new format touches a shared board; older copies reject it. See README “Dependencies” for commands and semantics.
+
 ## Watcher update
 
 The optional `scripts/watch.ts` polls validated snapshots and dispatches filtered board changes to a process or webhook. See README “Watch board changes” for the event schema, safety and delivery limits. It uses an in-memory baseline, does not modify board files, and cannot recover intermediate changes. A local process action and a local T3 webhook task were dogfooded against this repository's card AB-D3EB216B8BCF; automated tests use a local webhook receiver. Public T3 Connect delivery and request signing remain untested.

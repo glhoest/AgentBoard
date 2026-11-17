@@ -79,18 +79,28 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     try {
       await p.goto(url());
       await p.waitFor(hasCard('Graph dependent'));
+      await p.click('#view-graph');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('No dependency links yet.');
+      await p.click('#view-board');
       await p.click('.card-title[title="Graph dependent"]');
       await p.eval(`document.querySelector('#ed-dependency').value = ${JSON.stringify(blocker.id)}`);
       await p.eval(`[...document.querySelectorAll('#editor button')].find(x => x.textContent === 'Add dependency').click()`);
       await p.click('#ed-save');
       await p.waitFor(`!document.querySelector('#editor').open`);
       expect(cliJson('show', dependent.id).dependencies).toEqual([blocker.id]);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(cardSel(dependent.id))}).innerText`)).toContain('1 blocker / 1 dependency');
       await p.click('#view-graph');
       await p.waitFor(`document.querySelector('.graph-panel')`);
       expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Depends on → Graph blocker');
       expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('blocking');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).not.toContain('Seed card');
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).querySelector(':scope > div').textContent`)).toContain('1 blocker');
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).querySelector(':scope > div').textContent`)).not.toContain('blocking');
       cliJson('move', blocker.id, 'done');
       await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Done — satisfied')`, 10000);
+      rmSync(join(root, '.agentboard', 'items', blocker.id + '.json'));
+      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Missing card (${blocker.id}) — Missing — satisfied')`, 10000);
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Missing card (' + blocker.id + ')');
     } finally { await p.send('Page.close'); }
   });
 
