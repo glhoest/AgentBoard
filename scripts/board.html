@@ -25,7 +25,7 @@
 }}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-#view-board[aria-pressed="true"],#view-features[aria-pressed="true"]{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+#view-graph[aria-pressed="true"],#view-board[aria-pressed="true"],#view-features[aria-pressed="true"]{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 html,body{margin:0;height:100%}
 body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -231,6 +231,12 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
   .crit-btns button{min-width:40px;min-height:40px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+.graph-panel{width:100%;max-width:1100px;overflow:auto}
+.graph-list{list-style:none;padding:0;display:grid;gap:12px}
+.graph-node{border:2px solid var(--line);border-left:8px solid var(--ok);border-radius:8px;padding:12px;background:var(--surface)}
+.graph-node.blocked{border-left-color:var(--warn)}.graph-node.unavailable{border-left-color:var(--muted)}
+.graph-node ul{margin:8px 0 0;padding-left:28px}.graph-arrow{font-weight:bold}
 </style>
 </head>
 <body>
@@ -248,6 +254,7 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
   </header>
   <nav class="toolbar" aria-label="Views">
     <button type="button" class="btn" id="view-board" aria-pressed="true">Board</button>
+    <button type="button" class="btn" id="view-graph" aria-pressed="false">Dependencies</button>
     <button type="button" class="btn" id="view-features" aria-pressed="false">Features</button>
     <button type="button" class="btn" id="view-issues" aria-pressed="false">Issues</button>
     <button type="button" class="btn primary" id="new-feature" hidden>+ New feature</button>
@@ -296,8 +303,8 @@ const SLUG_RE = /^[a-z][a-z0-9-]{0,39}$/;
 const TS_RE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 const HASH_RE = /^[0-9a-f]{64}$/;
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/;
-const ITEM_KEYS = ['version','id','revision','title','status','priority','assignee','labels','description','acceptanceCriteria','notes','createdAt','updatedAt','archived','feature','thread','fields'];
-const WRITABLE = ['title','status','priority','assignee','labels','description','acceptanceCriteria','notes','archived','feature','fields'];
+const ITEM_KEYS = ['version','id','revision','title','status','priority','assignee','labels','description','acceptanceCriteria','notes','createdAt','updatedAt','archived','feature','thread','fields','dependencies'];
+const WRITABLE = ['title','status','priority','assignee','labels','description','acceptanceCriteria','notes','archived','feature','fields','dependencies'];
 const FEATURE_KEYS = ['version','id','revision','title','status','description','createdAt','updatedAt','archived'];
 const POLL_MS = 1500;
 
@@ -367,8 +374,9 @@ const prioLabel = p => typeof p === 'string' && p ? p : '?';
 function checkVersion(version, label) {
   if (typeof version !== 'string' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw new ApiError('data', label + ' has an invalid version');
   const parts = version.split('.').map(Number);
-  if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 2 || (parts[1] === 2 && parts[2] > 0)))) throw new ApiError('data', label + ' format ' + version + ' requires a newer AgentBoard');
-  if (version !== '1.2.0') throw new ApiError('data', label + ' format ' + version + ' is unsupported');
+  const minor = label === 'Card' ? 3 : 2;
+  if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > minor || (parts[1] === minor && parts[2] > 0)))) throw new ApiError('data', label + ' format ' + version + ' requires a newer AgentBoard');
+  if (version !== (label === 'Card' ? '1.3.0' : '1.2.0')) throw new ApiError('data', label + ' format ' + version + ' is unsupported');
 }
 
 /* ---------- snapshot validation (server data is untrusted too) ---------- */
@@ -381,6 +389,7 @@ function checkItem(it) {
   if (!Array.isArray(it.labels) || it.labels.some(x => typeof x !== 'string')) return 'labels is not a list of text';
   if (!Array.isArray(it.acceptanceCriteria) || it.acceptanceCriteria.some(c => !isObj(c) || typeof c.text !== 'string' || typeof c.done !== 'boolean')) return 'acceptanceCriteria is malformed';
   if (typeof it.archived !== 'boolean') return 'archived is not true/false';
+  if (!Array.isArray(it.dependencies) || it.dependencies.some(x => typeof x !== 'string' || !ID_RE.test(x)) || new Set(it.dependencies).size !== it.dependencies.length || it.dependencies.includes(it.id)) return 'dependencies is malformed';
   validateThread(it.thread);
   if (!isObj(it.fields) || Object.values(it.fields).some(v => !['string','number','boolean'].includes(typeof v))) return 'fields is malformed';
   return null;
@@ -501,7 +510,7 @@ function validateFeature(feature, cfg) {
 }
 function validateStrict(item, cfg) {
   const bad = m => { throw new ApiError('invalid', m); };
-  if (!isObj(item) || Object.keys(item).length !== ITEM_KEYS.length || !ITEM_KEYS.every(k => k in item) || item.version !== '1.2.0') bad('Invalid item structure or version');
+  if (!isObj(item) || Object.keys(item).length !== ITEM_KEYS.length || !ITEM_KEYS.every(k => k in item) || item.version !== '1.3.0') bad('Invalid item structure or version');
   if (typeof item.id !== 'string' || !ID_RE.test(item.id)) bad('Invalid item ID');
   if (!Number.isInteger(item.revision) || item.revision < 1) bad('Invalid revision');
   if (typeof item.title !== 'string' || !item.title.trim() || item.title.length > LIM.title) bad('Title must be 1–300 characters');
@@ -514,6 +523,7 @@ function validateStrict(item, cfg) {
   if (!Array.isArray(a) || a.length > LIM.criteria || a.some(x => !isObj(x) || Object.keys(x).length !== 2 || typeof x.text !== 'string' || !x.text.trim() || x.text.length > LIM.criterion || typeof x.done !== 'boolean')) bad('Invalid acceptance criteria');
   if (typeof item.archived !== 'boolean') bad('Invalid archived flag');
   if (item.feature !== null && (typeof item.feature !== 'string' || !/^FT-[0-9A-F]{12}$/.test(item.feature))) bad('Invalid feature');
+  if (!Array.isArray(item.dependencies) || item.dependencies.some(x => typeof x !== 'string' || !ID_RE.test(x)) || new Set(item.dependencies).size !== item.dependencies.length || item.dependencies.includes(item.id)) bad('Invalid dependencies');
   validateThread(item.thread);
   validateFieldValues(item.fields, cfg.fields);
   for (const k of ['createdAt', 'updatedAt']) if (typeof item[k] !== 'string' || !TS_RE.test(item[k])) bad('Invalid ' + k);
@@ -553,7 +563,7 @@ function orderFieldValues(values, defs) {
   return ordered;
 }
 const isV1 = value => value.version === 1 || value.version === undefined || value.version === '1.0.0';
-/** Upgrades a parsed card to 1.2.0 in memory (same steps as scripts/lib/versions.ts); old tells whether it changed. */
+/** Upgrades a parsed card to 1.3.0 in memory (same steps as scripts/lib/versions.ts); old tells whether it changed. */
 function upgradeItem(item) {
   if (!isObj(item)) return {item, old:false};
   let old = false;
@@ -564,6 +574,10 @@ function upgradeItem(item) {
   if (item.version === '1.1.0') {
     if ('fields' in item) throw new ApiError('data', 'Invalid item structure or version');
     const {version, ...rest} = item; item = {version:'1.2.0', ...rest, fields:{}}; old = true;
+  }
+  if (item.version === '1.2.0') {
+    if ('dependencies' in item) throw new ApiError('data', 'Invalid item structure or version');
+    const {version, ...rest} = item; item = {version:'1.3.0', ...rest, dependencies:[]}; old = true;
   } else if (!old) checkVersion(item.version, 'Card');
   return {item, old};
 }
@@ -829,8 +843,9 @@ async function directBackend(picked) {
           let exists = true;
           try { await itemsDir.getFileHandle(id + '.json'); } catch (e) { if (e && e.name === 'NotFoundError') exists = false; else throw e; }
           if (exists) continue;
-          const x = Object.assign({version: '1.2.0', id, revision: 1, title: '', status: config.columns[0].id, priority: 'medium', assignee: null, labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false, feature: null, thread: [], fields: {}}, values);
+          const x = Object.assign({version: '1.3.0', id, revision: 1, title: '', status: config.columns[0].id, priority: 'medium', assignee: null, labels: [], description: '', acceptanceCriteria: [], notes: '', createdAt: stamp, updatedAt: stamp, archived: false, feature: null, thread: [], fields: {}, dependencies: []}, values);
           validateStrict(x, config);
+          await checkDependencies(x, []);
           x.fields = orderFieldValues(x.fields, config.fields);
           const updates = x.archived ? [] : await planFeatures(config, null, x);
           await write(itemsDir, id + '.json', x, true);
@@ -852,6 +867,7 @@ async function directBackend(picked) {
         if (item.revision !== revision) throw new ApiError('conflict', `Revision mismatch; current revision is ${item.revision}`);
         const x = Object.assign({}, item, changes); x.revision += 1; x.updatedAt = new Date().toISOString();
         validateStrict(x, config);
+        if ('dependencies' in changes) await checkDependencies(x, item.dependencies);
         x.fields = orderFieldValues(x.fields, config.fields);
         if ('status' in changes || (item.archived && changes.archived === false)) await guardIssueStatusWrite();
         const updates = (!item.archived || !x.archived) && (item.feature !== x.feature || item.status !== x.status || item.archived !== x.archived || 'status' in changes)
@@ -862,6 +878,28 @@ async function directBackend(picked) {
       } catch (e) { wrapPerm(e); }
     },
   };
+  async function checkDependencies(item, previous) {
+    const graph = new Map();
+    for await (const [name, handle] of itemsDir.entries()) {
+      if (handle.kind !== 'file' || !ID_RE.test(name.slice(0, -5)) || !name.endsWith('.json')) continue;
+      const {item: other} = upgradeItem(parse(await bytesOf(itemsDir, name), name));
+      graph.set(other.id, other.dependencies);
+    }
+    for (const id of item.dependencies) {
+      if (!graph.has(id) && !previous.includes(id)) throw new ApiError('invalid', 'Unknown dependency ' + id);
+    }
+    graph.set(item.id, item.dependencies);
+    for (const added of item.dependencies.filter(id => !previous.includes(id))) {
+      const seen = new Set(), pending = [added];
+      while (pending.length) {
+        const id = pending.pop();
+        if (id === item.id) throw new ApiError('invalid', 'Dependency cycle detected');
+        if (seen.has(id)) continue;
+        seen.add(id);
+        for (const next of graph.get(id) || []) pending.push(next);
+      }
+    }
+  }
   return api;
 }
 
@@ -1000,11 +1038,11 @@ const cmp = (a, b) => (PRANK[a.priority] ?? 9) - (PRANK[b.priority] ?? 9) || (a.
 /* ---------- drafts ---------- */
 function fieldsFrom(it) {
   return {title: it.title, status: it.status, priority: it.priority, assignee: it.assignee ?? '', labels: it.labels.slice(), description: it.description,
-    criteria: it.acceptanceCriteria.map(c => ({text: c.text, done: c.done})), notes: it.notes, archived: it.archived, feature: it.feature, custom: customFrom(it)};
+    criteria: it.acceptanceCriteria.map(c => ({text: c.text, done: c.done})), notes: it.notes, archived: it.archived, feature: it.feature, dependencies: it.dependencies.slice(), custom: customFrom(it)};
 }
 function newDraft(status) {
   const cols = S.snap.config.columns;
-  return {key: 'new', id: null, base: null, fields: {title: '', status: status && cols.some(c => c.id === status) ? status : cols[0].id, priority: 'medium', assignee: '', labels: [], description: '', criteria: [], notes: '', archived: false, feature: null, custom: {}},
+  return {key: 'new', id: null, base: null, fields: {title: '', status: status && cols.some(c => c.id === status) ? status : cols[0].id, priority: 'medium', assignee: '', labels: [], description: '', criteria: [], notes: '', archived: false, feature: null, dependencies: [], custom: {}},
     pendingLabel: '', pendingCriterion: '', conflict: null, refreshed: false, saveError: ''};
 }
 function draftFor(it) { return {key: it.id, id: it.id, base: it, fields: fieldsFrom(it), pendingLabel: '', pendingCriterion: '', conflict: null, refreshed: false, saveError: ''}; }
@@ -1022,6 +1060,7 @@ function computeChanges(d) {
   if (f.notes !== b.notes) c.notes = f.notes;
   if (f.archived !== b.archived) c.archived = f.archived;
   if (f.feature !== b.feature) c.feature = f.feature;
+  if (!arrEq(f.dependencies, b.dependencies)) c.dependencies = f.dependencies.slice();
   if (customDirty(f.custom, b)) c.fields = customValues(f.custom);
   return c;
 }
@@ -1029,7 +1068,7 @@ function fieldDirty(d) {
   if (d.pendingLabel.trim() || d.pendingCriterion.trim()) return true;
   if (d.id) return Object.keys(computeChanges(d)).length > 0;
   const f = d.fields;
-  return !!(f.title || f.assignee || f.labels.length || f.description || f.criteria.length || f.notes || f.feature || Object.values(f.custom).some(v => v) || f.priority !== 'medium' || f.status !== S.snap.config.columns[0].id);
+  return !!(f.title || f.assignee || f.labels.length || f.description || f.criteria.length || f.notes || f.feature || f.dependencies.length || Object.values(f.custom).some(v => v) || f.priority !== 'medium' || f.status !== S.snap.config.columns[0].id);
 }
 function isDirty(d) {
   if (fieldDirty(d) || d.threadBody) return true;
@@ -1086,6 +1125,7 @@ function changedFieldNames(base, live) {
   const names = [], fb = fieldsFrom(base), fl = fieldsFrom(live);
   for (const k of ['title', 'status', 'priority', 'assignee', 'description', 'notes', 'archived', 'feature']) if (fb[k] !== fl[k]) names.push(k);
   if (!arrEq(fb.labels, fl.labels)) names.push('labels');
+  if (!arrEq(fb.dependencies, fl.dependencies)) names.push('dependencies');
   if (!critEq(fb.criteria, fl.criteria)) names.push('acceptance criteria');
   if (customDirty(fb.custom, live)) names.push('custom fields');
   return names;
@@ -1141,6 +1181,7 @@ function moveItem(id, status, dragFrom) {
  * ==================================================================== */
 function renderAll() {
   $('#view-board').setAttribute('aria-pressed', String(S.view === 'board'));
+  $('#view-graph').setAttribute('aria-pressed', String(S.view === 'graph'));
   $('#view-features').setAttribute('aria-pressed', String(S.view === 'features'));
   $('#view-issues').setAttribute('aria-pressed', String(S.view === 'issues'));
   $('#new-feature').hidden = S.view !== 'features';
@@ -1261,6 +1302,66 @@ function launchPanel() {
   return p;
 }
 
+function dependencyState(id, snap = S.snap) {
+  const item = snap.items.get(id);
+  if (!item) return {label:'Missing — satisfied', satisfied:true};
+  const status = snap.config.columns.find(c => c.id === item.status)?.name || item.status;
+  if (item.archived) return {label:'Archived (' + status + ') — satisfied', satisfied:true};
+  const satisfied = item.status === snap.config.columns.at(-1).id;
+  return {label:status + (satisfied ? ' — satisfied' : ' — blocking'), satisfied};
+}
+function dependencyEditor(d, dirtyTick) {
+  const f = d.fields;
+  function refreshDependencies() {
+    const scrollTop = $('.ed-body')?.scrollTop || 0;
+    buildEditor(d);
+    dirtyTick();
+    const body = $('.ed-body');
+    if (body) body.scrollTop = scrollTop;
+    $('#ed-dependency')?.focus({preventScroll:true});
+  }
+  const list = h('ul', {class:'crit-list', 'aria-label':'Dependencies'}, f.dependencies.map(id => {
+    const item = S.snap.items.get(id), state = dependencyState(id);
+    return h('li', {}, h('span', {text:(item?.title || id) + ' (' + id + ') — ' + state.label}),
+      h('button', {type:'button', class:'btn small', 'aria-label':'Remove dependency ' + id, onclick:() => {
+        f.dependencies = f.dependencies.filter(x => x !== id); refreshDependencies();
+      }}, 'Remove'));
+  }));
+  const options = S.snap.list.filter(x => x.id !== d.id && !f.dependencies.includes(x.id));
+  const select = h('select', {id:'ed-dependency'}, h('option', {value:'', text:'Choose a card'}),
+    options.map(x => h('option', {value:x.id, text:x.title + ' (' + x.id + ')' + (x.archived ? ' — archived' : '')})));
+  const dependents = d.id ? S.snap.list.filter(x => x.dependencies.includes(d.id)) : [];
+  return h('section', {class:'field', 'aria-label':'Card dependencies'}, h('h3', {text:'Dependencies'}),
+    h('p', {class:'help', text:'This card depends on the cards below. Cards in the final column, archived cards and missing cards are satisfied. Readiness is advisory.'}),
+    list, field('ed-dependency', 'Add dependency', select),
+    h('button', {type:'button', class:'btn small', onclick:() => {
+      if (!select.value) return;
+      f.dependencies.push(select.value); refreshDependencies();
+    }}, 'Add dependency'),
+    h('p', {text:'Dependents: ' + (dependents.length ? dependents.map(x => x.title + ' (' + x.id + ')').join(', ') : 'None')}));
+}
+function renderGraph(root) {
+  const snap = S.snap;
+  const linked = new Set(snap.list.filter(x => x.dependencies.length).flatMap(x => [x.id, ...x.dependencies]));
+  const cards = [...linked].sort().map(id => {
+    const item = snap.items.get(id);
+    const blockers = item ? item.dependencies.filter(dep => !dependencyState(dep, snap).satisfied).length : 0;
+    const nodeClass = !item || item.archived ? 'unavailable' : blockers ? 'blocked' : '';
+    return h('li', {class:'graph-node ' + nodeClass},
+      h('strong', {text:(item?.title || 'Missing card') + ' (' + id + ')'}),
+      h('div', {text:(item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing') + (item ? ' · ' + (blockers ? blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'No blockers') : '')}),
+      item?.dependencies.length ? h('ul', {'aria-label':'Dependencies of ' + item.title}, item.dependencies.map(dep => {
+        const target = snap.items.get(dep), ds = dependencyState(dep, snap);
+        return h('li', {}, h('span', {class:'graph-arrow', text:'Depends on → '}),
+          h('span', {text:(target?.title || 'Missing card') + ' (' + dep + ') — ' + ds.label}));
+      })) : h('p', {text:'No dependencies'}));
+  });
+  root.append(h('section', {class:'panel graph-panel', 'aria-label':'Dependency graph'},
+    h('h2', {text:'Dependency graph'}),
+    h('p', {text:'Arrows point from each card to the cards it depends on. Green borders mean no blockers, amber means blocked, and gray means archived or missing. Text labels describe each state; readiness is advisory.'}),
+    cards.length ? h('ul', {class:'graph-list'}, cards) : h('p', {text:'No dependency links yet.'})));
+}
+
 function renderBoard() {
   if (S.drag) { S.renderDeferred = true; return; }
   const root = $('#board'), focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
@@ -1276,6 +1377,7 @@ function renderBoard() {
     else { root.setAttribute('aria-busy', 'true'); root.append(h('div', {class: 'sr-only', role: 'status', text: 'Loading board…'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'})); }
     updateSummary(); return;
   }
+  if (S.view === 'graph') { renderGraph(root); return; }
   if (S.view === 'issues') { renderIssues(root); return; }
   if (S.view === 'features') {
     renderFeatures(root);
@@ -1571,6 +1673,7 @@ function cardEl(it, snap) {
   const done = it.acceptanceCriteria.filter(c => c.done).length, total = it.acceptanceCriteria.length;
   const colName = (snap.columns.find(c => c.id === it.status) || {}).name || it.status;
   const real = snap.config.columns.some(c => c.id === it.status);
+  const dependentCount = snap.list.filter(card => card.dependencies.includes(it.id)).length;
   const titleId = 't-' + it.id;
   const titleBtn = h('button', {type: 'button', class: 'card-title', id: titleId, title: it.title, 'data-fk': it.id + ':title', onclick: () => openEditor(it.id, {returnFocus: it.id + ':title'}),
     onkeydown: e => {
@@ -1593,6 +1696,8 @@ function cardEl(it, snap) {
       dirty ? h('span', {class: 'badge ' + (draft.conflict ? 'bad' : 'info'), text: draft.conflict ? 'Draft: conflict' : 'Draft'}) : null),
     titleBtn,
     it.feature ? featureChip(it.feature, snap) : null,
+    it.dependencies.length ? h('span', {class:'badge', text: (() => { const count = it.dependencies.filter(id => !dependencyState(id, snap).satisfied).length; return count + ' blocker' + (count === 1 ? '' : 's') + ' / ' + it.dependencies.length + ' dependenc' + (it.dependencies.length === 1 ? 'y' : 'ies'); })()}) : null,
+    dependentCount ? h('span', {class: 'badge', text: dependentCount + (dependentCount === 1 ? ' dependent' : ' dependents')}) : null,
     it.labels.length ? h('ul', {class: 'chips', 'aria-label': 'Labels'}, it.labels.slice(0, 4).map(l => h('li', {class: 'label', title: l, text: l})), it.labels.length > 4 ? h('li', {class: 'label', title: it.labels.slice(4).join(', '), text: `+${it.labels.length - 4}`}) : null) : null,
     fieldChips(it),
     h('div', {class: 'card-foot'},
@@ -1722,6 +1827,7 @@ function buildEditor(d) {
       h('div', {class: 'row3'}, field('ed-status', 'Status', status), field('ed-priority', 'Priority', prio),
         field('ed-assignee', 'Assignee', assignee, h('span', {class: 'help', id: 'help-assignee'}, 'Empty = unassigned. A label only; it does not lock the card.'))),
       field('ed-feature', 'Feature', feature),
+      dependencyEditor(d, dirtyTick),
       customFieldsSection(d),
       labelsField(d),
       field('ed-description', 'Description', desc, h('div', {class: 'counter', id: 'ct-description'})),
@@ -2021,7 +2127,7 @@ async function saveDraft(d) {
       }
       await mutate(() => S.backend.patch(d.id, d.base.revision, d.base.hash, changes));
     } else {
-      const values = {title: f.title.trim(), status: f.status, priority: f.priority, assignee: f.assignee.trim() || null, labels: f.labels.slice(), description: f.description, acceptanceCriteria: f.criteria.map(c => ({text: c.text.trim(), done: c.done})), notes: f.notes, feature: f.feature, fields: customValues(f.custom)};
+      const values = {title: f.title.trim(), status: f.status, priority: f.priority, assignee: f.assignee.trim() || null, labels: f.labels.slice(), description: f.description, acceptanceCriteria: f.criteria.map(c => ({text: c.text.trim(), done: c.done})), notes: f.notes, feature: f.feature, dependencies: f.dependencies.slice(), fields: customValues(f.custom)};
       createdId = (await createCard(values)).id;
     }
     S.needsFresh = true; await pollFresh();
@@ -2077,7 +2183,7 @@ function startFromHash() {
 }
 
 function wire() {
-  for (const view of ['board', 'features', 'issues']) $('#view-' + view).addEventListener('click', () => { S.view = view; renderAll(); });
+  for (const view of ['board', 'graph', 'features', 'issues']) $('#view-' + view).addEventListener('click', () => { S.view = view; renderAll(); });
   $('#new-feature').addEventListener('click', () => openFeature());
   $('#feature-archived').addEventListener('change', e => { S.showArchivedFeatures = e.target.checked; renderBoard(); });
   $('#skip').addEventListener('click', () => $('#board').focus());

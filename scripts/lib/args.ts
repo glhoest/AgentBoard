@@ -4,7 +4,9 @@ export type Common = { root: string | null; json: boolean; quiet: boolean };
 export type Command =
   | { cmd: 'init' | 'setup'; path: string }
   | { cmd: 'list'; all: boolean; status: string | null; assignee: string | null; feature: string | null; field: string[] | null; fieldMin: string[] | null; fieldMax: string[] | null; fieldContains: string[] | null; hasField: string[] | null; noField: string[] | null }
-  | { cmd: 'show'; id: string }
+  | { cmd: 'show' | 'dependencies'; id: string }
+  | { cmd: 'dependency-add' | 'dependency-remove'; id: string; dependency: string; revision: number | null }
+  | { cmd: 'ready' }
   | { cmd: 'create'; title: string; status: string | null; priority: Priority | null; assignee: string | null; description: string | null; label: string[] | null; criterion: string[] | null; feature: string | null; field: string[] | null }
   | { cmd: 'edit'; id: string; revision: number | null; title: string | null; status: string | null; priority: Priority | null; assignee: string | null; unassign: boolean; description: string | null; notes: string | null; labelsJson: string | null; criteriaJson: string | null; archive: boolean; unarchive: boolean; feature: string | null; clearFeature: boolean; field: string[] | null; clearField: string[] | null }
   | { cmd: 'fields' }
@@ -58,6 +60,10 @@ const specs: Record<string, [string, string][]> = {
   'field-edit': [['id', 'pos'], ['name', 'str']],
   'field-remove': [['id', 'pos'], ['yes', 'bool']],
   show: [['id', 'pos']],
+  dependencies: [['id', 'pos']],
+  'dependency-add': [['id', 'pos'], ['dependency', 'pos'], ['revision', 'int']],
+  'dependency-remove': [['id', 'pos'], ['dependency', 'pos'], ['revision', 'int']],
+  ready: [],
   create: [['title', 'pos'], ['status', 'str'], ['priority', 'priority'], ['assignee', 'str'], ['description', 'str'], ['label', 'append'], ['criterion', 'append'], ['feature', 'str'], ['field', 'append']],
   edit: [['id', 'pos'], ['revision', 'int'], ['title', 'str'], ['status', 'str'], ['priority', 'priority'], ['assignee', 'str'], ['unassign', 'bool'], ['description', 'str'], ['notes', 'str'], ['labels-json', 'str'], ['criteria-json', 'str'], ['archive', 'bool'], ['unarchive', 'bool'], ['feature', 'str'], ['clear-feature', 'bool'], ['field', 'append'], ['clear-field', 'append']],
   'feature-create': [['title', 'pos'], ['status', 'str'], ['description', 'str']],
@@ -83,6 +89,10 @@ const commands = Object.keys(specs);
 const usage = 'usage: agentboard [-h] [--root ROOT] [--json] [--quiet] {' + commands.join(', ') + '} ...';
 
 const summaries: Record<string, string> = {
+  dependencies: 'Show dependencies, blockers and dependents',
+  'dependency-add': 'Add a dependency to a card',
+  'dependency-remove': 'Remove a dependency from a card',
+  ready: 'List cards without unfinished dependencies',
   setup: 'Install the skill and board into a repository\n                        (idempotent)',
   ask: 'Post a question on a card (stays open until answered)',
   answer: 'Answer a question on a card',

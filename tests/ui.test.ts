@@ -72,6 +72,52 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ready)('board.html (bridge mode)', () => {
+  test('dependency editor and graph show direction and status', async () => {
+    const blocker = cliJson('create', 'Graph blocker');
+    const dependent = cliJson('create', 'Graph dependent');
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url());
+      await p.waitFor(hasCard('Graph dependent'));
+      await p.click('#view-graph');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('No dependency links yet.');
+      await p.click('#view-board');
+      await p.click('.card-title[title="Graph dependent"]');
+      await p.eval(`document.querySelector('.ed-body').scrollTop = 100; document.querySelector('#ed-dependency').value = ${JSON.stringify(blocker.id)}`);
+      await p.eval(`[...document.querySelectorAll('#editor button')].find(x => x.textContent === 'Add dependency').click()`);
+      expect(await p.eval(`document.activeElement.id`)).toBe('ed-dependency');
+      expect(await p.eval(`document.querySelector('.ed-body').scrollTop > 0`)).toBe(true);
+      await p.eval(`document.querySelector('[aria-label=\"Remove dependency ${blocker.id}\"]').click()`);
+      expect(await p.eval(`document.activeElement.id`)).toBe('ed-dependency');
+      expect(await p.eval(`document.querySelector('.ed-body').scrollTop > 0`)).toBe(true);
+      await p.eval(`document.querySelector('#ed-dependency').value = ${JSON.stringify(blocker.id)}; [...document.querySelectorAll('#editor button')].find(x => x.textContent === 'Add dependency').click()`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      expect(cliJson('show', dependent.id).dependencies).toEqual([blocker.id]);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(cardSel(dependent.id))}).innerText`)).toContain('1 blocker / 1 dependency');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(cardSel(blocker.id))}).innerText`)).toContain('1 dependent');
+      await p.click('#view-graph');
+      await p.waitFor(`document.querySelector('.graph-panel')`);
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Depends on → Graph blocker');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('blocking');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).not.toContain('Seed card');
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).querySelector(':scope > div').textContent`)).toContain('1 blocker');
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).querySelector(':scope > div').textContent`)).not.toContain('blocking');
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).classList.contains('blocked')`)).toBe(true);
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph blocker')).classList.contains('blocked')`)).toBe(false);
+      cliJson('edit', blocker.id, '--archive');
+      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Archived (Backlog) — satisfied')`, 10000);
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph blocker')).classList.contains('unavailable')`)).toBe(true);
+      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).classList.contains('blocked')`)).toBe(false);
+      cliJson('edit', blocker.id, '--unarchive');
+      cliJson('move', blocker.id, 'done');
+      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Done — satisfied')`, 10000);
+      rmSync(join(root, '.agentboard', 'items', blocker.id + '.json'));
+      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Missing card (${blocker.id}) — Missing — satisfied')`, 10000);
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Missing card (' + blocker.id + ')');
+    } finally { await p.send('Page.close'); }
+  });
+
   test('evidence conflict refreshes issue and keeps draft for retry', async () => {
     const issue = cliJson('issue-create', 'Evidence conflict test');
     const p = await chrome.newPage();
@@ -1585,6 +1631,46 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
     for (const f of readdirSync(join(proj, '.agentboard/items'))) fixture[f] = readFileSync(join(proj, '.agentboard/items', f), 'utf8');
   });
 
+  test('direct mode rejects a dependency cycle', async () => {
+    const seedName = Object.keys(fixture).find(n => n.startsWith('AB-'))!;
+    const seed = JSON.parse(fixture[seedName]);
+    const other = {...seed, id:'AB-AAAAAAAAAAAA', title:'Direct dependent', dependencies:[seed.id]};
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker({...fixture, [other.id + '.json']:JSON.stringify(other)})});
+      await p.goto(base + '/'); await p.eval(`document.querySelector('.direct-box').open = true`); await p.click('#pick-folder');
+      await p.waitFor(hasCard('Direct seed'));
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('#ed-dependency').value = 'AB-AAAAAAAAAAAA'`);
+      await p.eval(`[...document.querySelectorAll('#editor button')].find(x => x.textContent === 'Add dependency').click()`);
+      await p.click('#ed-save');
+      await p.waitFor(`document.querySelector('#editor').innerText.includes('cycle')`);
+      expect(await p.eval(`document.querySelector('#editor').open`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('direct dependency removal works with a reachable existing cycle', async () => {
+    const seedName = Object.keys(fixture).find(n => n.startsWith('AB-'))!;
+    const seed = JSON.parse(fixture[seedName]);
+    const b = {...seed, id:'AB-BBBBBBBBBBBB', title:'Cycle B', dependencies:['AB-CCCCCCCCCCCC']};
+    const c = {...seed, id:'AB-CCCCCCCCCCCC', title:'Cycle C', dependencies:[b.id]};
+    const d = {...seed, id:'AB-DDDDDDDDDDDD', title:'Remove me', dependencies:[]};
+    seed.dependencies = [b.id, d.id];
+    const files = {...fixture, [seedName]:JSON.stringify(seed), [b.id + '.json']:JSON.stringify(b), [c.id + '.json']:JSON.stringify(c), [d.id + '.json']:JSON.stringify(d)};
+    const p = await chrome.newPage();
+    try {
+      await p.send('Page.addScriptToEvaluateOnNewDocument', {source:picker(files)});
+      await p.goto(base + '/'); await p.eval(`document.querySelector('.direct-box').open = true`); await p.click('#pick-folder');
+      await p.waitFor(hasCard('Direct seed'));
+      await p.click('.card-title[title="Direct seed"]');
+      await p.eval(`document.querySelector('[aria-label="Remove dependency AB-DDDDDDDDDDDD"]').click()`);
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      const saved = await p.eval(`(async () => { const top = await navigator.storage.getDirectory(); const ab = await (await top.getDirectoryHandle('proj')).getDirectoryHandle('.agentboard'); const items = await ab.getDirectoryHandle('items'); return JSON.parse(await (await (await items.getFileHandle(${JSON.stringify(seedName)})).getFile()).text()); })()`);
+      expect(saved.dependencies).toEqual([b.id]);
+    } finally { await p.send('Page.close'); }
+  });
+
   test('direct mode ignores temporary item and feature files', async () => {
     const p = await chrome.newPage();
     try {
@@ -2004,7 +2090,7 @@ describe.skipIf(!ready)('board.html (direct file mode)', () => {
     const card = run('create', 'Old card');
     // Rewrite the files the way version 1.1.0 wrote them (no fields), keeping the field definition out.
     const boardPath = join(proj, '.agentboard/board.json'), cardPath = join(proj, '.agentboard/items', card.id + '.json');
-    const strip = (path: string) => { const { fields: _f, ...rest } = JSON.parse(readFileSync(path, 'utf8')); writeFileSync(path, JSON.stringify({ ...rest, version: '1.1.0' }, null, 2) + '\n'); };
+    const strip = (path: string) => { const { fields: _f, dependencies: _d, ...rest } = JSON.parse(readFileSync(path, 'utf8')); writeFileSync(path, JSON.stringify({ ...rest, version: '1.1.0' }, null, 2) + '\n'); };
     strip(boardPath); strip(cardPath);
     const files: Record<string, string> = { 'board.json': readFileSync(boardPath, 'utf8'), [card.id + '.json']: readFileSync(cardPath, 'utf8') };
     // The CLI's upgrade of the same bytes is the reference.

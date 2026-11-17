@@ -212,6 +212,18 @@ export function main(argv: string[], io: Io = consoleIo): number {
         case 'field-remove':
           result = store.removeField(root, args.id, args.yes);
           break;
+        case 'dependency-add':
+        case 'dependency-remove':
+          result = store.changeDependency(root, args.id, args.dependency, args.revision, args.cmd === 'dependency-add');
+          break;
+        case 'dependencies':
+        case 'ready': {
+          const snap = withLock(root, () => store.snapshot(root));
+          result = args.cmd === 'dependencies'
+            ? store.dependencySummary(snap, args.id)
+            : store.readyCards(snap);
+          break;
+        }
         case 'show':
           result = store.get(root, args.id);
           break;

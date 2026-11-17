@@ -239,7 +239,7 @@ describe('upgrade from 1.1.0', () => {
     const board = JSON.parse(readFileSync(store.boardPath(root), 'utf8'));
     const item = JSON.parse(readFileSync(store.itemPath(root, card.id), 'utf8'));
     const { fields: _b, ...oldBoard } = board;
-    const { fields: _i, ...oldItem } = item;
+    const { fields: _i, dependencies: _d, ...oldItem } = item;
     writeFileSync(store.boardPath(root), JSON.stringify({ ...oldBoard, version: '1.1.0' }, null, 2) + '\n');
     writeFileSync(store.itemPath(root, card.id), JSON.stringify({ ...oldItem, version: '1.1.0' }, null, 2) + '\n');
     const shown = cli(root, 'show', card.id).json();
