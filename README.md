@@ -47,7 +47,7 @@ To update the installed skill, run:
 bun .agents/skills/agentboard/scripts/agentboard.ts update
 ```
 
-The command checks right away and installs the newest stable release that was published at least seven days ago. `--force` allows a newer stable release regardless of age. Neither mode installs an older version than the one you have. If the installed version is unknown, the updater refuses to run, because it cannot rule out a downgrade; install from a known source with setup instead.
+`update` and `update latest` select the newest stable release published at least seven days ago. `update beta` selects the newest published main beta that is at least three days old. `--force` bypasses these age gates. An exact stable tag such as `update v1.2.3` or beta tag such as `update beta-FULL_SHA` selects that release. An explicit stable downgrade requires `--force`; selecting latest never downgrades a stable installation. If the installed version is unknown, the updater refuses a stable update because it cannot rule out a downgrade; install from a known source with setup instead.
 
 Before replacing the skill, the updater checks the download's size and SHA-256 hash. It does not touch the board. A network error, or no eligible release, leaves the installation as it was. The update replaces local changes to the skill, so keep any customizations elsewhere. Update every copy that shares a board before newer code upgrades that board.
 
@@ -59,7 +59,7 @@ If an existing copy still has the old standalone `scripts/update.ts`, run `setup
 
 The Source builds workflow publishes `beta-FULL_SHA` prereleases for new commits on main's first-parent history and `experiment-PR-FULL_SHA` prereleases for open PRs targeting main. If a main commit cannot be packaged, the workflow logs a warning and continues with the other commits in the push. Each published build has a regular archive and a no-update archive. The attached archives contain readable source and an `.agentboard-build.json` file with the repository, channel, full commit, PR number when applicable, and build variant. For experiments, the release tag points at the trusted base. Use the attached archives to find the experiment contents.
 
-To install a beta, select its commit in GitHub Releases, download the desired attached archive, and compare its SHA-256 with the release asset digest. Extract it into a new directory, inspect the source, and run `bun scripts/agentboard.ts setup /absolute/path/to/your-project` from that directory. Install [Bun 1.4 or newer](https://bun.sh/) first if Bun is missing or lacks archive support. The archive contains no bundled runtime.
+Run `bun .agents/skills/agentboard/scripts/agentboard.ts update beta` to install the latest eligible beta. The updater verifies the archive digest and its contents against the main commit. Alternatively, select a beta commit in GitHub Releases, download the desired attached archive, compare its SHA-256 with the release asset digest, extract it into a new directory, and run its CLI's `setup` command. Install [Bun 1.4 or newer](https://bun.sh/) first if Bun is missing or lacks archive support. The archive contains no bundled runtime.
 
 Run the experiment command from a trusted AgentBoard source or installation that supports it. The output shows the current PR head in `head` and the latest published experiment in `commit`. If the head build is pending, the command looks for a published build in the current PR's history. Open the `source` URL and review the selected commit before passing its full SHA to `--accept-head`.
 
@@ -72,7 +72,7 @@ The target must already have a local AgentBoard installation. Use a disposable p
 
 GitHub Actions packages PR Git objects with the trusted base's tooling. The packaging job has read permissions and the publishing job uploads archives without running PR code. The CLI checks the selected asset's SHA-256 and compares its files to the canonical Git tree for the accepted commit. It also verifies the provenance and any files generated for the no-update variant. These checks establish which source you received. Your review determines whether to run it.
 
-Pass `--no-update` when inspecting and installing that variant. A trusted regular CLI can install it, and a no-update destination requires that variant. Use a separate trusted CLI to repeat the installation. Source builds skip the stable update check and use explicit installation. To return to stable, run `setup PROJECT` from a trusted stable archive that supports replacing source builds. Setup replaces the entire vendored skill directory, including any files added by the experiment. Before running any newer build against a board, check that you can reopen that board with the version you intend to return to.
+Pass `--no-update` when inspecting and installing that variant. A trusted regular CLI can install it, and a no-update destination requires that variant. Use a separate trusted CLI to repeat the installation. Source builds skip the automatic stable update check. A beta can return to stable with `update latest`; return from an experiment with trusted stable `setup PROJECT`. Replacement removes files added by the previous build. Before running any newer build against a board, check that you can reopen that board with the version you intend to return to.
 
 ## Use
 

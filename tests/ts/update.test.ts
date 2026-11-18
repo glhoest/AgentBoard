@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { selectRelease, updateInstallation } from '../../scripts/lib/update';
+import { generatedFiles } from '../../scripts/lib/distribution';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -42,6 +43,38 @@ async function release(files: Record<string, string>, corruptDigest = false): Pr
 const valid = { 'SKILL.md': 'new', 'LICENSE': 'license', 'scripts/agentboard.ts': 'new cli',
   'scripts/board.html': 'board ui', 'scripts/lib/update.ts': 'updater' };
 
+test('beta respects the three-day gate and verifies the source before replacing the skill', async () => {
+  const { root, target } = installation();
+  const commit = 'a'.repeat(40), treeSha = 'b'.repeat(40);
+  const source = { ...valid, 'README.md': 'readme', 'scripts/lib/update-check.ts': 'notice' };
+  const build = { commit, pr: null, noUpdate: false };
+  const archive = await new Bun.Archive({ ...source, ...Object.fromEntries(generatedFiles(build)) }, { compress: 'gzip' }).bytes();
+  const digest = `sha256:${createHash('sha256').update(archive).digest('hex')}`;
+  const tag = `beta-${commit}`;
+  const url = `https://github.com/glhoest/AgentBoard/releases/download/${tag}/agentboard.tar.gz`;
+  const tree = Object.entries(source).map(([path, body]) => ({ path, type: 'blob', mode: '100644',
+    sha: createHash('sha1').update(`blob ${Buffer.byteLength(body)}\0`).update(body).digest('hex') }));
+  const now = Date.parse('2026-11-19T00:00:00Z');
+  const fetcher = (async (input: string | URL | Request) => {
+    const address = String(input);
+    if (address === url) return new Response(archive);
+    if (address.includes('/commits?sha=main')) return Response.json([{ sha: commit }]);
+    if (address.endsWith(`/releases/tags/${tag}`)) return Response.json({ tag_name: tag, draft: false, prerelease: true,
+      published_at: new Date(now - 3 * 86400000 + 1).toISOString(), assets: [{ name: 'agentboard.tar.gz', browser_download_url: url, size: archive.length, digest }] });
+    if (address.endsWith(`/git/commits/${commit}`)) return Response.json({ sha: commit, tree: { sha: treeSha } });
+    if (address.endsWith(`/git/trees/${treeSha}?recursive=1`)) return Response.json({ sha: treeSha, truncated: false, tree });
+    if (address.includes('/compare/')) return Response.json({ status: 'ahead' });
+    throw new Error(`Unexpected URL ${address}`);
+  }) as typeof fetch;
+  await expect(updateInstallation(target, fetcher, false, now, 'beta')).rejects.toThrow('No eligible beta');
+  expect(await updateInstallation(target, fetcher, true, now, 'beta')).toEqual({ version: tag, changed: true });
+  expect(readFileSync(join(root, '.agentboard', 'board.json'), 'utf8')).toBe('board bytes');
+  expect(await updateInstallation(target, fetcher, true, now, 'beta')).toEqual({ version: tag, changed: false });
+  writeFileSync(join(target, '.agentboard-build.json'), JSON.stringify({ channel: 'beta', commit: 'c'.repeat(40), noUpdate: false }));
+  await expect(updateInstallation(target, fetcher, false, now + 1, `beta-${commit}`)).rejects.toThrow('requires --force');
+  expect(await updateInstallation(target, fetcher, true, now, `beta-${commit}`)).toEqual({ version: tag, changed: true });
+});
+
 test('verified release replaces the skill and leaves the board unchanged; repeat is idempotent', async () => {
   const { root, target } = installation();
   const fetcher = await release(valid);
@@ -49,6 +82,23 @@ test('verified release replaces the skill and leaves the board unchanged; repeat
   expect(readFileSync(join(target, 'SKILL.md'), 'utf8')).toBe('new');
   expect(readFileSync(join(root, '.agentboard', 'board.json'), 'utf8')).toBe('board bytes');
   expect(await updateInstallation(target, fetcher)).toEqual({ version: 'v1.2.3', changed: false });
+});
+
+test('explicit stable downgrades require force', async () => {
+  const { target } = installation();
+  writeFileSync(join(target, '.agentboard-release.json'), JSON.stringify({ version: 'v2.0.0' }));
+  const fetcher = await release(valid);
+  await expect(updateInstallation(target, fetcher, false, Date.now(), 'v1.2.3')).rejects.toThrow('Downgrade requires --force');
+  expect(await updateInstallation(target, fetcher, true, Date.now(), 'v1.2.3')).toEqual({ version: 'v1.2.3', changed: true });
+  expect(await updateInstallation(target, fetcher, false, Date.now(), '1.2.3')).toEqual({ version: 'v1.2.3', changed: false });
+});
+
+test('latest switches a beta installation to an eligible stable release', async () => {
+  const { target } = installation();
+  rmSync(join(target, '.agentboard-release.json'));
+  writeFileSync(join(target, '.agentboard-build.json'), JSON.stringify({ channel: 'beta', commit: 'a'.repeat(40), noUpdate: false }));
+  expect(await updateInstallation(target, await release(valid), false, Date.now(), 'latest')).toEqual({ version: 'v1.2.3', changed: true });
+  expect(existsSync(join(target, '.agentboard-build.json'))).toBe(false);
 });
 
 test('digest mismatch leaves the installed skill and board untouched', async () => {

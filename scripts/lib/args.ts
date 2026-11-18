@@ -30,7 +30,7 @@ export type Command =
   | { cmd: 'thread'; id: string }
   | { cmd: 'questions' }
   | { cmd: 'grill'; id: string | null }
-  | { cmd: 'update'; force: boolean }
+  | { cmd: 'update'; force: boolean; version: string | null }
   | { cmd: 'experiment'; pr: string; target: string | null; acceptHead: string | null; noUpdate: boolean }
   | { cmd: 'issues' }
   | { cmd: 'issue-show'; id: string }
@@ -86,12 +86,12 @@ const specs: Record<string, [string, string][]> = {
   thread: [['id', 'pos']],
   questions: [],
   grill: [['id', 'pos']],
-  update: [['force', 'bool']],
+  update: [['version', 'pos'], ['force', 'bool']],
   experiment: [['pr', 'pos'], ['target', 'str'], ['accept-head', 'str'], ['no-update', 'bool']],
   serve: [['port', 'int'], ['ui', 'str']],
 };
 // Commands whose positional is optional: init/setup default to '.', grill to all cards in Needs grilling.
-const optionalPositional = new Set(['init', 'setup', 'grill']);
+const optionalPositional = new Set(['init', 'setup', 'grill', 'update']);
 const commands = Object.keys(specs);
 const usage = 'usage: agentboard [-h] [--root ROOT] [--json] [--quiet] {' + commands.join(', ') + '} ...';
 
