@@ -58,7 +58,9 @@ jobs:
               commits="$(git rev-list --reverse --first-parent "$BEFORE..$GITHUB_SHA")"
             fi
             for sha in $commits; do
-              bun .github/scripts/package-distribution.ts "$sha" - "builds/beta-$sha"
+              if ! bun .github/scripts/package-distribution.ts "$sha" - "builds/beta-$sha"; then
+                echo "::warning::Could not package main commit $sha. Continuing with the other commits."
+              fi
             done
           fi
       - id: upload

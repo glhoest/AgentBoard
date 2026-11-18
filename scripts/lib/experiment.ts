@@ -5,25 +5,64 @@ import {
   buildTag, generatedFiles, maxDownload, maxSource, repository, sourceFiles, validCommit, validPr,
   type Build,
 } from './distribution';
-import { replaceSkill } from './update';
+import { replaceSkill } from './install';
 
 const api = `https://api.github.com/repos/${repository}`;
 const github = `https://github.com/${repository}`;
 const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'AgentBoard' };
 
-async function metadata(fetcher: typeof fetch, path: string, label: string) {
+async function metadata(fetcher: typeof fetch, path: string, label: string, allowMissing = false) {
   const response = await fetcher(api + path, { headers, redirect: 'error', signal: AbortSignal.timeout(30000) });
+  if (allowMissing && response.status === 404) return null;
   if (!response.ok) throw new Error(`${label} (HTTP ${response.status})`);
   return response.json();
 }
 
-async function currentHead(fetcher: typeof fetch, pr: string): Promise<string> {
+async function currentPull(fetcher: typeof fetch, pr: string): Promise<{ head: string; base: string }> {
   const pull = await metadata(fetcher, `/pulls/${pr}`, 'Cannot find PR');
   if (pull?.number !== Number(pr) || pull?.state !== 'open' || pull?.base?.ref !== 'main' ||
-      pull?.base?.repo?.full_name?.toLowerCase() !== repository.toLowerCase() || !validCommit(pull?.head?.sha)) {
+      pull?.base?.repo?.full_name?.toLowerCase() !== repository.toLowerCase() ||
+      !validCommit(pull?.head?.sha) || !validCommit(pull?.base?.sha)) {
     throw new Error('The experiment requires an open PR to canonical main with a valid head');
   }
-  return pull.head.sha;
+  return { head: pull.head.sha, base: pull.base.sha };
+}
+
+async function previousCommits(fetcher: typeof fetch, base: string, head: string) {
+  const commits: string[] = [];
+  const seen = new Set<string>();
+  for (let page = 1; ; page++) {
+    const comparison = await metadata(fetcher, `/compare/${base}...${head}?per_page=100&page=${page}`, 'Cannot verify current PR history');
+    const batch = comparison?.commits;
+    if (!Array.isArray(batch) || batch.length > 100) throw new Error('Invalid PR commit history');
+    for (const entry of batch) {
+      if (!validCommit(entry?.sha) || seen.has(entry.sha)) throw new Error('Invalid PR commit history');
+      seen.add(entry.sha);
+      commits.push(entry.sha);
+    }
+    if (batch.length < 100) break;
+  }
+  if (commits.pop() !== head) throw new Error('Current PR head is missing from its commit history');
+  return commits.reverse();
+}
+
+async function publishedBuild(fetcher: typeof fetch, build: Build) {
+  const tag = buildTag(build);
+  const name = build.noUpdate ? 'agentboard-no-update.tar.gz' : 'agentboard.tar.gz';
+  const release = await metadata(fetcher, `/releases/tags/${tag}`, 'Cannot look up experiment release', true);
+  if (release === null || release?.draft === true) return null;
+  if (release?.tag_name !== tag || release?.draft !== false || release?.prerelease !== true || !Array.isArray(release.assets)) {
+    throw new Error('Invalid experiment release metadata');
+  }
+  const matches = release.assets.filter(item => item?.name === name);
+  const [asset] = matches;
+  const url = `${github}/releases/download/${tag}/${name}`;
+  if (matches.length !== 1 || asset.browser_download_url !== url ||
+      !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > maxDownload ||
+      typeof asset.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(asset.digest)) {
+    throw new Error('Invalid experiment asset URL, size or SHA-256');
+  }
+  return { tag, asset: { url, digest: asset.digest as string, size: asset.size as number } };
 }
 
 async function boundedBytes(stream: ReadableStream<Uint8Array> | null, limit: number) {
@@ -114,29 +153,29 @@ export async function experiment(
     throw new Error('Experiment installation requires Bun with Archive support. Install Bun 1.4 or newer from https://bun.sh/ and retry.');
   }
 
-  const commit = await currentHead(fetcher, pr);
-  if (acceptHead !== null && acceptHead !== commit) {
-    throw new Error(`PR #${pr} now points to ${commit}. Inspect the new head before installing.`);
+  const { head, base } = await currentPull(fetcher, pr);
+  const build = { commit: acceptHead ?? head, pr, noUpdate };
+  if (acceptHead !== null && acceptHead !== head &&
+      !(await previousCommits(fetcher, base, head)).includes(acceptHead)) {
+    throw new Error(`Accepted SHA is outside the current history of PR #${pr}. Current head is ${head}.`);
   }
-  const build = { commit, pr, noUpdate };
-  const tag = buildTag(build);
-  const name = noUpdate ? 'agentboard-no-update.tar.gz' : 'agentboard.tar.gz';
-  const release = await metadata(fetcher, `/releases/tags/${tag}`,
-    `No published experiment found for PR #${pr} at ${commit}. Check the Source builds workflow`);
-  if (release?.tag_name !== tag || release?.draft !== false || release?.prerelease !== true || !Array.isArray(release.assets)) {
-    throw new Error('Invalid experiment release metadata');
+  let published = await publishedBuild(fetcher, build);
+  if (!published && acceptHead === null) {
+    for (const commit of await previousCommits(fetcher, base, head)) {
+      build.commit = commit;
+      published = await publishedBuild(fetcher, build);
+      if (published) break;
+    }
   }
-  const matches = release.assets.filter(item => item?.name === name);
-  const [asset] = matches;
-  const downloadUrl = `${github}/releases/download/${tag}/${name}`;
-  if (matches.length !== 1 || asset.browser_download_url !== downloadUrl ||
-      !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > maxDownload ||
-      typeof asset.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(asset.digest)) {
-    throw new Error('Invalid experiment asset URL, size or SHA-256');
+  if (!published) {
+    const selection = acceptHead === null ? 'its current history' : acceptHead;
+    throw new Error(`No published experiment found for PR #${pr} at ${selection}. Current head is ${head}. Check the Source builds workflow.`);
   }
+  const { tag, asset } = published;
   const info = {
     ...build,
-    source: `${github}/pull/${pr}/commits/${commit}`,
+    head,
+    source: `${github}/pull/${pr}/commits/${build.commit}`,
     release: `${github}/releases/tag/${tag}`,
     digest: asset.digest,
   };
@@ -149,8 +188,12 @@ export async function experiment(
     }
   };
   checkVariant();
-  const files = await verifiedFiles(fetcher, build, { url: downloadUrl, digest: asset.digest, size: asset.size });
-  if (await currentHead(fetcher, pr) !== commit) throw new Error('PR head moved during verification. Inspect the new head.');
+  const files = await verifiedFiles(fetcher, build, asset);
+  const current = await currentPull(fetcher, pr);
+  if (current.head !== head || (build.commit !== head && current.base !== base &&
+      !(await previousCommits(fetcher, current.base, head)).includes(build.commit))) {
+    throw new Error('PR history moved during verification. Inspect the experiment again.');
+  }
   replaceSkill(target, files, () => {
     if (installedSkill(project) !== target) throw new Error('Installation path changed during verification');
     checkVariant();

@@ -1,4 +1,5 @@
 import { PRIORITIES, type Priority } from './types';
+import { validCommit } from './distribution';
 
 export type Common = { root: string | null; json: boolean; quiet: boolean };
 export type Command =
@@ -179,6 +180,10 @@ export function parseArgs(argv: string[]): ParseResult {
   }
   const required = optionalPositional.has(cmd) ? [] : positionals;
   if (p < required.length) return error(`the following arguments are required: ${required.slice(p).join(', ')}`);
+  if (cmd === 'experiment' && ((values.target === null) !== (values['accept-head'] === null) ||
+      (values['accept-head'] !== null && (!validCommit(values['accept-head']) || !values.target)))) {
+    return error('experiment installation requires --target PROJECT and --accept-head FULL_SHA', helpText(cmd).split('\n')[0]);
+  }
   if (cmd === 'issue-edit' && (
     (values['work-item'] !== null && values['clear-work-item']) ||
     (values['duplicate-of'] !== null && values['clear-duplicate-of'])
