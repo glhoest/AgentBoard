@@ -174,6 +174,100 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     } finally { await p.send('Page.close'); }
   });
 
+  test('graph settings-only updates propagate and preserve conflicting previews', async () => {
+    const first = await chrome.newPage(), second = await chrome.newPage();
+    const setSelect = async (p: Page, label: string, value: string) => {
+      await p.eval(`(() => { const el = document.querySelector(${JSON.stringify(`[aria-label="${label}"]`)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+    };
+    const save = async (p: Page) => p.eval(`[...document.querySelectorAll('.graph-panel button')].find(b => b.textContent === 'Save shared settings').click()`);
+    try {
+      for (const p of [first, second]) {
+        await p.goto(url());
+        await p.waitFor(hasCard('Seed card'));
+        await p.click('#view-graph');
+      }
+      await setSelect(second, 'Orientation', 'vertical');
+      await save(second);
+      await first.waitFor(`document.querySelector('[aria-label="Orientation"]').value === 'vertical'`, 12000);
+      await setSelect(first, 'Layout', 'loose');
+      await setSelect(second, 'Orientation', 'horizontal');
+      await save(second);
+      await first.waitFor(`document.querySelector('.graph-panel [role="alert"]')?.textContent.includes('Shared settings changed')`, 12000);
+      expect(await first.eval(`document.querySelector('[aria-label="Layout"]').value`)).toBe('loose');
+      expect(await first.eval(`document.querySelector('[aria-label="Orientation"]').value`)).toBe('vertical');
+      await first.eval(`[...document.querySelectorAll('.graph-panel button')].find(b => b.textContent === 'Reload shared settings').click()`);
+      expect(await first.eval(`document.querySelector('[aria-label="Orientation"]').value`)).toBe('horizontal');
+      expect(await first.eval(`document.querySelector('[aria-label="Layout"]').value`)).toBe('compact');
+    } finally { await first.send('Page.close'); await second.send('Page.close'); }
+  });
+
+  test('keyboard activation of graph Edit opens the editor without toggling selection', async () => {
+    const prerequisite = cliJson('create', 'Keyboard graph prerequisite');
+    const item = cliJson('create', 'Keyboard graph item');
+    cliJson('dependency-add', item.id, prerequisite.id);
+    const p = await chrome.newPage();
+    const node = `.graph-node[data-id="${item.id}"]`;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Keyboard graph item')); await p.click('#view-graph');
+      await p.focus(node); await p.key('Enter');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+      await p.focus(`${node} button`);
+      expect(await p.eval(`document.activeElement.textContent`)).toBe('Edit');
+      await p.key('Enter');
+      await p.waitFor(`document.querySelector('#editor').open`);
+      expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Keyboard graph item');
+      await p.click('#ed-cancel');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('loose layout aligns primary prerequisites and keeps long-field cards apart', async () => {
+    cliJson('field-add', 'graph-note', '--type', 'text', '--name', 'Graph note');
+    const first = cliJson('create', 'Loose first prerequisite');
+    const primary = cliJson('create', 'Loose primary prerequisite');
+    const shared = cliJson('create', 'Loose shared card', '--field', `graph-note=${'long value '.repeat(70)}`);
+    cliJson('dependency-add', shared.id, primary.id);
+    cliJson('dependency-add', shared.id, first.id);
+    const p = await chrome.newPage();
+    const node = (id: string) => `.graph-node[data-id="${id}"]`;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Loose shared card')); await p.click('#view-graph');
+      await p.eval(`(() => { const el = document.querySelector('[aria-label="Layout"]'); el.value = 'loose'; el.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+      await p.eval(`document.querySelector('.graph-panel details').open = true`);
+      await p.eval(`[...document.querySelectorAll('.graph-panel label')].find(l => l.textContent.includes('Graph note')).querySelector('input').click()`);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node(shared.id))}).textContent.includes('long value')`)).toBe(true);
+      const result = await p.eval<{aligned: boolean; overlap: boolean}>(`(() => {
+        const a = document.querySelector(${JSON.stringify(node(primary.id))}).getBoundingClientRect();
+        const b = document.querySelector(${JSON.stringify(node(shared.id))}).getBoundingClientRect();
+        const all = [...document.querySelectorAll('.graph-node')].filter(n => n !== document.querySelector(${JSON.stringify(node(shared.id))}));
+        return {aligned: Math.abs(a.top - b.top) < 1, overlap: all.some(n => { const r = n.getBoundingClientRect(); return b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top; })};
+      })()`);
+      expect(result.aligned).toBe(true);
+      expect(result.overlap).toBe(false);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('graph retains scroll through live updates and restores focus after expansion', async () => {
+    const chain = Array.from({length: 9}, (_, i) => cliJson('create', `Scroll graph ${i}`));
+    for (let i = 1; i < chain.length; i++) cliJson('dependency-add', chain[i].id, chain[i - 1].id);
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Scroll graph 8')); await p.click('#view-graph');
+      await p.waitFor(`document.querySelector('.graph-node[data-id="${chain[8].id}"]')`);
+      await p.eval(`document.querySelector('.graph-viewport').scrollLeft = 500`);
+      await p.waitFor(`document.querySelector('.graph-viewport').scrollLeft > 100`);
+      cliJson('edit', chain[8].id, '--title', 'Scroll graph updated');
+      await p.waitFor(`document.querySelector('.graph-node[data-id="${chain[8].id}"]').textContent.includes('Scroll graph updated')`, 12000);
+      expect(await p.eval(`document.querySelector('.graph-viewport').scrollLeft`)).toBeGreaterThan(100);
+      await p.click('[data-graph-expand]');
+      await p.waitFor(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]')`);
+      expect(await p.eval(`document.querySelector('[role="dialog"]').contains(document.activeElement)`)).toBe(true);
+      await p.key('Escape');
+      expect(await p.eval(`document.activeElement.matches('[data-graph-expand]')`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
   test('evidence conflict refreshes issue and keeps draft for retry', async () => {
     const issue = cliJson('issue-create', 'Evidence conflict test');
     const p = await chrome.newPage();
