@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { BoardError } from './types';
 import { config, init } from './store';
+import { noUpdatePath, provenancePath, removedUpdaters } from './distribution';
 
 // Development material of the skill repository itself; never vendored into target repositories.
 // '.agents' and '.claude' hold the repository's own dogfood install and agent settings (vendoring '.agents' would nest copies).
@@ -45,9 +46,10 @@ export function setup(target: string, skillDirectory: string) {
     // Remove obsolete executable updater and files excluded from the selected build.
     const obsolete = ['scripts/update.ts'];
     if (!existsSync(join(source, '.agentboard-release.json'))) obsolete.push('.agentboard-release.json');
-    if (existsSync(join(source, '.agentboard-no-update'))) obsolete.push('scripts/lib/update.ts');
-    else obsolete.push('.agentboard-no-update');
-    for (const name of obsolete) {
+    if (!existsSync(join(source, provenancePath))) obsolete.push(provenancePath);
+    if (existsSync(join(source, noUpdatePath))) obsolete.push(...removedUpdaters);
+    else obsolete.push(noUpdatePath);
+    for (const name of new Set(obsolete)) {
       const path = join(destination, name);
       if (existsSync(path)) {
         rmSync(path);

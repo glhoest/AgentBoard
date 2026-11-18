@@ -28,6 +28,7 @@ export type Command =
   | { cmd: 'questions' }
   | { cmd: 'grill'; id: string | null }
   | { cmd: 'update'; force: boolean }
+  | { cmd: 'experiment'; pr: string; target: string | null; acceptHead: string | null; noUpdate: boolean }
   | { cmd: 'issues' }
   | { cmd: 'issue-show'; id: string }
   | { cmd: 'issue-create'; title: string; observed: string | null; expected: string | null; reproduction: string | null }
@@ -81,6 +82,7 @@ const specs: Record<string, [string, string][]> = {
   questions: [],
   grill: [['id', 'pos']],
   update: [['force', 'bool']],
+  experiment: [['pr', 'pos'], ['target', 'str'], ['accept-head', 'str'], ['no-update', 'bool']],
   serve: [['port', 'int'], ['ui', 'str']],
 };
 // Commands whose positional is optional: init/setup default to '.', grill to all cards in Needs grilling.
@@ -94,6 +96,7 @@ const summaries: Record<string, string> = {
   'dependency-remove': 'Remove a dependency from a card',
   ready: 'List cards without unfinished dependencies',
   setup: 'Install the skill and board into a repository\n                        (idempotent)',
+  experiment: 'Inspect or install a PR experiment',
   ask: 'Post a question on a card (stays open until answered)',
   answer: 'Answer a question on a card',
   comment: 'Post a comment on a card',

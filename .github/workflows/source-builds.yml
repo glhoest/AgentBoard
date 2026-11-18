@@ -1,0 +1,118 @@
+name: Source builds
+
+on:
+  push:
+    branches: [main]
+  # Run the workflow from the trusted base. The PR head is fetched as Git objects only.
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-build-${{ github.event_name }}-${{ github.event.pull_request.number || 0 }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: >-
+      github.repository == 'glhoest/AgentBoard' &&
+      (github.event.action != 'edited' || github.event.changes.base.ref.from != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.0'
+      - name: Package source snapshots
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == pull_request_target ]]; then
+            [[ "$PR" =~ ^[1-9][0-9]{0,9}$ && "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
+            git fetch --no-tags origin "refs/pull/$PR/head"
+            if [[ "$(git rev-parse FETCH_HEAD)" != "$HEAD_SHA" ]]; then
+              if ! git fetch --no-tags origin "$HEAD_SHA"; then
+                echo 'GitHub no longer serves this PR head. The synchronize run packages the new head.'
+                exit 0
+              fi
+              [[ "$(git rev-parse FETCH_HEAD)" == "$HEAD_SHA" ]]
+            fi
+            bun .github/scripts/package-distribution.ts "$HEAD_SHA" "$PR" "builds/experiment-$PR-$HEAD_SHA"
+          else
+            [[ "$BEFORE" =~ ^[a-f0-9]{40}$ ]]
+            commits="$GITHUB_SHA"
+            if [[ "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+              if ! git cat-file -e "$BEFORE^{commit}"; then git fetch --no-tags origin "$BEFORE"; fi
+              commits="$(git rev-list --reverse --first-parent "$BEFORE..$GITHUB_SHA")"
+            fi
+            for sha in $commits; do
+              bun .github/scripts/package-distribution.ts "$sha" - "builds/beta-$sha"
+            done
+          fi
+      - id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-builds
+          path: builds/
+          if-no-files-found: ignore
+    outputs:
+      artifact: ${{ steps.upload.outputs.artifact-id }}
+
+  publish:
+    needs: package
+    if: needs.package.outputs.artifact != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: source-builds
+          path: builds
+      - name: Publish prereleases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in builds/*; do
+            tag="${dir##*/}"
+            if [[ "$tag" =~ ^beta-([a-f0-9]{40})$ && "$GITHUB_EVENT_NAME" == push ]]; then
+              sha="${BASH_REMATCH[1]}"
+              target="$sha"
+              title="Beta · $sha"
+              notes="Source snapshot of main commit $sha."
+            elif [[ "$tag" =~ ^experiment-([1-9][0-9]{0,9})-([a-f0-9]{40})$ && "$GITHUB_EVENT_NAME" == pull_request_target ]]; then
+              pr="${BASH_REMATCH[1]}"
+              sha="${BASH_REMATCH[2]}"
+              target="$GITHUB_SHA"
+              title="Experiment #$pr · $sha"
+              notes="Unreviewed source from PR #$pr, head $sha. Use the attached archives. The tag and GitHub's generated source links point to the trusted base."
+            else
+              echo "Unexpected build directory: $tag" >&2
+              exit 1
+            fi
+            if draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"; then
+              if [[ "$draft" == false ]]; then continue; fi
+              [[ "$draft" == true ]]
+              gh release upload "$tag" "$dir/agentboard.tar.gz" "$dir/agentboard-no-update.tar.gz" --clobber
+              gh release edit "$tag" --draft=false --prerelease --latest=false --target "$target" --title "$title" --notes "$notes"
+            else
+              gh release create "$tag" "$dir/agentboard.tar.gz" "$dir/agentboard-no-update.tar.gz" \
+                --target "$target" --prerelease --latest=false --title "$title" --notes "$notes"
+            fi
+          done

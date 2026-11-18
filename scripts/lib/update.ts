@@ -99,22 +99,32 @@ export async function updateInstallation(destination: string, fetcher: typeof fe
   }
   const release = await fetchRelease(fetcher, force, now, installed);
   if (!release.files) return { version: release.tag, changed: false };
+  const files = release.files;
+  files.set('.agentboard-release.json', Buffer.from(JSON.stringify({ version: release.tag }) + '\n'));
+  return replaceSkill(target, files, () => {
+    // Another updater may have installed a newer release while this download ran.
+    const current = JSON.parse(readFileSync(marker, 'utf8'));
+    if (typeof current.version !== 'string' || !stable.test(current.version)) throw new Error('Invalid installed version marker');
+    if (compareVersions(release.tag, current.version) <= 0) return { version: current.version, changed: false };
+    return null;
+  }) ?? { version: release.tag, changed: true };
+}
+
+/** Stage the verified files and swap only the skill directory under the installation lock. */
+export function replaceSkill<T>(target: string, files: Map<string, Uint8Array>, beforeReplace: () => T | null): T | null {
   const parent = dirname(target);
   const staging = mkdtempSync(join(parent, '.agentboard-update-'));
   const backup = join(parent, `.agentboard-backup-${randomUUID()}`);
   let moved = false;
   try {
-    for (const [name, bytes] of release.files) {
+    for (const [name, bytes] of files) {
       const output = join(staging, ...name.split('/'));
       mkdirSync(dirname(output), { recursive: true });
       writeFileSync(output, bytes);
     }
-    writeFileSync(join(staging, '.agentboard-release.json'), JSON.stringify({ version: release.tag }) + '\n');
     return withLock(parent, () => {
-      // Another updater may have installed a newer release while this download ran.
-      const current = JSON.parse(readFileSync(marker, 'utf8'));
-      if (typeof current.version !== 'string' || !stable.test(current.version)) throw new Error('Invalid installed version marker');
-      if (compareVersions(release.tag, current.version) <= 0) return { version: current.version, changed: false };
+      const skip = beforeReplace();
+      if (skip !== null) return skip;
       renameSync(target, backup);
       moved = true;
       try {
@@ -126,10 +136,9 @@ export async function updateInstallation(destination: string, fetcher: typeof fe
       }
       moved = false;
       try { rmSync(backup, { recursive: true, force: true }); } catch { /* The new installation is already active; leave the backup for manual cleanup. */ }
-      return { version: release.tag, changed: true };
+      return null;
     });
   } finally {
     if (!moved && existsSync(staging)) rmSync(staging, { recursive: true, force: true });
   }
 }
-

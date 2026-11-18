@@ -50,7 +50,7 @@ jobs:
           tar -czf agentboard.tar.gz .agentboard-release.json SKILL.md README.md LICENSE agents assets scripts
           mkdir -p no-update
           cp -r .agentboard-release.json SKILL.md README.md LICENSE agents assets scripts no-update/
-          rm -f no-update/scripts/lib/update.ts no-update/scripts/lib/update-check.ts
+          rm -f no-update/scripts/update.ts no-update/scripts/lib/update.ts no-update/scripts/lib/experiment.ts no-update/scripts/lib/update-check.ts
           touch no-update/.agentboard-no-update
           sed -i '1i> **No-update build:** self-update and automatic network checks are unavailable.' no-update/README.md
           sed -i '/^# AgentBoard$/a This is the no-update build: self-update and automatic network checks are unavailable.' no-update/SKILL.md

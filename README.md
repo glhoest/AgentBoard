@@ -55,6 +55,25 @@ Each release also contains `agentboard-no-update.tar.gz`, a build without self-u
 
 If an existing copy still has the old standalone `scripts/update.ts`, run `setup` once from a newer source copy. That moves it to the CLI `update` command.
 
+### Source betas and PR experiments
+
+The Source builds workflow publishes `beta-FULL_SHA` prereleases for new commits on main's first-parent history and `experiment-PR-FULL_SHA` prereleases for open PRs targeting main. Each has a regular archive and a no-update archive. The attached archives contain readable source and an `.agentboard-build.json` file with the repository, channel, full commit, PR number when applicable, and build variant. For experiments, the release tag points at the trusted base. Use the attached archives to find the experiment contents.
+
+To install a beta, select its commit in GitHub Releases, download the desired attached archive, and compare its SHA-256 with the release asset digest. Extract it into a new directory, inspect the source, and run `bun scripts/agentboard.ts setup /absolute/path/to/your-project` from that directory. Install [Bun 1.4 or newer](https://bun.sh/) first if Bun is missing or lacks archive support. The archive contains no bundled runtime.
+
+Run the experiment command from a trusted AgentBoard source or installation that supports it. Inspect the PR's current head first, then use the full SHA printed by the command after reviewing that commit's source.
+
+```sh
+bun /path/to/trusted/agentboard/scripts/agentboard.ts experiment 42
+bun /path/to/trusted/agentboard/scripts/agentboard.ts experiment 42 --target /absolute/path/to/test-project --accept-head FULL_SHA
+```
+
+The target must already have a local AgentBoard installation. Use a disposable project with a copy of any board you need to test. The command replaces only the vendored skill directory. Running the installed PR code later gives it your local permissions, including access to project files. Review fork code before accepting its head. To update the experiment, repeat inspection and installation with the new head. If its archive is pending or unavailable, check the Source builds run and retry when it finishes. A changed head, missing digest, or verification error stops installation.
+
+GitHub Actions packages PR Git objects with the trusted base's tooling. The packaging job has read permissions and the publishing job uploads archives without running PR code. The CLI checks the selected asset's SHA-256 and compares its files to the canonical Git tree for the accepted head. It verifies the generated provenance and no-update files separately. These checks establish which source you received. Your review determines whether to run it.
+
+Pass `--no-update` when inspecting and installing that variant. A trusted regular CLI can install it, and a no-update destination requires that variant. Use a separate trusted CLI to repeat the installation. Source builds skip the stable update check and use explicit installation. To return to stable, run setup from a trusted stable archive. Before running any newer build against a board, check that you can reopen that board with the version you intend to return to.
+
 ## Use
 
 Without `--root`, board commands search upward from the current directory and stop at the first `.git` repository boundary. Outside a Git repository, the search continues to the filesystem root. The nearest board wins. An incomplete `.agentboard` directory stops the search with an error. Pass `--root` to select a different starting directory explicitly; it retains upward search behavior. Discovery never creates a board.

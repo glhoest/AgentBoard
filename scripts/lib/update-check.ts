@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { tryWithLock } from './lock';
+import { provenancePath } from './distribution';
 
 const latestReleaseUrl = 'https://api.github.com/repos/glhoest/AgentBoard/releases/latest';
 const day = 24 * 60 * 60 * 1000;
@@ -38,6 +39,7 @@ export function updateCachePath(skill: string): string {
 
 /** A failed or offline check never stops a board command. */
 export async function updateNotice(skill: string, cachePath = updateCachePath(skill), fetcher: typeof fetch = fetch, now = Date.now(), lockRoot = updateLockRoot): Promise<string | null> {
+  if (existsSync(join(skill, provenancePath))) return null;
   let installed: string | null = null;
   try {
     const marker = JSON.parse(readFileSync(join(skill, '.agentboard-release.json'), 'utf8'));
