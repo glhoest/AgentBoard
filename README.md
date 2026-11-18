@@ -72,7 +72,7 @@ The target must already have a local AgentBoard installation. Use a disposable p
 
 GitHub Actions packages PR Git objects with the trusted base's tooling. The packaging job has read permissions and the publishing job uploads archives without running PR code. The CLI checks the selected asset's SHA-256 and compares its files to the canonical Git tree for the accepted commit. It also verifies the provenance and any files generated for the no-update variant. These checks establish which source you received. Your review determines whether to run it.
 
-Pass `--no-update` when inspecting and installing that variant. A trusted regular CLI can install it, and a no-update destination requires that variant. Use a separate trusted CLI to repeat the installation. Source builds skip the automatic stable update check. A beta can return to stable with `update latest`; return from an experiment with trusted stable `setup PROJECT`. Replacement removes files added by the previous build. Before running any newer build against a board, check that you can reopen that board with the version you intend to return to.
+Pass `--no-update` when inspecting and installing that variant. A trusted regular CLI can install it, and a no-update destination requires that variant. Use a separate trusted CLI to repeat the installation. Source builds skip the automatic stable update check. A beta can return to stable with `update latest`; older betas that lack this command require trusted stable `setup PROJECT`, as do experiments. Replacement removes files added by the previous build. Before running any newer build against a board, check that you can reopen that board with the version you intend to return to.
 
 ## Use
 

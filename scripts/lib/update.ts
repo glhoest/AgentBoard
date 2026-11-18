@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { replaceSkill } from './install';
 import { publishedBuild, verifiedFiles } from './experiment';
+import { noUpdatePath } from './distribution';
 
 const api = 'https://api.github.com/repos/glhoest/AgentBoard';
 const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'AgentBoard' };
@@ -58,7 +59,7 @@ async function updateBeta(target: string, fetcher: typeof fetch, force: boolean,
   if (before) {
     const current = JSON.parse(before);
     if (current.channel === 'beta' && current.commit === selected.commit) return { version: `beta-${selected.commit}`, changed: false };
-    if (current.channel === 'beta' && /^[a-f0-9]{40}$/.test(current.commit) && !force) {
+    if (current.channel === 'beta' && /^[a-f0-9]{40}$/.test(current.commit) && !(force && explicit)) {
       const comparison = await get(`/compare/${selected.commit}...${current.commit}`);
       if (!comparison.ok) throw new Error(`Cannot compare beta versions (HTTP ${comparison.status})`);
       const relation = await comparison.json();
@@ -67,6 +68,7 @@ async function updateBeta(target: string, fetcher: typeof fetch, force: boolean,
   }
   const files = await verifiedFiles(fetcher, { commit: selected.commit, pr: null, noUpdate: false }, selected.asset);
   replaceSkill(target, files, () => {
+    if (existsSync(join(target, noUpdatePath))) throw new Error('This AgentBoard build does not support updates');
     const current = existsSync(marker) ? readFileSync(marker, 'utf8') : null;
     const stableCurrent = existsSync(stableMarker) ? readFileSync(stableMarker, 'utf8') : null;
     if (current !== before || stableCurrent !== stableBefore) throw new Error('Installation changed during update; retry');
@@ -167,6 +169,7 @@ export async function fetchRelease(fetcher: typeof fetch = fetch, force = false,
 /** Replace only the vendored skill; restore the old directory if installation fails. */
 export async function updateInstallation(destination: string, fetcher: typeof fetch = fetch, force = false, now = Date.now(), selector: string | null = null): Promise<{ version: string; changed: boolean }> {
   const target = resolve(destination);
+  if (existsSync(join(target, noUpdatePath))) throw new Error('This AgentBoard build does not support updates');
   if (!existsSync(join(target, 'SKILL.md')) || !existsSync(join(target, 'scripts', 'agentboard.ts'))) {
     throw new Error('AgentBoard is not installed at the destination');
   }
@@ -188,6 +191,7 @@ export async function updateInstallation(destination: string, fetcher: typeof fe
     if (!release.files) throw new Error('Stable release has no files');
     release.files.set('.agentboard-release.json', Buffer.from(JSON.stringify({ version: release.tag }) + '\n'));
     replaceSkill(target, release.files, () => {
+      if (existsSync(join(target, noUpdatePath))) throw new Error('This AgentBoard build does not support updates');
       if (!existsSync(sourceMarker) || readFileSync(sourceMarker, 'utf8') !== sourceBefore) throw new Error('Installation changed during update; retry');
       return null;
     });
@@ -209,6 +213,7 @@ export async function updateInstallation(destination: string, fetcher: typeof fe
   const files = release.files;
   files.set('.agentboard-release.json', Buffer.from(JSON.stringify({ version: release.tag }) + '\n'));
   return replaceSkill(target, files, () => {
+    if (existsSync(join(target, noUpdatePath))) throw new Error('This AgentBoard build does not support updates');
     // Another updater may have installed a newer release while this download ran.
     const current = JSON.parse(readFileSync(marker, 'utf8'));
     if (typeof current.version !== 'string' || !stable.test(current.version)) throw new Error('Invalid installed version marker');

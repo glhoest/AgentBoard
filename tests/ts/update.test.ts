@@ -72,7 +72,20 @@ test('beta respects the three-day gate and verifies the source before replacing 
   expect(await updateInstallation(target, fetcher, true, now, 'beta')).toEqual({ version: tag, changed: false });
   writeFileSync(join(target, '.agentboard-build.json'), JSON.stringify({ channel: 'beta', commit: 'c'.repeat(40), noUpdate: false }));
   await expect(updateInstallation(target, fetcher, false, now + 1, `beta-${commit}`)).rejects.toThrow('requires --force');
+  await expect(updateInstallation(target, fetcher, true, now, 'beta')).rejects.toThrow('requires --force');
   expect(await updateInstallation(target, fetcher, true, now, `beta-${commit}`)).toEqual({ version: tag, changed: true });
+});
+
+test('a concurrent no-update installation is not replaced', async () => {
+  const { target } = installation();
+  const original = await release(valid);
+  const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await original(input, init);
+    if (String(input).startsWith('https://github.com/')) writeFileSync(join(target, '.agentboard-no-update'), '');
+    return response;
+  }) as typeof fetch;
+  await expect(updateInstallation(target, fetcher)).rejects.toThrow('does not support updates');
+  expect(readFileSync(join(target, 'SKILL.md'), 'utf8')).toBe('old');
 });
 
 test('verified release replaces the skill and leaves the board unchanged; repeat is idempotent', async () => {
