@@ -232,13 +232,56 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 
- .graph-panel{width:100%;max-width:none;display:flex;flex-direction:column;gap:12px}
-.graph-panel.graph-expanded{position:fixed;z-index:100;inset:5%;width:90%;height:90%;box-shadow:0 0 0 100vmax #0008;overflow:hidden}
-.graph-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.graph-tools label{display:flex;align-items:center;gap:5px}
-.graph-viewport{position:relative;overflow:auto;height:60vh;min-height:300px;border:1px solid var(--line);border-radius:8px;background:var(--bg);overscroll-behavior:contain}
-.graph-expanded .graph-viewport{height:auto;flex:1}.graph-space{position:relative;transform-origin:top left}.graph-edges{position:absolute;inset:0;overflow:visible;pointer-events:none}.graph-edge{fill:none;stroke:var(--muted);stroke-width:2}.graph-edge.active{stroke:var(--accent);stroke-width:3}.graph-edge.dim{opacity:.15}
-.graph-node{position:absolute;width:240px;min-height:94px;box-sizing:border-box;border:1px solid var(--line);border-left:6px solid var(--ok);border-radius:8px;padding:10px;background:var(--surface);color:var(--text);cursor:pointer;overflow-wrap:anywhere}
-.graph-node.blocked{border-left-color:var(--warn)}.graph-node.unavailable{border-left-color:var(--muted)}.graph-node.selected{outline:3px solid var(--accent)}.graph-node.dim{opacity:.22}.graph-node.search-match{box-shadow:0 0 0 3px var(--warn)}.graph-node p{margin:4px 0}.graph-node strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.graph-node .graph-meta{font-size:.8em;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.graph-node{overflow:hidden}.graph-node.collapsed{min-height:52px}.graph-node:focus-visible{outline:3px solid var(--accent)}
+/* Dependency graph: a quiet drafting-table canvas; cards carry status in a stripe + chip, the selected chain carries the accent. */
+.graph-panel{--g-dot:color-mix(in srgb,var(--line-strong) 55%,transparent);width:100%;max-width:none;margin:16px auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.graph-panel h2{margin:0;font-size:16px;line-height:1.2;letter-spacing:-.01em}
+.graph-backdrop{position:fixed;inset:0;background:#0008;backdrop-filter:blur(2px);z-index:99}
+.graph-panel.graph-expanded{position:fixed;z-index:100;inset:5%;width:90%;height:90%;margin:0;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.45)}
+.graph-tools{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:13px}
+.graph-tools label{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.graph-tools select,.graph-tools input[type=search]{min-height:28px;padding:2px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--text);font-size:13px}
+.graph-tools input[type=search]{width:190px}
+.graph-tools input[type=checkbox]{width:15px;height:15px;margin:0;accent-color:var(--accent)}
+.graph-tools .btn.small{min-height:28px;padding:1px 9px;font-size:12.5px;font-weight:500;border-radius:6px;background:var(--surface-2)}
+.graph-tools .btn.small:hover{background:var(--accent-soft);border-color:var(--accent)}
+.graph-tools [data-graph-expand]{margin-left:auto;font-weight:600}
+.graph-panel details{font-size:13px;color:var(--muted)}
+.graph-panel details>summary{cursor:pointer;width:max-content;padding:2px 0}
+.graph-panel details[open]{padding:8px 10px;border:1px dashed var(--line-strong);border-radius:8px}
+.graph-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0;padding:0;list-style:none;font-size:12px;color:var(--muted)}
+.graph-legend li{display:inline-flex;align-items:center;gap:6px}
+.graph-legend i{width:4px;height:12px;border-radius:2px;background:var(--ok)}
+.graph-legend .blocked i{background:var(--warn)}.graph-legend .unavailable i{background:var(--muted)}
+.graph-viewport{position:relative;overflow:auto;height:60vh;min-height:300px;border:1px solid var(--line);border-radius:10px;background-color:var(--col);background-image:radial-gradient(var(--g-dot) 1px,transparent 1.2px);background-size:20px 20px;box-shadow:inset 0 1px 4px rgba(0,0,0,.12);overscroll-behavior:contain}
+.graph-expanded .graph-viewport{height:auto;flex:1}
+.graph-space{position:relative;transform-origin:top left}
+.graph-edges{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.graph-edge{fill:none;stroke:var(--line-strong);stroke-width:1.5;stroke-linecap:round;transition:opacity .15s}
+.graph-edge.active{stroke:var(--accent);stroke-width:2.5}
+.graph-edge.dim{opacity:.12}
+.graph-node{position:absolute;display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:3px 6px;width:240px;min-height:94px;box-sizing:border-box;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:8px;padding:9px 10px 9px 11px;background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(20,24,40,.12);cursor:pointer;overflow:hidden;overflow-wrap:anywhere;transition:opacity .15s,box-shadow .15s,border-color .15s}
+.graph-node:hover{border-color:var(--line-strong);box-shadow:0 3px 10px rgba(20,24,40,.2)}
+.graph-node.blocked{border-left-color:var(--warn)}
+.graph-node.unavailable{border-left-color:var(--muted);border-style:dashed;border-left-style:solid;background:var(--surface-2)}
+.graph-node.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 6px 18px rgba(79,70,229,.28)}
+.graph-node.dim{opacity:.3}
+.graph-node.search-match{box-shadow:0 0 0 2px var(--warn),0 0 14px color-mix(in srgb,var(--warn) 45%,transparent)}
+.graph-node.selected.search-match{box-shadow:0 0 0 2px var(--accent),0 0 0 5px color-mix(in srgb,var(--warn) 70%,transparent)}
+.graph-node:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.graph-node p{margin:4px 0}
+.graph-node strong{flex:1 0 100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:650;line-height:1.3;letter-spacing:-.005em}
+.graph-node .graph-meta{flex:1 0 100%;font-size:11.5px;line-height:1.35;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.graph-node .graph-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.graph-node .graph-state{flex:0 0 auto;max-width:100%;padding:1px 8px;border-radius:999px;font-size:11px;line-height:1.35;font-weight:600;background:var(--ok-soft);color:var(--ok)}
+.graph-node .graph-state.blocked{background:var(--warn-soft);color:var(--warn)}
+.graph-node .graph-state.unavailable{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.graph-node .btn.small{min-height:24px;margin-top:4px;padding:0 9px;font-size:12px;font-weight:500;border-radius:6px;background:transparent;border-color:var(--line-strong)}
+.graph-node .btn.small:hover{background:var(--accent-soft);border-color:var(--accent)}
+.graph-node.collapsed{min-height:52px;flex-wrap:nowrap;flex-direction:column;align-items:stretch;gap:0;opacity:.82}
+.graph-node.collapsed strong{flex:0 0 auto;-webkit-line-clamp:1}
+.graph-node.collapsed .graph-meta{flex:0 0 auto}
+.graph-node.collapsed.dim{opacity:.3}
+@media (prefers-reduced-motion:reduce){.graph-node,.graph-edge{transition:none}}
 
 </style>
 </head>
@@ -434,6 +477,7 @@ function normalizeSnapshot(raw) {
   const list = [...items.values()];
   return {
     graphSettings: validateGraphSettings(raw.graphSettings ?? {...DEFAULT_GRAPH_SETTINGS, fields:[]}), graphSettingsHash: raw.graphSettingsHash ?? null,
+    graphSettingsError: typeof raw.graphSettingsError === 'string' ? raw.graphSettingsError : '',
     config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns, fields},
     columns: all, items, list, features, problems, issues: (raw.issues || []).map(issue => ({...issue, hash: raw.hashes[issue.id]})), issuesError: typeof raw.issuesError === 'string' ? raw.issuesError : '',
     cfgKey: JSON.stringify(raw.config),
@@ -444,6 +488,10 @@ function normalizeSnapshot(raw) {
 /* ---------- backends ---------- */
 const DEFAULT_GRAPH_SETTINGS = {version:'1.0.0', orientation:'horizontal', layout:'compact', showUnlinked:false, fields:[]};
 function validateGraphSettings(value) {
+  if (isObj(value) && typeof value.version === 'string' && /^\d+\.\d+\.\d+$/.test(value.version)) {
+    const parts = value.version.split('.').map(Number);
+    if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 0 || parts[2] > 0))) throw new ApiError('data', 'Graph settings were written by a newer AgentBoard; update this copy');
+  }
   if (!isObj(value) || Object.keys(value).sort().join(',') !== 'fields,layout,orientation,showUnlinked,version' || value.version !== '1.0.0' || !['horizontal','vertical'].includes(value.orientation) || !['compact','loose'].includes(value.layout) || typeof value.showUnlinked !== 'boolean' || !Array.isArray(value.fields) || value.fields.length > 100 || value.fields.some(x => typeof x !== 'string' || !(['assignee','priority','labels','feature'].includes(x) || (x.startsWith('field:') && SLUG_RE.test(x.slice(6))))) || new Set(value.fields).size !== value.fields.length) throw new ApiError('data', 'Invalid graph settings');
   return value;
 }
@@ -853,8 +901,10 @@ async function directBackend(picked) {
           features.push(feature); hashes[feature.id] = await sha(bytes);
         }
         if (errors.length) throw new ApiError('data', 'Invalid board data on disk — ' + errors.slice(0, 3).join('; ') + (errors.length > 3 ? ` (+${errors.length - 3} more)` : ''));
-        const graph = await readGraph();
-        return {config, items, features, hashes, graphSettings:graph.settings, graphSettingsHash:graph.hash};
+        let graph, graphSettingsError = '';
+        try { graph = await readGraph(); }
+        catch (e) { graph = {settings:{...DEFAULT_GRAPH_SETTINGS, fields:[]}, hash:null}; graphSettingsError = e.message || String(e); }
+        return {config, items, features, hashes, graphSettings:graph.settings, graphSettingsHash:graph.hash, graphSettingsError};
       } catch (e) { wrapPerm(e); }
     },
     async create(values) {
@@ -999,7 +1049,7 @@ function applySnapshot(snap) {
     for (const id of prev.items.keys()) if (!snap.items.has(id)) changed.add(id);
   }
   const featureChanged = !prev || JSON.stringify([...prev.features.values()]) !== JSON.stringify([...snap.features.values()]);
-  const structural = featureChanged || !prev || prev.graphSettingsHash !== snap.graphSettingsHash || JSON.stringify(prev.graphSettings) !== JSON.stringify(snap.graphSettings) || prev.issuesError !== snap.issuesError || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
+  const structural = featureChanged || !prev || prev.graphSettingsHash !== snap.graphSettingsHash || prev.graphSettingsError !== snap.graphSettingsError || JSON.stringify(prev.graphSettings) !== JSON.stringify(snap.graphSettings) || prev.issuesError !== snap.issuesError || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
   let draftChanged = false;
   for (const d of S.drafts.values()) if (syncDraft(d)) draftChanged = true;
   if (structural) {
@@ -1247,6 +1297,7 @@ function alertBox(kind, title, body, actions) {
 function renderNotices() {
   const box = $('#notices'); clear(box);
   if (S.snap && S.snap.issuesError) box.append(alertBox('error', 'Issue tracker could not be loaded', ['Issue data is unavailable: ' + S.snap.issuesError, 'Inspect and repair the issue files, then retry. Work-card status changes may also require repair.']));
+  if (S.snap && S.snap.graphSettingsError) box.append(alertBox('error', 'Graph settings could not be loaded', ['The graph uses temporary defaults: ' + S.snap.graphSettingsError, 'Update AgentBoard or repair the settings file before saving graph settings.']));
   if (S.mode === 'direct') box.append(alertBox('warn', 'Direct file mode: concurrent updates can be lost',
     ['This page writes board files itself. It cannot take the advisory lock or do an atomic compare-and-swap, so if the CLI, the bridge, another tab, Git or another person writes the same card at nearly the same moment, one of the updates can be silently lost.',
      'The revision and file hash are re-checked just before each save, but that check is not a guarantee. Prefer the local bridge (bun agentboard.ts serve) whenever you can.']));
@@ -1366,7 +1417,7 @@ function dependencyEditor(d, dirtyTick) {
     }}, 'Add dependency'),
     h('p', {text:'Dependents: ' + (dependents.length ? dependents.map(x => x.title + ' (' + x.id + ')').join(', ') : 'None')}));
 }
-const graphUI = {settings:null, base:null, hash:null, dirty:false, conflict:false, selected:null, hover:null, expanded:false, zoom:1, x:0, y:0, search:'', match:0, settingsOpen:false, saving:false, opened:new Set()};
+const graphUI = {settings:null, base:null, hash:null, dirty:false, conflict:false, selected:null, hover:null, expanded:false, zoom:1, x:0, y:0, search:'', match:-1, settingsOpen:false, saving:false, opened:new Set()};
 function graphDefaults() { return {version:'1.0.0', orientation:'horizontal', layout:'compact', showUnlinked:false, fields:[]}; }
 function graphRefresh() { if (S.view === 'graph') renderBoard(); }
 function graphReach(id, adjacent) {
@@ -1391,14 +1442,21 @@ function renderGraph(root) {
   function level(id) { if (depth.has(id)) return depth.get(id); if (visiting.has(id)) return 0; visiting.add(id); const d = Math.max(0, ...(deps.get(id) || []).map(p => level(p) + 1)); visiting.delete(id); depth.set(id, d); return d; }
   ids.forEach(level);
   const layers = new Map(); for (const id of ids) { const d = depth.get(id); if (!layers.has(d)) layers.set(d, []); layers.get(d).push(id); }
-  const positions = new Map(), used = new Map(), inherited = new Set(); let nextLane = 0;
-  for (const d of [...layers.keys()].sort((a,b) => a-b)) for (const id of layers.get(d)) {
-    let lane = 0; const primary = deps.get(id)[0];
-    if (g.settings.layout === 'loose') {
-      if (positions.has(primary) && !inherited.has(primary)) { lane = positions.get(primary).lane; inherited.add(primary); }
-      else { lane = nextLane++; }
-    }
-    const occupied = used.get(d) || new Set(); while (occupied.has(lane)) lane++; occupied.add(lane); used.set(d, occupied);
+  const positions = new Map(), used = new Map(), inherited = new Set();
+  for (const d of [...layers.keys()].sort((a,b) => a-b)) for (const id of layers.get(d).sort((a,b) => {
+    if (g.settings.layout !== 'loose') return a.localeCompare(b);
+    const aParent = deps.get(a)[0], bParent = deps.get(b)[0];
+    const laneDiff = (positions.get(aParent)?.lane ?? -1) - (positions.get(bParent)?.lane ?? -1);
+    return laneDiff || String(aParent || '').localeCompare(String(bParent || '')) || a.localeCompare(b);
+  })) {
+    let lane = 0; const primary = deps.get(id)[0], occupied = used.get(d) || new Set();
+    if (g.settings.layout === 'loose' && positions.has(primary)) {
+      const parentLane = positions.get(primary).lane;
+      if (!inherited.has(primary) && !occupied.has(parentLane)) lane = parentLane;
+      else { lane = parentLane + 1; while (occupied.has(lane)) lane++; }
+      inherited.add(primary);
+    } else { while (occupied.has(lane)) lane++; }
+    occupied.add(lane); used.set(d, occupied);
     positions.set(id, {depth:d, lane});
   }
   const vertical = g.settings.orientation === 'vertical', cellW = 300, nodeHeight = 140 + (g.settings.fields || []).length * 24, cellH = nodeHeight + 40;
@@ -1415,7 +1473,7 @@ function renderGraph(root) {
   const space = h('div', {class:'graph-space', style:`width:${width}px;height:${height}px;transform:scale(${g.zoom})`});
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class','graph-edges'); svg.setAttribute('width',width); svg.setAttribute('height',height); svg.setAttribute('aria-hidden','true');
   const defs = document.createElementNS(svg.namespaceURI,'defs'), marker = document.createElementNS(svg.namespaceURI,'marker'), arrow = document.createElementNS(svg.namespaceURI,'path');
-  for (const [k,v] of Object.entries({id:'graph-arrowhead',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'7',markerHeight:'7',orient:'auto-start-reverse'})) marker.setAttribute(k,v);
+  for (const [k,v] of Object.entries({id:'graph-arrowhead',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'5',markerHeight:'5',orient:'auto-start-reverse'})) marker.setAttribute(k,v);
   arrow.setAttribute('d','M 0 0 L 10 5 L 0 10 z'); arrow.setAttribute('fill','context-stroke'); marker.append(arrow); defs.append(marker); svg.append(defs);
   for (const [id, parents] of deps) for (const parent of parents) {
     const a = coords(parent), b = coords(id), path = document.createElementNS(svg.namespaceURI,'path');
@@ -1429,19 +1487,19 @@ function renderGraph(root) {
     const item = snap.items.get(id), p = coords(id), state = dependencyState(id), blockers = item ? item.dependencies.filter(dep => !dependencyState(dep).satisfied).length : 0;
     const isDone = item && item.status === snap.config.columns.at(-1).id, collapsed = (!item || item.archived || isDone) && !g.opened.has(id);
     const status = item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing card';
-    const node = h('div', {class:'graph-node' + (blockers ? ' blocked' : '') + (!item || item.archived ? ' unavailable' : '') + (collapsed ? ' collapsed' : '') + (id === g.selected ? ' selected' : '') + (highlighted && !highlighted.has(id) ? ' dim' : '') + (matches.includes(id) ? ' search-match' : ''), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id, tabindex:'0', role:'button', 'aria-pressed':String(id === g.selected), 'aria-label':(item?.title || 'Missing card') + ', ' + id + ', ' + status + ', ' + (blockers ? 'Blocked' : 'Ready')});
-    const select = () => { if (collapsed) g.opened.add(id); g.selected = g.selected === id ? null : id; graphRefresh(); document.querySelector('.graph-node[data-id="' + CSS.escape(id) + '"]')?.focus({preventScroll:true}); };
+    const node = h('div', {class:'graph-node' + (blockers ? ' blocked' : '') + (!item || item.archived ? ' unavailable' : '') + (collapsed ? ' collapsed' : '') + (id === g.selected ? ' selected' : '') + (highlighted && !highlighted.has(id) ? ' dim' : '') + (matches.includes(id) ? ' search-match' : ''), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id, tabindex:'0', role:'button', 'aria-pressed':String(id === g.selected), 'aria-label':(item?.title || 'Missing card') + ', ' + id + ', ' + status + ', ' + (!item ? 'Unavailable, satisfied' : blockers ? 'Blocked' : 'Ready')});
+    const select = () => { if (collapsed) { g.opened.add(id); g.selected = id; } else g.selected = g.selected === id ? null : id; graphRefresh(); document.querySelector('.graph-node[data-id="' + CSS.escape(id) + '"]')?.focus({preventScroll:true}); };
     node.addEventListener('click',select); node.addEventListener('keydown',e => {
       if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(); }
       else if (e.target instanceof HTMLButtonElement && e.key === 'Enter') { e.preventDefault(); e.target.click(); }
     });
     node.addEventListener('mouseenter',() => {g.hover=id; graphHighlight();}); node.addEventListener('mouseleave',() => {g.hover=null; graphHighlight();});
     node.addEventListener('focus',() => {g.hover=id; graphHighlight();}); node.addEventListener('blur',() => {g.hover=null; graphHighlight();});
-    node.append(h('strong',{text:item?.title || 'Missing card'}),h('div',{class:'graph-meta',text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
+    node.append(h('strong',{text:item?.title || 'Missing card'}),h('div',{class:'graph-meta graph-id',text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
     if (!collapsed) {
-      node.append(h('div',{class:'graph-meta',text:!item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers'}));
+      node.append(h('div',{class:'graph-meta graph-state ' + (!item ? 'unavailable' : blockers ? 'blocked' : 'ready'),text:!item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers'}));
       if (item) for (const field of g.settings.fields || []) { let value = field.startsWith('field:') ? (hasOwn(item.fields, field.slice(6)) ? item.fields[field.slice(6)] : undefined) : field === 'feature' ? snap.features.get(item.feature)?.title : item[field]; if (Array.isArray(value)) value = value.join(', '); if (value !== null && value !== undefined && value !== '') node.append(h('div',{class:'graph-meta',text:(snap.config.fields.find(x => 'field:' + x.id === field)?.name || field) + ': ' + String(value)})); }
-      if (item) node.append(h('button',{type:'button',class:'btn small',onclick:e => {e.stopPropagation();openEditor(id);}},'Edit'));
+      if (item) node.append(h('button',{type:'button',class:'btn small', 'data-fk':id + ':graph-edit', onclick:e => {e.stopPropagation();openEditor(id, {returnFocus:id + ':graph-edit'});}},'Edit'));
       if (!item || item.archived || isDone) node.append(h('button',{type:'button',class:'btn small',onclick:e => {e.stopPropagation();g.opened.delete(id);graphRefresh();}},'Collapse'));
     }
     space.append(node);
@@ -1449,19 +1507,26 @@ function renderGraph(root) {
   function graphHighlight() { const current=g.hover || g.selected, ancestors=current ? graphReach(current,deps) : null, descendants=current ? graphReach(current,children) : null; for(const node of space.querySelectorAll('.graph-node')) node.classList.toggle('dim',!!current && !ancestors.has(node.dataset.id) && !descendants.has(node.dataset.id)); for(const edge of svg.querySelectorAll('.graph-edge')) {const on=!!current && ((ancestors.has(edge.dataset.from)&&ancestors.has(edge.dataset.to)) || (descendants.has(edge.dataset.from)&&descendants.has(edge.dataset.to)));edge.classList.toggle('active',on);edge.classList.toggle('dim',!!current&&!on);} }
   scaleWrap.append(space); viewport.append(scaleWrap);
   viewport.addEventListener('scroll',() => {g.x=viewport.scrollLeft;g.y=viewport.scrollTop;});
-  viewport.addEventListener('click',e => {if(e.target===viewport || e.target===space || e.target===scaleWrap) {g.selected=null;graphRefresh();}});
-  let drag = null; viewport.addEventListener('pointerdown',e => {if(e.button!==0 || e.target.closest('.graph-node')) return; drag={x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(e.pointerId);});
-  viewport.addEventListener('pointermove',e => {if(drag){viewport.scrollLeft=drag.left+drag.x-e.clientX;viewport.scrollTop=drag.top+drag.y-e.clientY;}}); viewport.addEventListener('pointerup',()=>{drag=null;}); viewport.addEventListener('pointercancel',()=>{drag=null;});
+  let suppressClick = false;
+  viewport.addEventListener('click',e => {if (suppressClick) { suppressClick=false; return; } if(e.target===viewport || e.target===space || e.target===scaleWrap) {g.selected=null;graphRefresh();}});
+  let drag = null; viewport.addEventListener('pointerdown',e => {if(e.button!==0 || e.target.closest('.graph-node')) return; suppressClick=false; drag={x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(e.pointerId);});
+  viewport.addEventListener('pointermove',e => {if(drag){if (Math.abs(drag.x-e.clientX)+Math.abs(drag.y-e.clientY)>4) suppressClick=true; viewport.scrollLeft=drag.left+drag.x-e.clientX;viewport.scrollTop=drag.top+drag.y-e.clientY;}}); viewport.addEventListener('pointerup',()=>{drag=null;}); viewport.addEventListener('pointercancel',()=>{drag=null;});
   const change = (key,value) => {if (g.saving) return; g.settings[key]=value;g.dirty=JSON.stringify(g.settings)!==g.base;graphRefresh();};
   const orientation = h('select',{'aria-label':'Orientation',disabled:g.saving,onchange:e=>change('orientation',e.target.value)},h('option',{value:'horizontal',text:'Left to right'}),h('option',{value:'vertical',text:'Top to bottom'}));orientation.value=g.settings.orientation;
   const layout = h('select',{'aria-label':'Layout',disabled:g.saving,onchange:e=>change('layout',e.target.value)},h('option',{value:'compact',text:'Compact'}),h('option',{value:'loose',text:'Loose'}));layout.value=g.settings.layout;
-  const search = h('input',{type:'search',value:g.search,'aria-label':'Search graph',placeholder:'Search title or ID',oninput:e=>{g.search=e.target.value;g.match=0; graphRefresh();const input=$('[aria-label="Search graph"]'); input?.focus();}});
-  function findMatch(delta){if(!matches.length)return;g.match=(g.match+delta+matches.length)%matches.length;const p=coords(matches[g.match]);viewport.scrollLeft=Math.max(0,p.x*g.zoom-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,p.y*g.zoom-viewport.clientHeight/2);}
+  const search = h('input',{type:'search',value:g.search,'aria-label':'Search graph',placeholder:'Search title or ID',oninput:e=>{g.search=e.target.value;g.match=-1; const start=e.target.selectionStart, end=e.target.selectionEnd; graphRefresh();const input=$('[aria-label="Search graph"]'); input?.focus(); if (start != null && end != null) input?.setSelectionRange(start,end);}});
+  function findMatch(delta){if(!matches.length)return;g.match=g.match < 0 ? (delta > 0 ? 0 : matches.length - 1) : (g.match+delta+matches.length)%matches.length;const p=coords(matches[g.match]);viewport.scrollLeft=Math.max(0,p.x*g.zoom-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,p.y*g.zoom-viewport.clientHeight/2);}
   const tools = h('div',{class:'graph-tools'},h('label',{},'Orientation ',orientation),h('label',{},'Layout ',layout),h('label',{},h('input',{type:'checkbox',checked:g.settings.showUnlinked,disabled:g.saving,onchange:e=>change('showUnlinked',e.target.checked)}),'Show unlinked cards'),search,h('span',{text:query ? `${matches.length} matches` : ''}),h('button',{type:'button',class:'btn small',onclick:()=>findMatch(-1)},'Previous match'),h('button',{type:'button',class:'btn small',onclick:()=>findMatch(1)},'Next match'),h('button',{type:'button',class:'btn small',onclick:()=>{g.zoom=Math.max(.2,g.zoom-.1);graphRefresh();}},'Zoom out'),h('button',{type:'button',class:'btn small',onclick:()=>{g.zoom=Math.min(2,g.zoom+.1);graphRefresh();}},'Zoom in'),h('button',{type:'button',class:'btn small',onclick:()=>{g.zoom=Math.min(1,viewport.clientWidth/width,viewport.clientHeight/height);g.x=0;g.y=0;graphRefresh();}},'Fit to view'),h('button',{type:'button',class:'btn small',onclick:()=>{g.expanded=!g.expanded;graphRefresh();document.querySelector(g.expanded ? '[aria-label="Dependency graph canvas"]' : '[data-graph-expand]')?.focus({preventScroll:true});},'data-graph-expand':'true'},g.expanded ? 'Close expanded graph' : 'Expand graph'));
   const choices = [['assignee','Assignee'],['priority','Priority'],['labels','Labels'],['feature','Feature'],...snap.config.fields.map(f=>['field:'+f.id,f.name])];
-  const settings = h('details',{open:g.settingsOpen, ontoggle:e=>{g.settingsOpen=e.target.open;}},h('summary',{text:'Card display settings'}),h('div',{class:'graph-tools'},choices.map(([id,label])=>h('label',{},h('input',{type:'checkbox',checked:(g.settings.fields||[]).includes(id),disabled:g.saving,onchange:e=>change('fields',e.target.checked ? [...g.settings.fields,id] : g.settings.fields.filter(x=>x!==id))}),label))),h('button',{type:'button',class:'btn small',disabled:!g.dirty || g.saving,onclick:async()=>{if (g.saving) return; g.saving=true; const submitted=structuredClone(g.settings); graphRefresh(); try {const result=await mutate(() => S.backend.saveGraphSettings(submitted,g.hash));g.hash=result.hash;g.base=JSON.stringify(result.settings);g.dirty=JSON.stringify(g.settings)!==g.base;g.conflict=false;await pollFresh();}catch(e){if(e.status===409 || e.kind==='conflict'){g.conflict=true;await pollFresh();} else toast(e.message,{kind:'error'});} finally {g.saving=false;graphRefresh();}}},'Save shared settings'),g.conflict ? h('div',{role:'alert'},'Shared settings changed. ',h('button',{type:'button',class:'btn small',disabled:g.saving,onclick:()=>{g.settings=structuredClone(snap.graphSettings||graphDefaults());g.hash=snap.graphSettingsHash??null;g.base=JSON.stringify(g.settings);g.dirty=false;g.conflict=false;graphRefresh();}},'Reload shared settings'),h('button',{type:'button',class:'btn small',disabled:g.saving,onclick:async()=>{if(g.saving)return;g.saving=true;g.hash=S.snap.graphSettingsHash??null;const submitted=structuredClone(g.settings);graphRefresh();try{const result=await mutate(() => S.backend.saveGraphSettings(submitted,g.hash));g.hash=result.hash;g.base=JSON.stringify(result.settings);g.dirty=JSON.stringify(g.settings)!==g.base;g.conflict=false;await pollFresh();}catch(e){g.conflict=true;await pollFresh();toast(e.message,{kind:'error'});}finally{g.saving=false;graphRefresh();}}},'Overwrite shared settings')) : null);
+  for (const id of g.settings.fields) if (!choices.some(([key]) => key === id)) choices.push([id, 'Unavailable: ' + id]);
+  const settings = h('details',{open:g.settingsOpen, ontoggle:e=>{g.settingsOpen=e.target.open;}},h('summary',{text:'Card display settings'}),h('div',{class:'graph-tools'},choices.map(([id,label])=>h('label',{},h('input',{type:'checkbox',checked:(g.settings.fields||[]).includes(id),disabled:g.saving,onchange:e=>change('fields',e.target.checked ? [...g.settings.fields,id] : g.settings.fields.filter(x=>x!==id))}),label))),h('button',{type:'button',class:'btn small',disabled:!g.dirty || g.saving || !!snap.graphSettingsError,onclick:async()=>{if (g.saving) return; g.saving=true; const submitted=structuredClone(g.settings); graphRefresh(); try {const result=await mutate(() => S.backend.saveGraphSettings(submitted,g.hash));g.hash=result.hash;g.base=JSON.stringify(result.settings);g.dirty=JSON.stringify(g.settings)!==g.base;g.conflict=false;await pollFresh();}catch(e){if(e.status===409 || e.kind==='conflict'){g.conflict=true;await pollFresh();} else toast(e.message,{kind:'error'});} finally {g.saving=false;graphRefresh();}}},'Save shared settings'),g.conflict ? h('div',{role:'alert'},'Shared settings changed. ',h('button',{type:'button',class:'btn small',disabled:g.saving,onclick:()=>{g.settings=structuredClone(snap.graphSettings||graphDefaults());g.hash=snap.graphSettingsHash??null;g.base=JSON.stringify(g.settings);g.dirty=false;g.conflict=false;graphRefresh();}},'Reload shared settings'),h('button',{type:'button',class:'btn small',disabled:g.saving || !!snap.graphSettingsError,onclick:async()=>{if(g.saving)return;g.saving=true;g.hash=S.snap.graphSettingsHash??null;const submitted=structuredClone(g.settings);graphRefresh();try{const result=await mutate(() => S.backend.saveGraphSettings(submitted,g.hash));g.hash=result.hash;g.base=JSON.stringify(result.settings);g.dirty=JSON.stringify(g.settings)!==g.base;g.conflict=false;await pollFresh();}catch(e){if(e.status===409 || e.kind==='conflict'){g.conflict=true;await pollFresh();}toast(e.message,{kind:'error'});}finally{g.saving=false;graphRefresh();}}},'Overwrite shared settings')) : null);
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){if(g.selected){g.selected=null;g.hover=null;e.stopPropagation();graphRefresh();document.querySelector('.graph-viewport')?.focus({preventScroll:true});}else if(g.expanded){g.expanded=false;e.stopPropagation();graphRefresh();document.querySelector('[data-graph-expand]')?.focus({preventScroll:true});}}});
-  panel.append(h('h2',{text:'Dependency graph'}),tools,settings,ids.length ? viewport : h('p',{text:'No dependency links yet.'})); root.append(panel);
+  panel.append(h('h2',{text:'Dependency graph'}));
+  if (snap.graphSettingsError) panel.append(h('p',{role:'alert',text:'Graph settings cannot be saved: ' + snap.graphSettingsError}));
+  const legend = h('ul',{class:'graph-legend','aria-label':'Card status key'},h('li',{class:'ready'},h('i'),'Ready'),h('li',{class:'blocked'},h('i'),'Blocked'),h('li',{class:'unavailable'},h('i'),'Missing or archived'));
+  panel.append(tools,settings,ids.length ? legend : null,ids.length ? viewport : h('p',{text:'No dependency links yet.'}));
+  if (g.expanded) root.append(h('div',{class:'graph-backdrop','aria-hidden':'true'}));
+  root.append(panel);
   viewport.scrollLeft=g.x; viewport.scrollTop=g.y;
   if (g.expanded) panel.addEventListener('keydown', e => {
     if (e.key !== 'Tab') return;
@@ -1905,7 +1970,7 @@ function openEditor(key, opts = {}) {
   renderDrafts(); renderBoard();
   const first = $('#ed-title'); if (first) { first.focus(); }
 }
-function closeEditorUi() { if (editor().open) editor().close(); }
+function closeEditorUi() { if (editor().open) { editor().close(); if (S.view === 'graph') focusFk(S.returnFocus); } }
 
 function field(id, label, control, extra) {
   return h('div', {class: 'field'}, h('label', {for: id}, label), control, h('div', {class: 'err', id: 'err-' + id.replace(/^ed-/, '')}), extra || null);

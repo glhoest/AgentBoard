@@ -35,6 +35,19 @@ test('graph settings writes use the snapshot hash for concurrency', async () => 
   expect((await board()).graphSettings.orientation).toBe('vertical');
 });
 
+test('unreadable graph settings warn without blocking cards or permitting overwrite', async () => {
+  const file = join(dir, '.agentboard', 'graph-settings.json');
+  writeFileSync(file, JSON.stringify({version:'9.0.0'}));
+  try {
+    const snap = await board();
+    expect(snap.graphSettingsError).toContain('newer AgentBoard');
+    expect(snap.graphSettings.layout).toBe('compact');
+    const result = await fetch(`${base}/api/graph-settings`, {method:'PATCH', headers:json(), body:JSON.stringify({settings:snap.graphSettings, hash:null})});
+    expect(result.status).toBe(400);
+    expect((await create('Available despite graph settings')).title).toBe('Available despite graph settings');
+  } finally { rmSync(file, {force:true}); }
+});
+
 test('issue submission and evidence use snapshot hashes for conflict detection', async () => {
   const created = await fetch(`${base}/api/issues`, { method: 'POST', headers: json(), body: JSON.stringify({title: 'Defect', observed: 'Fails'}) });
   expect(created.status).toBe(201);

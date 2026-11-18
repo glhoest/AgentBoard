@@ -20,6 +20,12 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
 export function validateGraphSettings(value: unknown): GraphSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BoardError('Invalid graph settings');
   const v = value as Record<string, unknown>;
+  if (typeof v.version === 'string' && /^\d+\.\d+\.\d+$/.test(v.version)) {
+    const parts = v.version.split('.').map(Number);
+    if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 0 || parts[2] > 0))) {
+      throw new BoardError('Graph settings were written by a newer AgentBoard; update this copy');
+    }
+  }
   if (Object.keys(v).sort().join(',') !== 'fields,layout,orientation,showUnlinked,version'
     || v.version !== '1.0.0' || !['horizontal', 'vertical'].includes(v.orientation as string)
     || !['compact', 'loose'].includes(v.layout as string) || typeof v.showUnlinked !== 'boolean'

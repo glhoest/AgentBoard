@@ -137,6 +137,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       expect(await p.eval(`document.querySelector(${JSON.stringify(node(sibling.id))}).classList.contains('dim')`)).toBe(true);
       expect(await p.eval(`document.querySelector('.graph-edge[data-from="${parent.id}"][data-to="${middle.id}"]').classList.contains('active')`)).toBe(true);
       expect(await p.eval(`document.querySelector('.graph-edge[data-from="${parent.id}"][data-to="${sibling.id}"]').classList.contains('dim')`)).toBe(true);
+      if (SHOTS) { mkdirSync(SHOTS, {recursive: true}); await p.resize(1400, 900); await p.screenshot(join(SHOTS, 'graph-highlight.png')); }
       await p.focus('.graph-viewport');
       await p.key('Escape');
       expect(await p.eval(`document.querySelector(${JSON.stringify(node(sibling.id))}).classList.contains('dim')`)).toBe(false);
@@ -164,6 +165,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Expand graph').click()`);
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
       expect(await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).getAttribute('aria-pressed')`)).toBe('true');
+      if (SHOTS) { mkdirSync(SHOTS, {recursive: true}); await p.resize(1400, 900); await p.screenshot(join(SHOTS, 'graph-expanded-vertical.png')); }
       await p.focus('.graph-viewport');
       await p.key('Escape');
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
@@ -265,6 +267,117 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       expect(await p.eval(`document.querySelector('[role="dialog"]').contains(document.activeElement)`)).toBe(true);
       await p.key('Escape');
       expect(await p.eval(`document.activeElement.matches('[data-graph-expand]')`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('collapsed graph cards expose status and can be reopened while selected', async () => {
+    const title = 'Collapsed title '.repeat(14);
+    const done = cliJson('create', title);
+    const dependent = cliJson('create', 'Collapsed card dependent');
+    cliJson('dependency-add', dependent.id, done.id);
+    cliJson('move', done.id, 'done');
+    const p = await chrome.newPage();
+    const node = `.graph-node[data-id="${done.id}"]`;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Collapsed card dependent')); await p.click('#view-graph');
+      await p.waitFor(`document.querySelector(${JSON.stringify(node)})`);
+      expect(await p.eval(`(() => { const n = document.querySelector(${JSON.stringify(node)}), m = n.querySelector('.graph-meta'); return m.textContent.includes('Done') && m.getBoundingClientRect().bottom <= n.getBoundingClientRect().bottom; })()`)).toBe(true);
+      await p.eval(`document.querySelector(${JSON.stringify(node)}).click()`);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+      await p.eval(`[...document.querySelectorAll(${JSON.stringify(node + ' button')})].find(b => b.textContent === 'Collapse').click()`);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).classList.contains('collapsed')`)).toBe(true);
+      await p.eval(`document.querySelector(${JSON.stringify(node)}).click()`);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).classList.contains('collapsed')`)).toBe(false);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('loose layout places sibling branches in adjacent lanes', async () => {
+    const roots = Array.from({length: 3}, (_, i) => cliJson('create', `Adjacent root ${i}`)).sort((a, b) => a.id.localeCompare(b.id));
+    const siblings = [cliJson('create', 'Adjacent sibling A'), cliJson('create', 'Adjacent sibling B')];
+    for (const sibling of siblings) cliJson('dependency-add', sibling.id, roots[0].id);
+    for (let i = 1; i < roots.length; i++) {
+      const item = cliJson('create', `Adjacent unrelated ${i}`);
+      cliJson('dependency-add', item.id, roots[i].id);
+    }
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Adjacent sibling A')); await p.click('#view-graph');
+      await p.eval(`(() => { const el = document.querySelector('[aria-label="Layout"]'); el.value = 'loose'; el.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+      const gap = await p.eval<number>(`(() => { const a = document.querySelector('.graph-node[data-id="${siblings[0].id}"]').getBoundingClientRect(); const b = document.querySelector('.graph-node[data-id="${siblings[1].id}"]').getBoundingClientRect(); return Math.abs(a.top - b.top) - Math.max(a.height, b.height); })()`);
+      expect(gap).toBeLessThanOrEqual(45);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('dragging the graph canvas preserves a pinned selection', async () => {
+    const parent = cliJson('create', 'Drag graph prerequisite');
+    const child = cliJson('create', 'Drag graph selected');
+    cliJson('dependency-add', child.id, parent.id);
+    const p = await chrome.newPage();
+    const node = `.graph-node[data-id="${child.id}"]`;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Drag graph selected')); await p.click('#view-graph');
+      await p.eval(`document.querySelector(${JSON.stringify(node)}).click()`);
+      const point = await p.eval<{x: number; y: number}>(`(() => { const r = document.querySelector('.graph-viewport').getBoundingClientRect(); return {x:r.left+30,y:r.bottom-20}; })()`);
+      expect(await p.eval(`!document.elementFromPoint(${point.x}, ${point.y})?.closest('.graph-node')`)).toBe(true);
+      await p.send('Input.dispatchMouseEvent', {type:'mouseMoved', x:point.x, y:point.y});
+      await p.send('Input.dispatchMouseEvent', {type:'mousePressed', x:point.x, y:point.y, button:'left', buttons:1, clickCount:1});
+      await p.send('Input.dispatchMouseEvent', {type:'mouseMoved', x:point.x+65, y:point.y, button:'left', buttons:1});
+      await p.send('Input.dispatchMouseEvent', {type:'mouseReleased', x:point.x+65, y:point.y, button:'left', clickCount:1});
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('expanded graph opens the card editor with the mouse and restores focus', async () => {
+    const parent = cliJson('create', 'Expanded editor prerequisite');
+    const child = cliJson('create', 'Expanded editor card');
+    cliJson('dependency-add', child.id, parent.id);
+    const p = await chrome.newPage();
+    const node = `.graph-node[data-id="${child.id}"]`;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Expanded editor card')); await p.click('#view-graph');
+      await p.click('[data-graph-expand]');
+      await p.click(`${node} button`);
+      await p.waitFor(`document.querySelector('#editor').open`);
+      expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Expanded editor card');
+      expect(await p.eval(`document.querySelector('#editor').contains(document.activeElement)`)).toBe(true);
+      await p.click('#ed-cancel');
+      await p.waitFor(`!document.querySelector('#editor').open`);
+      expect(await p.eval(`document.querySelector('[aria-label="Expanded dependency graph"]').contains(document.activeElement)`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('first Next match navigates to the first search result', async () => {
+    const chain = Array.from({length: 12}, (_, i) => cliJson('create', i === 4 || i === 8 ? `Find target ${i}` : `Find path ${i}`));
+    for (let i = 1; i < chain.length; i++) cliJson('dependency-add', chain[i].id, chain[i - 1].id);
+    const matches = [chain[4].id, chain[8].id].sort();
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Find target 8')); await p.click('#view-graph');
+      await p.set('[aria-label="Search graph"]', 'Find target');
+      await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Next match').click()`);
+      const reachedFirst = await p.eval<boolean>(`(() => { const v = document.querySelector('.graph-viewport'); const n = document.querySelector('.graph-node[data-id="${matches[0]}"]'); const expected = Math.max(0, Math.min(v.scrollWidth - v.clientWidth, n.offsetLeft - v.clientWidth / 2)); return Math.abs(v.scrollLeft - expected) < 3; })()`);
+      expect(reachedFirst).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('capture representative dependency graph screenshots when requested', async () => {
+    if (!SHOTS) return;
+    const titles = ['Project discovery', 'Agree on requirements', 'Design the interface', 'Implement the service', 'Build the dashboard', 'Review and release'];
+    const cards = titles.map(title => cliJson('create', title));
+    for (const [child, parent] of [[1,0], [2,1], [3,1], [4,2], [4,3], [5,4]]) cliJson('dependency-add', cards[child].id, cards[parent].id);
+    cliJson('move', cards[0].id, 'done');
+    const p = await chrome.newPage();
+    try {
+      await p.resize(1400, 900); await p.goto(url()); await p.waitFor(hasCard('Review and release')); await p.click('#view-graph');
+      await p.waitFor(`document.querySelector('.graph-node[data-id="${cards[4].id}"]')`);
+      await p.eval(`document.querySelector('.graph-node[data-id="${cards[4].id}"]').click()`);
+      await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Fit to view').click()`);
+      mkdirSync(SHOTS, {recursive:true});
+      await p.screenshot(join(SHOTS, 'dependency-graph.png'));
+      await p.click('[data-graph-expand]');
+      await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Fit to view').click()`);
+      await p.screenshot(join(SHOTS, 'dependency-graph-expanded.png'));
     } finally { await p.send('Page.close'); }
   });
 

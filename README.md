@@ -170,7 +170,7 @@ Every item field is required, and extra fields are not allowed. A file's name mu
 
 Each card's `dependencies` is an array of distinct card IDs on the same board. A new link must name an existing card; self-links and cycles are rejected. Existing links to missing cards are retained and can be removed. The CLI's incremental commands update the card revision under the board lock; create and patch requests through the bridge can replace the entire array. A patch uses the normal revision and hash checks.
 
-A dependency is satisfied when its card is in the board's final column, archived, or missing. Other dependencies are blockers. Missing and archived links remain visible. Readiness is advisory: it does not prevent claims or moves, and does not assess assignment or open questions. `ready` excludes archived cards and cards in the final column themselves. The UI's dependency editor displays dependents and the graph view shows each card's outgoing links, statuses and textual state cues; arrows point from a card to the card it depends on.
+A dependency is satisfied when its card is in the board's final column, archived, or missing. Other dependencies are blockers. Missing and archived links remain visible. Readiness is advisory: it does not prevent claims or moves, and does not assess assignment or open questions. `ready` excludes archived cards and cards in the final column themselves. The UI's dependency editor displays dependents; in the graph, arrows point from each prerequisite to the card that depends on it.
 
 Direct folder mode validates links against its current snapshot, but cannot take the board lock or perform compare-and-swap. Concurrent changes can overwrite each other or create cycles; use the bridge when multiple writers are active.
 
@@ -299,6 +299,8 @@ The UI reads the token from the fragment and sends `Authorization: Bearer <token
 - If issue files cannot be read, the UI reports the error. Repair the files before using the tracker or changing work-card status.
 - `POST /api/features` takes `{title, status?, description?}` and creates a feature (201).
 - `PATCH /api/features/<id>` takes `{revision, hash, changes:{title?,status?,description?,archived?}}` and updates a feature (200). It runs the same conflict checks as the card routes.
+- `GET /api/board` includes `graphSettings` and `graphSettingsHash` (null until settings are saved). If the settings file is invalid or newer than this copy, the snapshot uses defaults and includes `graphSettingsError`; other board data remains available.
+- `PATCH /api/graph-settings` takes `{settings, hash}`, compares the hash under the lock, and returns `{settings, hash}`. It returns 409 on a stale hash and refuses to overwrite an unreadable settings file.
 - `POST /api/items` takes a JSON object of writable fields, which must include `title`, and returns 201 with the full item. Defaults are the first column, medium priority, a null assignee, empty arrays and text, and not archived.
 - `PATCH /api/items/<id>` takes `{ "revision": 1, "hash": "<64 lowercase hex characters>", "changes": { "status": "done" } }` and returns 200 with the full item.
 - `POST /api/items/<id>/thread` takes `{ "revision": 2, "hash": "…", "entry": { "kind": "question", "body": "…", "author": "alice", "replyTo": null } }` and returns 201 with the full item. `author` and `replyTo` are optional. The new entry is the last one in `thread`.
@@ -349,6 +351,7 @@ This folder is the source. `tests/` and `docs/` stay here, and setup does not co
 Notes on direct mode and the UI:
 
 - Graph display settings are shared in `.agentboard/graph-settings.json`; an absent file uses the defaults. The versioned file stores orientation, layout, unlinked-card visibility and optional card fields. The bridge checks its SHA-256 hash under the board lock before saving. Direct mode checks before writing but cannot make that check atomic with its write. Older AgentBoard copies ignore this separate file.
+- Invalid or newer graph settings produce a visible warning and temporary defaults; saves remain disabled until the file is repaired or the installed copy is updated. The file is not overwritten automatically.
 - Agents can read the settings and hash with `graph-settings`, and save a complete settings JSON object with `graph-settings-set JSON --hash HASH` (use the literal `null` as the hash when the file is absent). Optional field names are `assignee`, `priority`, `labels`, `feature`, or `field:<custom-field-id>`.
 - Use the column arrows to collapse Backlog or Done on desktop (any column on narrow screens). Counts still reflect the current filters; expand a column to see its cards. Collapse choices last until the page is reloaded and are not written to the board.
 - When issue files exist, direct mode refuses work-card status changes and restoration of archived cards. Use the bridge so linked issues follow work completion and reopening. Issue submission and evidence also require the bridge.

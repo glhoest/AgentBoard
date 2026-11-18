@@ -5,7 +5,7 @@ import { BoardError, Conflict, FeatureSyncError, IssueSyncError } from './types'
 import { encode, snapshot, hashItem, hashFeature, createFeature, updateFeature, create, update, addEntry, editEntry } from './store';
 import { withLock } from './lock';
 import { listIssues, hashIssue, createIssue, updateIssue, addEvidence } from './issues';
-import { readGraphSettings, saveGraphSettings } from './graph-settings';
+import { DEFAULT_GRAPH_SETTINGS, readGraphSettings, saveGraphSettings } from './graph-settings';
 
 const FEATURE_ROUTE = /^\/api\/features\/(FT-[0-9A-F]{12})$/;
 const ITEM_ROUTE = /^\/api\/items\/(AB-[0-9A-F]{12})$/;
@@ -101,9 +101,15 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
         // Under the lock, the snapshot upgrades older files on disk first, so the hashes match the current bytes.
         const result = withLock(root, () => {
           const value = snapshot(root) as any;
-          const graph = readGraphSettings(root);
-          value.graphSettings = graph.settings;
-          value.graphSettingsHash = graph.hash;
+          try {
+            const graph = readGraphSettings(root);
+            value.graphSettings = graph.settings;
+            value.graphSettingsHash = graph.hash;
+          } catch (error) {
+            value.graphSettings = { ...DEFAULT_GRAPH_SETTINGS, fields: [] };
+            value.graphSettingsHash = null;
+            value.graphSettingsError = error instanceof Error ? error.message : String(error);
+          }
           let issueHashes: [string, string][] = [];
           try {
             value.issues = listIssues(root);
