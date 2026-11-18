@@ -1,9 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { withLock } from './lock';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { replaceSkill } from './install';
 
-const releaseUrl = 'https://api.github.com/repos/glhoest/AgentBoard/releases?per_page=100';
+const api = 'https://api.github.com/repos/glhoest/AgentBoard';
+const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'AgentBoard' };
 const age = 7 * 24 * 60 * 60 * 1000;
 const stable = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
@@ -25,20 +26,33 @@ type Asset = { name: string; browser_download_url: string; digest: string | null
 type Release = { tag_name: string; assets: Asset[]; published_at: string; draft: boolean; prerelease: boolean };
 
 export async function selectRelease(fetcher: typeof fetch, force = false, now = Date.now()): Promise<Release> {
-  const releases: Release[] = [];
-  for (let page = 1; ; page++) {
-    const response = await fetcher(`${releaseUrl}&page=${page}`, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AgentBoard' }, signal: AbortSignal.timeout(30000) });
-    if (!response.ok) throw new Error(`Cannot fetch releases (HTTP ${response.status})`);
-    const batch = await response.json();
-    if (!Array.isArray(batch)) throw new Error('Invalid release metadata');
-    releases.push(...batch);
-    if (batch.length < 100) break;
-    if (page >= 100) throw new Error('Too many release pages');
+  const get = (path: string) => fetcher(api + path, { headers, redirect: 'error', signal: AbortSignal.timeout(30000) });
+  // Source builds have beta-/experiment- tags and never enter this lookup.
+  const refs = await get('/git/matching-refs/tags/v');
+  if (!refs.ok) throw new Error(`Cannot fetch release tags (HTTP ${refs.status})`);
+  const entries = await refs.json();
+  if (!Array.isArray(entries)) throw new Error('Invalid release tag metadata');
+  const prefix = 'refs/tags/';
+  const tags = new Set<string>();
+  for (const entry of entries) {
+    if (typeof entry?.ref !== 'string' || !entry.ref.startsWith(prefix)) continue;
+    const tag = entry.ref.slice(prefix.length);
+    if (stable.test(tag)) tags.add(tag);
   }
-  const eligible = releases.filter(r => r && !r.draft && !r.prerelease && typeof r.tag_name === 'string' && stable.test(r.tag_name) && Array.isArray(r.assets) && r.assets.some(a => a.name === 'agentboard.tar.gz') && Number.isFinite(Date.parse(r.published_at)) && Date.parse(r.published_at) <= now && (force || now - Date.parse(r.published_at) >= age));
-  eligible.sort((a, b) => compareVersions(b.tag_name, a.tag_name));
-  if (!eligible.length) throw new Error('No eligible stable AgentBoard release');
-  return eligible[0];
+  for (const tag of [...tags].sort((a, b) => compareVersions(b, a))) {
+    const response = await get(`/releases/tags/${tag}`);
+    if (response.status === 404) continue;
+    if (!response.ok) throw new Error(`Cannot fetch release ${tag} (HTTP ${response.status})`);
+    const release = await response.json();
+    if (release?.tag_name !== tag) throw new Error('Invalid release metadata');
+    const published = Date.parse(release.published_at);
+    if (release.draft === false && release.prerelease === false &&
+        Array.isArray(release.assets) && release.assets.some(asset => asset?.name === 'agentboard.tar.gz') &&
+        Number.isFinite(published) && published <= now && (force || now - published >= age)) {
+      return release;
+    }
+  }
+  throw new Error('No eligible stable AgentBoard release');
 }
 
 /** Download and validate the complete release before changing an installation. */
@@ -99,37 +113,13 @@ export async function updateInstallation(destination: string, fetcher: typeof fe
   }
   const release = await fetchRelease(fetcher, force, now, installed);
   if (!release.files) return { version: release.tag, changed: false };
-  const parent = dirname(target);
-  const staging = mkdtempSync(join(parent, '.agentboard-update-'));
-  const backup = join(parent, `.agentboard-backup-${randomUUID()}`);
-  let moved = false;
-  try {
-    for (const [name, bytes] of release.files) {
-      const output = join(staging, ...name.split('/'));
-      mkdirSync(dirname(output), { recursive: true });
-      writeFileSync(output, bytes);
-    }
-    writeFileSync(join(staging, '.agentboard-release.json'), JSON.stringify({ version: release.tag }) + '\n');
-    return withLock(parent, () => {
-      // Another updater may have installed a newer release while this download ran.
-      const current = JSON.parse(readFileSync(marker, 'utf8'));
-      if (typeof current.version !== 'string' || !stable.test(current.version)) throw new Error('Invalid installed version marker');
-      if (compareVersions(release.tag, current.version) <= 0) return { version: current.version, changed: false };
-      renameSync(target, backup);
-      moved = true;
-      try {
-        renameSync(staging, target);
-      } catch (error) {
-        try { renameSync(backup, target); moved = false; }
-        catch { throw new Error(`Installation failed; restore the backup at ${backup}`); }
-        throw error;
-      }
-      moved = false;
-      try { rmSync(backup, { recursive: true, force: true }); } catch { /* The new installation is already active; leave the backup for manual cleanup. */ }
-      return { version: release.tag, changed: true };
-    });
-  } finally {
-    if (!moved && existsSync(staging)) rmSync(staging, { recursive: true, force: true });
-  }
+  const files = release.files;
+  files.set('.agentboard-release.json', Buffer.from(JSON.stringify({ version: release.tag }) + '\n'));
+  return replaceSkill(target, files, () => {
+    // Another updater may have installed a newer release while this download ran.
+    const current = JSON.parse(readFileSync(marker, 'utf8'));
+    if (typeof current.version !== 'string' || !stable.test(current.version)) throw new Error('Invalid installed version marker');
+    if (compareVersions(release.tag, current.version) <= 0) return { version: current.version, changed: false };
+    return null;
+  }) ?? { version: release.tag, changed: true };
 }
-

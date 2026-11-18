@@ -46,19 +46,9 @@ jobs:
             echo 'Tag already exists; choose a new version.' >&2
             exit 1
           fi
-          printf '{"version":"%s"}\n' "$RELEASE_TAG" > .agentboard-release.json
-          tar -czf agentboard.tar.gz .agentboard-release.json SKILL.md README.md LICENSE agents assets scripts
-          mkdir -p no-update
-          cp -r .agentboard-release.json SKILL.md README.md LICENSE agents assets scripts no-update/
-          rm -f no-update/scripts/lib/update.ts no-update/scripts/lib/update-check.ts
-          touch no-update/.agentboard-no-update
-          sed -i '1i> **No-update build:** self-update and automatic network checks are unavailable.' no-update/README.md
-          sed -i '/^# AgentBoard$/a This is the no-update build: self-update and automatic network checks are unavailable.' no-update/SKILL.md
-          # The CLI retains its board functionality; replace the static notice import with a no-op.
-          printf "export async function updateNotice() { return null; }\n" > no-update/scripts/lib/update-check.ts
-          tar -czf agentboard-no-update.tar.gz -C no-update .
+          bun .github/scripts/package-distribution.ts "$GITHUB_SHA" --stable release "$RELEASE_TAG"
           mkdir -p smoke
-          tar -xzf agentboard-no-update.tar.gz -C smoke
+          tar -xzf release/agentboard-no-update.tar.gz -C smoke
           bun smoke/scripts/agentboard.ts --help | grep -q 'no-update build'
           mkdir smoke-project
           bun smoke/scripts/agentboard.ts setup smoke-project
@@ -68,8 +58,8 @@ jobs:
         with:
           name: release-archives
           path: |
-            agentboard.tar.gz
-            agentboard-no-update.tar.gz
+            release/agentboard.tar.gz
+            release/agentboard-no-update.tar.gz
           if-no-files-found: error
 
   publish:

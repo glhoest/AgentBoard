@@ -2,3 +2,5 @@
 /AGENTS.md @glhoest
 /SKILL.md @glhoest
 /scripts/lib/update*.ts @glhoest
+/scripts/lib/distribution.ts @glhoest
+/scripts/lib/experiment.ts @glhoest

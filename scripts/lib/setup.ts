@@ -1,7 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { BoardError } from './types';
 import { config, init } from './store';
+import { noUpdatePath, provenancePath, removedUpdaters } from './distribution';
+import { replaceSkill } from './install';
 
 // Development material of the skill repository itself; never vendored into target repositories.
 // '.agents' and '.claude' hold the repository's own dogfood install and agent settings (vendoring '.agents' would nest copies).
@@ -42,20 +44,41 @@ export function setup(target: string, skillDirectory: string) {
 
   const destination = join(root, '.agents', 'skills', 'agentboard');
   if (source !== resolve(destination)) {
-    // Remove obsolete executable updater and files excluded from the selected build.
-    const obsolete = ['scripts/update.ts'];
-    if (!existsSync(join(source, '.agentboard-release.json'))) obsolete.push('.agentboard-release.json');
-    if (existsSync(join(source, '.agentboard-no-update'))) obsolete.push('scripts/lib/update.ts');
-    else obsolete.push('.agentboard-no-update');
-    for (const name of obsolete) {
-      const path = join(destination, name);
-      if (existsSync(path)) {
-        rmSync(path);
-        changed.push(relative(root, path).split(sep).join('/'));
+    const parent = dirname(destination);
+    const replacingSourceBuild = lstatSync(join(destination, provenancePath), { throwIfNoEntry: false }) !== undefined;
+    const checkLocalInstall = () => {
+      for (const path of [dirname(parent), parent, destination]) {
+        if (!lstatSync(path, { throwIfNoEntry: false })?.isDirectory()) {
+          throw new BoardError('Replacing a source build requires a local AgentBoard installation directory');
+        }
       }
-    }
-    for (const path of files(source)) {
-      put(join(destination, relative(source, path)), readFileSync(path));
+    };
+    if (replacingSourceBuild) {
+      checkLocalInstall();
+      const stableFiles = new Map(files(source).map(path => [
+        relative(source, path).split(sep).join('/'), readFileSync(path),
+      ]));
+      replaceSkill(destination, stableFiles, () => {
+        checkLocalInstall();
+        return null;
+      });
+      changed.push(relative(root, destination).split(sep).join('/'));
+    } else {
+      // Remove obsolete executable updater and files excluded from the selected build.
+      const obsolete = ['scripts/update.ts'];
+      if (!existsSync(join(source, '.agentboard-release.json'))) obsolete.push('.agentboard-release.json');
+      if (existsSync(join(source, noUpdatePath))) obsolete.push(...removedUpdaters);
+      else obsolete.push(noUpdatePath);
+      for (const name of new Set(obsolete)) {
+        const path = join(destination, name);
+        if (existsSync(path)) {
+          rmSync(path);
+          changed.push(relative(root, path).split(sep).join('/'));
+        }
+      }
+      for (const path of files(source)) {
+        put(join(destination, relative(source, path)), readFileSync(path));
+      }
     }
   }
   const skillText = readFileSync(join(source, 'SKILL.md'), 'utf8');

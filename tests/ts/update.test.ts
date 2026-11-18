@@ -27,8 +27,16 @@ async function release(files: Record<string, string>, corruptDigest = false): Pr
   const metadata = { tag_name: 'v1.2.3', assets: [{ name: 'agentboard.tar.gz', size: bytes.length,
     digest: `sha256:${corruptDigest ? '0'.repeat(64) : digest}`,
     browser_download_url: 'https://github.com/glhoest/AgentBoard/releases/download/v1.2.3/agentboard.tar.gz' }] };
-  return (async (input: string | URL | Request) => String(input).includes('api.github.com')
-    ? Response.json([{ ...metadata, published_at: '2020-01-01T00:00:00Z', draft: false, prerelease: false }]) : new Response(bytes)) as typeof fetch;
+  return (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith('/git/matching-refs/tags/v')) {
+      return Response.json([{ ref: 'refs/tags/v1.2.3' }]);
+    }
+    if (url.hostname === 'api.github.com') {
+      return Response.json({ ...metadata, published_at: '2020-01-01T00:00:00Z', draft: false, prerelease: false });
+    }
+    return new Response(bytes);
+  }) as typeof fetch;
 }
 
 const valid = { 'SKILL.md': 'new', 'LICENSE': 'license', 'scripts/agentboard.ts': 'new cli',
@@ -70,10 +78,26 @@ test('release selection applies the seven day boundary, force, and version order
   const now = Date.parse('2026-11-09T00:00:00Z');
   const item = (tag: string, time: number, extra = {}) => ({ tag_name: tag, published_at: new Date(time).toISOString(), draft: false, prerelease: false, assets: [{ name: 'agentboard.tar.gz' }], ...extra });
   const entries = [item('v1.0.0', now - 7 * 86400000), item('v2.0.0', now - 7 * 86400000 + 1), item('v9.0.0', now - 8 * 86400000, { prerelease: true })];
-  const fetcher = (async () => Response.json(entries)) as typeof fetch;
-  expect((await selectRelease(fetcher, false, now)).tag_name).toBe('v1.0.0');
-  expect((await selectRelease(fetcher, true, now)).tag_name).toBe('v2.0.0');
-  await expect(selectRelease((async () => Response.json([entries[1]])) as typeof fetch, false, now)).rejects.toThrow('No eligible');
+  function fixture(releases: typeof entries) {
+    return (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/git/matching-refs/tags/v')) {
+        return Response.json([
+          { ref: 'refs/tags/beta-' + 'a'.repeat(40) },
+          { ref: 'refs/tags/experiment-42-' + 'a'.repeat(40) },
+          { ref: 'refs/tags/v10.0.0' }, // Tag without a release.
+          ...releases.map(release => ({ ref: 'refs/tags/' + release.tag_name })),
+        ]);
+      }
+      if (url.pathname.endsWith('/releases/tags/v10.0.0')) return new Response(null, { status: 404 });
+      const release = releases.find(release => url.pathname.endsWith('/releases/tags/' + release.tag_name));
+      if (!release) throw new Error(`Unexpected lookup ${url}`);
+      return Response.json(release);
+    }) as typeof fetch;
+  }
+  expect((await selectRelease(fixture(entries), false, now)).tag_name).toBe('v1.0.0');
+  expect((await selectRelease(fixture(entries), true, now)).tag_name).toBe('v2.0.0');
+  await expect(selectRelease(fixture([entries[1]]), false, now)).rejects.toThrow('No eligible');
 });
 
 test('never downgrades an installed release even with force', async () => {
