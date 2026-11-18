@@ -145,7 +145,6 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       expect(await p.eval(`document.querySelector(${JSON.stringify(node(sibling.id))}).classList.contains('dim')`)).toBe(true);
       expect(await p.eval(`document.querySelector('.graph-edge[data-from="${parent.id}"][data-to="${middle.id}"]').classList.contains('active')`)).toBe(true);
       expect(await p.eval(`document.querySelector('.graph-edge[data-from="${parent.id}"][data-to="${sibling.id}"]').classList.contains('dim')`)).toBe(true);
-      if (SHOTS) { mkdirSync(SHOTS, {recursive: true}); await p.resize(1400, 900); await p.screenshot(join(SHOTS, 'graph-highlight.png')); }
       await p.focus('.graph-viewport');
       await p.key('Escape');
       expect(await p.eval(`document.querySelector(${JSON.stringify(node(sibling.id))}).classList.contains('dim')`)).toBe(false);
@@ -173,7 +172,6 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Expand graph').click()`);
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
       expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node(child.id)))}).getAttribute('aria-pressed')`)).toBe('true');
-      if (SHOTS) { mkdirSync(SHOTS, {recursive: true}); await p.resize(1400, 900); await p.screenshot(join(SHOTS, 'graph-expanded-vertical.png')); }
       await p.focus('.graph-viewport');
       await p.key('Escape');
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);

@@ -1686,6 +1686,7 @@ function renderGraph(root, previousFocus) {
     const selector = graphControl('button', 'graph-node:' + id, {
       type:'button', class:'graph-select', 'aria-pressed':String(id === g.selected),
       'aria-label':`${item?.title || 'Missing card'}, ${id}, ${status}, ${readiness}`,
+      title:item?.title || 'Missing card',
     });
     node.addEventListener('click', select);
     const setHover = value => () => { g.hover = value; highlight(); };
@@ -1702,6 +1703,7 @@ function renderGraph(root, previousFocus) {
       const value = graphFieldValue(snap, item, field);
       if (value === null || value === undefined || value === '') continue;
       const label = snap.config.fields.find(x => 'field:' + x.id === field)?.name || field;
+      selector.title += '\n' + label + ': ' + String(value);
       node.append(h('div', {class:'graph-meta', title:label + ': ' + String(value), text:label + ': ' + String(value)}));
     }
     /* State and actions share one footer row; the actions drop to a second row only when they do not fit beside it. */
