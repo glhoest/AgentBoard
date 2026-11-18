@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   # Run the workflow from the trusted base. The PR head is fetched as Git objects only.
+  # PR files are read as Git objects only; no PR code runs in this privileged workflow.
+  # zizmor: ignore[dangerous-triggers]
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, edited]
