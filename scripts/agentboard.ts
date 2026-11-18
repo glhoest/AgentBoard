@@ -12,6 +12,7 @@ import * as store from './lib/store';
 import { buildFieldChange, buildFieldFilter, hasValue } from './lib/fields';
 import { BoardError, Conflict, type Changes, type Entry, type Item, type FeatureChanges } from './lib/types';
 import { NEEDS_GRILLING } from './lib/versions';
+import { readGraphSettings, saveGraphSettings } from './lib/graph-settings';
 
 export function formatJson(value: unknown, indent?: number): string {
   if (indent !== undefined) return JSON.stringify(value, null, indent);
@@ -202,6 +203,13 @@ export function main(argv: string[], io: Io = consoleIo): number {
           }));
           break;
         }
+        case 'graph-settings':
+          result = withLock(root, () => readGraphSettings(root));
+          break;
+        case 'graph-settings-set':
+          if (args.hash === null) throw new BoardError('Pass --hash with the current hash, or null for an absent file');
+          result = saveGraphSettings(root, JSON.parse(args.settings), args.hash === 'null' ? null : args.hash);
+          break;
         case 'field-add':
           if (args.type === null) throw new BoardError('Pass --type text, number or boolean');
           result = store.addField(root, { id: args.id, type: args.type, name: args.name });

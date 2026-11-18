@@ -11,6 +11,8 @@ export type Command =
   | { cmd: 'create'; title: string; status: string | null; priority: Priority | null; assignee: string | null; description: string | null; label: string[] | null; criterion: string[] | null; feature: string | null; field: string[] | null }
   | { cmd: 'edit'; id: string; revision: number | null; title: string | null; status: string | null; priority: Priority | null; assignee: string | null; unassign: boolean; description: string | null; notes: string | null; labelsJson: string | null; criteriaJson: string | null; archive: boolean; unarchive: boolean; feature: string | null; clearFeature: boolean; field: string[] | null; clearField: string[] | null }
   | { cmd: 'fields' }
+  | { cmd: 'graph-settings' }
+  | { cmd: 'graph-settings-set'; settings: string; hash: string | null }
   | { cmd: 'field-add'; id: string; type: string | null; name: string | null }
   | { cmd: 'field-edit'; id: string; name: string | null }
   | { cmd: 'field-remove'; id: string; yes: boolean }
@@ -58,6 +60,8 @@ const specs: Record<string, [string, string][]> = {
   setup: [['path', 'pos']],
   list: [['all', 'bool'], ['status', 'str'], ['assignee', 'str'], ['feature', 'str'], ['field', 'append'], ['field-min', 'append'], ['field-max', 'append'], ['field-contains', 'append'], ['has-field', 'append'], ['no-field', 'append']],
   fields: [],
+  'graph-settings': [],
+  'graph-settings-set': [['settings', 'pos'], ['hash', 'str']],
   'field-add': [['id', 'pos'], ['type', 'str'], ['name', 'str']],
   'field-edit': [['id', 'pos'], ['name', 'str']],
   'field-remove': [['id', 'pos'], ['yes', 'bool']],
@@ -106,6 +110,8 @@ const summaries: Record<string, string> = {
   questions: 'List open questions on non-archived cards',
   grill: 'Print a grilling brief for cards in Needs grilling',
   fields: 'List custom field definitions and how many cards use each',
+  'graph-settings': 'Read shared graph settings and their hash',
+  'graph-settings-set': 'Save complete graph settings JSON with --hash (use null for an absent file)',
   'field-add': 'Define a custom field (text, number or boolean)',
   'field-edit': 'Rename a custom field',
   'field-remove': 'Delete a custom field and its values on all cards',

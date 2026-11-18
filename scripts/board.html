@@ -232,11 +232,64 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 
-.graph-panel{width:100%;max-width:1100px;overflow:auto}
-.graph-list{list-style:none;padding:0;display:grid;gap:12px}
-.graph-node{border:2px solid var(--line);border-left:8px solid var(--ok);border-radius:8px;padding:12px;background:var(--surface)}
-.graph-node.blocked{border-left-color:var(--warn)}.graph-node.unavailable{border-left-color:var(--muted)}
-.graph-node ul{margin:8px 0 0;padding-left:28px}.graph-arrow{font-weight:bold}
+/* Dependency graph: a quiet drafting-table canvas; cards carry status in a stripe + chip, the selected chain carries the accent. */
+.graph-panel{--g-dot:color-mix(in srgb,var(--line-strong) 55%,transparent);width:100%;max-width:none;margin:16px auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.graph-panel h2{margin:0;font-size:16px;line-height:1.2;letter-spacing:-.01em}
+.graph-backdrop{position:fixed;inset:0;background:#0008;backdrop-filter:blur(2px);z-index:99}
+.graph-panel.graph-expanded{position:fixed;z-index:100;inset:5%;width:90%;height:90%;margin:0;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.45)}
+.graph-tools{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:13px}
+.graph-tools label{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.graph-tools select,.graph-tools input[type=search]{min-height:28px;padding:2px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--text);font-size:13px}
+.graph-tools input[type=search]{width:190px}
+.graph-tools input[type=checkbox]{width:15px;height:15px;margin:0;accent-color:var(--accent)}
+.graph-tools .btn.small{min-height:28px;padding:1px 9px;font-size:12.5px;font-weight:500;border-radius:6px;background:var(--surface-2)}
+.graph-tools .btn.small:hover{background:var(--accent-soft);border-color:var(--accent)}
+.graph-tools [data-graph-expand]{margin-left:auto;font-weight:600}
+.graph-conflict{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;color:var(--warn)}
+.graph-panel details{font-size:13px;color:var(--muted)}
+.graph-panel details>summary{cursor:pointer;width:max-content;padding:2px 0}
+.graph-panel details[open]{padding:8px 10px;border:1px dashed var(--line-strong);border-radius:8px}
+.graph-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0;padding:0;list-style:none;font-size:12px;color:var(--muted)}
+.graph-legend li{display:inline-flex;align-items:center;gap:6px}
+.graph-legend i{width:4px;height:12px;border-radius:2px;background:var(--ok)}
+.graph-legend .blocked i{background:var(--warn)}.graph-legend .unavailable i{background:var(--muted)}
+.graph-viewport{position:relative;overflow:auto;height:60vh;min-height:300px;border:1px solid var(--line);border-radius:10px;background-color:var(--col);background-image:radial-gradient(var(--g-dot) 1px,transparent 1.2px);background-size:20px 20px;box-shadow:inset 0 1px 4px rgba(0,0,0,.12);overscroll-behavior:contain}
+.graph-expanded .graph-viewport{height:auto;flex:1}
+.graph-space{position:relative;transform-origin:top left}
+.graph-edges{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.graph-edge{fill:none;stroke:var(--line-strong);stroke-width:1.5;stroke-linecap:round;transition:opacity .15s}
+.graph-edge.active{stroke:var(--accent);stroke-width:2.5}
+.graph-edge.dim{opacity:.12}
+.graph-node{position:absolute;display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:2px 6px;width:240px;box-sizing:border-box;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:8px;padding:7px 10px 7px 11px;background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(20,24,40,.12);cursor:pointer;overflow:hidden;overflow-wrap:anywhere;transition:opacity .15s,box-shadow .15s,border-color .15s}
+.graph-node:hover{border-color:var(--line-strong);box-shadow:0 3px 10px rgba(20,24,40,.2)}
+.graph-node.blocked{border-left-color:var(--warn)}
+.graph-node.unavailable{border-left-color:var(--muted);border-style:dashed;border-left-style:solid;background:var(--surface-2)}
+.graph-node.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 6px 18px rgba(79,70,229,.28)}
+.graph-node.dim{opacity:.3}
+.graph-node.search-match{box-shadow:0 0 0 2px var(--warn),0 0 14px color-mix(in srgb,var(--warn) 45%,transparent)}
+.graph-node.selected.search-match{box-shadow:0 0 0 2px var(--accent),0 0 0 5px color-mix(in srgb,var(--warn) 70%,transparent)}
+.graph-node:has(.graph-select:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+/* The selection control is a real button laid over the card; Edit and Collapse are sibling buttons above it, never nested inside it. */
+.graph-select{position:absolute;inset:0;z-index:0;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:inherit;background:transparent;color:inherit;cursor:pointer}
+.graph-select:focus,.graph-select:focus-visible{outline:none}
+.graph-node .btn.small{position:relative;z-index:1}
+.graph-node p{margin:4px 0}
+.graph-node strong{flex:1 0 100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:650;line-height:1.3;letter-spacing:-.005em}
+.graph-node .graph-meta{flex:1 0 100%;font-size:11.5px;line-height:1.35;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.graph-node .graph-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.graph-node .graph-state{flex:0 0 auto;max-width:100%;padding:1px 8px;border-radius:999px;font-size:11px;line-height:1.35;font-weight:600;background:var(--ok-soft);color:var(--ok)}
+.graph-node .graph-state.blocked{background:var(--warn-soft);color:var(--warn)}
+.graph-node .graph-state.unavailable{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.graph-node .btn.small{min-height:22px;margin:0;padding:0 8px;font-size:12px;line-height:1.2;font-weight:500;border-radius:6px;background:transparent;border-color:var(--line-strong)}
+.graph-node .btn.small:hover{background:var(--accent-soft);border-color:var(--accent)}
+.graph-foot{flex:1 0 100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:2px;min-width:0}
+.graph-actions{display:flex;gap:6px;margin-left:auto}
+.graph-node.collapsed{flex-wrap:nowrap;flex-direction:column;align-items:stretch;gap:0;opacity:.82}
+.graph-node.collapsed strong{flex:0 0 auto;-webkit-line-clamp:1}
+.graph-node.collapsed .graph-meta{flex:0 0 auto}
+.graph-node.collapsed.dim{opacity:.3}
+@media (prefers-reduced-motion:reduce){.graph-node,.graph-edge{transition:none}}
+
 </style>
 </head>
 <body>
@@ -430,6 +483,8 @@ function normalizeSnapshot(raw) {
   for (const c of all) if (c.missing) problems.push(`Cards use status "${short(c.id, 40)}" which is not a configured column; they are listed under a warning column.`);
   const list = [...items.values()];
   return {
+    graphSettings: validateGraphSettings(raw.graphSettings ?? {...DEFAULT_GRAPH_SETTINGS, fields:[]}), graphSettingsHash: raw.graphSettingsHash ?? null,
+    graphSettingsError: typeof raw.graphSettingsError === 'string' ? raw.graphSettingsError : '',
     config: {name: typeof raw.config.name === 'string' ? raw.config.name : '', columns, featureColumns: raw.config.featureColumns, fields},
     columns: all, items, list, features, problems, issues: (raw.issues || []).map(issue => ({...issue, hash: raw.hashes[issue.id]})), issuesError: typeof raw.issuesError === 'string' ? raw.issuesError : '',
     cfgKey: JSON.stringify(raw.config),
@@ -438,6 +493,15 @@ function normalizeSnapshot(raw) {
 }
 
 /* ---------- backends ---------- */
+const DEFAULT_GRAPH_SETTINGS = {version:'1.0.0', orientation:'horizontal', layout:'compact', showUnlinked:false, fields:[]};
+function validateGraphSettings(value) {
+  if (isObj(value) && typeof value.version === 'string' && /^\d+\.\d+\.\d+$/.test(value.version)) {
+    const parts = value.version.split('.').map(Number);
+    if (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 0 || parts[2] > 0))) throw new ApiError('data', 'Graph settings were written by a newer AgentBoard; update this copy');
+  }
+  if (!isObj(value) || Object.keys(value).sort().join(',') !== 'fields,layout,orientation,showUnlinked,version' || value.version !== '1.0.0' || !['horizontal','vertical'].includes(value.orientation) || !['compact','loose'].includes(value.layout) || typeof value.showUnlinked !== 'boolean' || !Array.isArray(value.fields) || value.fields.length > 100 || value.fields.some(x => typeof x !== 'string' || !(['assignee','priority','labels','feature'].includes(x) || (x.startsWith('field:') && SLUG_RE.test(x.slice(6))))) || new Set(value.fields).size !== value.fields.length) throw new ApiError('data', 'Invalid graph settings');
+  return value;
+}
 function bridgeBackend(token) {
   async function call(path, {method = 'GET', body} = {}) {
     const ctl = new AbortController();
@@ -467,6 +531,7 @@ function bridgeBackend(token) {
   return {
     kind: 'bridge',
     load: () => call('api/board'),
+    saveGraphSettings: (settings, hash) => call('api/graph-settings', {method:'PATCH', body:{settings, hash}}),
     createIssue: values => call('api/issues', {method:'POST', body:values}),
     addEvidence: (id, revision, hash, entry) => call('api/issues/' + encodeURIComponent(id) + '/evidence', {method:'POST', body:{revision, hash, entry}}),
     createFeature: values => call('api/features', {method: 'POST', body: values}),
@@ -638,6 +703,12 @@ async function directBackend(picked) {
   };
   const encode = obj => new TextEncoder().encode(JSON.stringify(obj, null, 2) + '\n');
   const write = async (dir, name, obj, create) => { const w = await (await dir.getFileHandle(name, {create})).createWritable(); await w.write(encode(obj)); await w.close(); };
+  const readGraph = async () => {
+    let bytes;
+    try { bytes = await bytesOf(ab, 'graph-settings.json'); }
+    catch (e) { if (e && e.name === 'NotFoundError') return {settings:{...DEFAULT_GRAPH_SETTINGS, fields:[]}, hash:null}; throw e; }
+    return {settings:validateGraphSettings(parse(bytes, 'graph-settings.json')), hash:await sha(bytes)};
+  };
   async function changeThread(id, revision, hash, action) {
     try {
       const config = await readConfig();
@@ -749,6 +820,15 @@ async function directBackend(picked) {
   }
   const api = {
     kind: 'direct',
+    async saveGraphSettings(settings, hash) {
+      try {
+        validateGraphSettings(settings);
+        const current = await readGraph();
+        if (current.hash !== hash) throw new ApiError('conflict', 'Graph settings changed since they were read');
+        await write(ab, 'graph-settings.json', settings, true);
+        return await readGraph();
+      } catch (e) { wrapPerm(e); }
+    },
     async createFeature(values) {
       try {
         const config = await readConfig(), dir = await featureDir(true), stamp = new Date().toISOString();
@@ -828,7 +908,10 @@ async function directBackend(picked) {
           features.push(feature); hashes[feature.id] = await sha(bytes);
         }
         if (errors.length) throw new ApiError('data', 'Invalid board data on disk — ' + errors.slice(0, 3).join('; ') + (errors.length > 3 ? ` (+${errors.length - 3} more)` : ''));
-        return {config, items, features, hashes};
+        let graph, graphSettingsError = '';
+        try { graph = await readGraph(); }
+        catch (e) { graph = {settings:{...DEFAULT_GRAPH_SETTINGS, fields:[]}, hash:null}; graphSettingsError = e.message || String(e); }
+        return {config, items, features, hashes, graphSettings:graph.settings, graphSettingsHash:graph.hash, graphSettingsError};
       } catch (e) { wrapPerm(e); }
     },
     async create(values) {
@@ -973,7 +1056,7 @@ function applySnapshot(snap) {
     for (const id of prev.items.keys()) if (!snap.items.has(id)) changed.add(id);
   }
   const featureChanged = !prev || JSON.stringify([...prev.features.values()]) !== JSON.stringify([...snap.features.values()]);
-  const structural = featureChanged || !prev || prev.issuesError !== snap.issuesError || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
+  const structural = featureChanged || !prev || prev.graphSettingsHash !== snap.graphSettingsHash || prev.graphSettingsError !== snap.graphSettingsError || JSON.stringify(prev.graphSettings) !== JSON.stringify(snap.graphSettings) || prev.issuesError !== snap.issuesError || JSON.stringify(prev.issues) !== JSON.stringify(snap.issues) || prev.cfgKey !== snap.cfgKey || changed.size > 0 || prev.problems.join('|') !== snap.problems.join('|');
   let draftChanged = false;
   for (const d of S.drafts.values()) if (syncDraft(d)) draftChanged = true;
   if (structural) {
@@ -1221,6 +1304,7 @@ function alertBox(kind, title, body, actions) {
 function renderNotices() {
   const box = $('#notices'); clear(box);
   if (S.snap && S.snap.issuesError) box.append(alertBox('error', 'Issue tracker could not be loaded', ['Issue data is unavailable: ' + S.snap.issuesError, 'Inspect and repair the issue files, then retry. Work-card status changes may also require repair.']));
+  if (S.snap && S.snap.graphSettingsError) box.append(alertBox('error', 'Graph settings could not be loaded', ['The graph uses temporary defaults: ' + S.snap.graphSettingsError, 'Update AgentBoard or repair the settings file before saving graph settings.']));
   if (S.mode === 'direct') box.append(alertBox('warn', 'Direct file mode: concurrent updates can be lost',
     ['This page writes board files itself. It cannot take the advisory lock or do an atomic compare-and-swap, so if the CLI, the bridge, another tab, Git or another person writes the same card at nearly the same moment, one of the updates can be silently lost.',
      'The revision and file hash are re-checked just before each save, but that check is not a guarantee. Prefer the local bridge (bun agentboard.ts serve) whenever you can.']));
@@ -1340,31 +1424,396 @@ function dependencyEditor(d, dirtyTick) {
     }}, 'Add dependency'),
     h('p', {text:'Dependents: ' + (dependents.length ? dependents.map(x => x.title + ' (' + x.id + ')').join(', ') : 'None')}));
 }
-function renderGraph(root) {
-  const snap = S.snap;
+const graphUI = {settings:null, base:null, hash:null, dirty:false, conflict:false, selected:null, hover:null, expanded:false, zoom:1, x:0, y:0, search:'', match:-1, settingsOpen:false, saving:false, opened:new Set()};
+function graphDefaults() { return {version:'1.0.0', orientation:'horizontal', layout:'compact', showUnlinked:false, fields:[]}; }
+function graphRefresh() { if (S.view === 'graph') renderBoard(); }
+function graphReach(id, adjacent) {
+  const seen = new Set(), pending = [id];
+  while (pending.length) {
+    const current = pending.pop();
+    if (seen.has(current)) continue;
+    seen.add(current);
+    for (const next of adjacent.get(current) || []) pending.push(next);
+  }
+  return seen;
+}
+/* The prerequisite and dependent chains of one card; null when nothing is hovered or selected. */
+function graphChain(id, deps, children) {
+  if (!id) return null;
+  const ancestors = graphReach(id, deps), descendants = graphReach(id, children);
+  return {
+    hasNode: node => ancestors.has(node) || descendants.has(node),
+    hasEdge: (from, to) => (ancestors.has(from) && ancestors.has(to)) || (descendants.has(from) && descendants.has(to)),
+  };
+}
+function graphApplyChain(chain, nodes, edges) {
+  for (const node of nodes) node.classList.toggle('dim', !!chain && !chain.hasNode(node.dataset.id));
+  for (const edge of edges) {
+    const on = !!chain && chain.hasEdge(edge.dataset.from, edge.dataset.to);
+    edge.classList.toggle('active', on);
+    edge.classList.toggle('dim', !!chain && !on);
+  }
+}
+function graphDepths(ids, deps) {
+  const depth = new Map(), visiting = new Set();
+  function level(id) {
+    if (depth.has(id)) return depth.get(id);
+    if (visiting.has(id)) return 0;
+    visiting.add(id);
+    const d = Math.max(0, ...(deps.get(id) || []).map(parent => level(parent) + 1));
+    visiting.delete(id);
+    depth.set(id, d);
+    return d;
+  }
+  ids.forEach(level);
+  return depth;
+}
+/* Loose: every card hangs under its primary (first) prerequisite. A subtree owns a block of consecutive lanes, the
+   first child shares its parent's lane and later children follow, so blocks never collide and siblings stay adjacent.
+   Compact: one lane per card in each column, ordered by the average lane of its prerequisites to limit crossings. */
+function graphPositions(ids, deps, depth, loose) {
+  const positions = new Map(), byId = (a, b) => a.localeCompare(b);
+  if (loose) {
+    const kids = new Map(ids.map(id => [id, []])), roots = [];
+    for (const id of ids) {
+      const primary = (deps.get(id) || [])[0];
+      if (primary !== undefined && depth.get(primary) < depth.get(id)) kids.get(primary).push(id);
+      else roots.push(id);
+    }
+    let next = 0;
+    const place = id => {
+      const start = next;
+      positions.set(id, {depth:depth.get(id), lane:start});
+      for (const child of kids.get(id).sort(byId)) place(child);
+      next = Math.max(next, start + 1);
+    };
+    roots.sort(byId).forEach(place);
+    return positions;
+  }
+  const layers = new Map();
+  for (const id of ids) {
+    if (!layers.has(depth.get(id))) layers.set(depth.get(id), []);
+    layers.get(depth.get(id)).push(id);
+  }
+  const barycenter = id => {
+    const lanes = (deps.get(id) || []).map(parent => positions.get(parent)?.lane).filter(lane => lane !== undefined);
+    return lanes.length ? lanes.reduce((sum, lane) => sum + lane, 0) / lanes.length : Number.MAX_SAFE_INTEGER;
+  };
+  for (const d of [...layers.keys()].sort((a, b) => a - b)) {
+    layers.get(d)
+      .map(id => ({id, key:barycenter(id)}))
+      .sort((a, b) => a.key - b.key || byId(a.id, b.id))
+      .forEach((entry, lane) => positions.set(entry.id, {depth:d, lane}));
+  }
+  return positions;
+}
+const GRAPH_NODE_W = 240;
+/* Natural height of each card at its fixed width. Cards are measured unscaled in a hidden host, then handed back to the
+   caller, which pins each card to its measured height so edge anchors and row spacing match what is drawn. */
+function graphMeasure(nodes) {
+  const host = h('div', {'aria-hidden':'true', style:'position:absolute;left:-10000px;top:0;visibility:hidden;pointer-events:none'});
+  document.body.append(host);
+  host.append(...nodes.values());
+  const heights = new Map([...nodes].map(([id, node]) => [id, Math.ceil(node.getBoundingClientRect().height) || 90]));
+  host.remove();
+  return heights;
+}
+function graphFieldValue(snap, item, field) {
+  let value;
+  if (field.startsWith('field:')) value = hasOwn(item.fields, field.slice(6)) ? item.fields[field.slice(6)] : undefined;
+  else if (field === 'feature') value = snap.features.get(item.feature)?.title;
+  else value = item[field];
+  return Array.isArray(value) ? value.join(', ') : value;
+}
+/* Shared graph settings: adopt them as the local preview, or flag a conflict when the preview has unsaved edits. */
+function graphAdoptShared(snap) {
+  const g = graphUI, shared = snap.graphSettings || graphDefaults();
+  g.settings = structuredClone(shared);
+  g.base = JSON.stringify(shared);
+  g.hash = snap.graphSettingsHash ?? null;
+  g.dirty = false;
+  g.conflict = false;
+}
+function graphSyncShared(snap) {
+  const g = graphUI;
+  if (!g.settings) { graphAdoptShared(snap); return; }
+  const changed = JSON.stringify(snap.graphSettings || graphDefaults()) !== g.base || (snap.graphSettingsHash ?? null) !== g.hash;
+  if (!changed) return;
+  if (g.dirty) g.conflict = true;
+  else graphAdoptShared(snap);
+}
+function graphChange(key, value) {
+  const g = graphUI;
+  if (g.saving) return;
+  g.settings[key] = value;
+  g.dirty = JSON.stringify(g.settings) !== g.base;
+  graphRefresh();
+}
+/* Save the preview as shared settings; overwrite re-bases on the newest hash after a conflict. */
+async function graphSave(overwrite) {
+  const g = graphUI;
+  if (g.saving) return;
+  g.saving = true;
+  if (overwrite) g.hash = S.snap.graphSettingsHash ?? null;
+  const submitted = structuredClone(g.settings);
+  graphRefresh();
+  try {
+    const result = await mutate(() => S.backend.saveGraphSettings(submitted, g.hash));
+    g.hash = result.hash;
+    g.base = JSON.stringify(result.settings);
+    g.dirty = JSON.stringify(g.settings) !== g.base;
+    g.conflict = false;
+    await pollFresh();
+  } catch (e) {
+    const conflict = e.status === 409 || e.kind === 'conflict';
+    if (conflict) { g.conflict = true; await pollFresh(); }
+    if (!conflict || overwrite) toast(e.message, {kind:'error'});
+  } finally {
+    g.saving = false;
+    graphRefresh();
+  }
+}
+/* Every focusable graph control carries a stable data-fk so a redraw (preview, polling) can put focus back. */
+function graphControl(tag, fk, attrs, ...kids) { return h(tag, {...attrs, 'data-fk':fk}, ...kids); }
+function graphButton(fk, label, onclick, attrs) { return graphControl('button', fk, {type:'button', class:'btn small', onclick, ...attrs}, label); }
+function graphRestoreFocus(panel, viewport, previous) {
+  if (!previous || !previous.closest('.graph-panel')) return;
+  const find = key => key ? [...panel.querySelectorAll('[data-fk]')].find(el => el.dataset.fk === key) : null;
+  const nodeId = previous.closest('.graph-node')?.dataset.id;
+  const target = find(previous.dataset.fk) || (nodeId && find('graph-node:' + nodeId)) || (graphUI.expanded ? viewport : null);
+  if (!target) return;
+  target.focus({preventScroll:true});
+  if (target.dataset.fk === previous.dataset.fk && previous.selectionStart != null && target.setSelectionRange) {
+    try { target.setSelectionRange(previous.selectionStart, previous.selectionEnd); } catch {}
+  }
+}
+function graphTrapTab(panel, e) {
+  if (e.key !== 'Tab') return;
+  const controls = [...panel.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, [tabindex="0"]')].filter(el => el.getClientRects().length);
+  if (!controls.length) { e.preventDefault(); return; }
+  const first = controls[0], last = controls.at(-1);
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+function renderGraph(root, previousFocus) {
+  const snap = S.snap, g = graphUI;
+  graphSyncShared(snap);
+  const lastColumn = snap.config.columns.at(-1).id;
   const linked = new Set(snap.list.filter(x => x.dependencies.length).flatMap(x => [x.id, ...x.dependencies]));
-  const cards = [...linked].sort().map(id => {
-    const item = snap.items.get(id);
-    const blockers = item ? item.dependencies.filter(dep => !dependencyState(dep, snap).satisfied).length : 0;
-    const nodeClass = !item || item.archived ? 'unavailable' : blockers ? 'blocked' : '';
-    return h('li', {class:'graph-node ' + nodeClass},
-      h('strong', {text:(item?.title || 'Missing card') + ' (' + id + ')'}),
-      h('div', {text:(item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing') + (item ? ' · ' + (blockers ? blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'No blockers') : '')}),
-      item?.dependencies.length ? h('ul', {'aria-label':'Dependencies of ' + item.title}, item.dependencies.map(dep => {
-        const target = snap.items.get(dep), ds = dependencyState(dep, snap);
-        return h('li', {}, h('span', {class:'graph-arrow', text:'Depends on → '}),
-          h('span', {text:(target?.title || 'Missing card') + ' (' + dep + ') — ' + ds.label}));
-      })) : h('p', {text:'No dependencies'}));
+  if (g.settings.showUnlinked) for (const item of snap.list) linked.add(item.id);
+  const ids = [...linked].sort(), deps = new Map(), children = new Map();
+  for (const id of ids) {
+    deps.set(id, (snap.items.get(id)?.dependencies || []).filter(x => linked.has(x)));
+    children.set(id, []);
+  }
+  for (const [id, parents] of deps) for (const parent of parents) children.get(parent)?.push(id);
+  const depth = graphDepths(ids, deps);
+  const positions = graphPositions(ids, deps, depth, g.settings.layout === 'loose');
+  const query = g.search.trim().toLowerCase();
+  const matches = query ? ids.filter(id => (id + ' ' + (snap.items.get(id)?.title || 'Missing card')).toLowerCase().includes(query)) : [];
+  if (g.selected && !linked.has(g.selected)) g.selected = null;
+  /* A card that vanished while hovered or focused never fires mouseleave or blur, so drop the stale highlight here. */
+  if (g.hover && !linked.has(g.hover)) g.hover = null;
+  const vertical = g.settings.orientation === 'vertical', cellW = GRAPH_NODE_W + 60, rowGap = vertical ? 48 : 20;
+  const isCollapsedCard = (id, item) => (!item || item.archived || item.status === lastColumn) && !g.opened.has(id);
+  /* Cards size to their content, so measure them first. Cards sharing a row (a lane when horizontal, a depth when
+     vertical) are top-aligned; the row is as tall as its tallest card, so rows never overlap however much a card shows. */
+  const nodes = new Map(ids.map(id => [id, buildNode(id)]));
+  const heights = graphMeasure(nodes);
+  const heightFor = id => heights.get(id);
+  const rowOf = id => vertical ? positions.get(id).depth : positions.get(id).lane, colOf = id => vertical ? positions.get(id).lane : positions.get(id).depth;
+  const rowHeights = new Map(), rowTops = new Map();
+  for (const id of ids) rowHeights.set(rowOf(id), Math.max(rowHeights.get(rowOf(id)) || 0, heightFor(id)));
+  let cursor = 20;
+  for (const row of [...rowHeights.keys()].sort((a, b) => a - b)) { rowTops.set(row, cursor); cursor += rowHeights.get(row) + rowGap; }
+  const maxCol = Math.max(0, ...ids.map(colOf));
+  const width = maxCol * cellW + GRAPH_NODE_W + 40, height = ids.length ? cursor - rowGap + 20 : 40;
+  function coords(id) { return {x:20 + colOf(id) * cellW, y:rowTops.get(rowOf(id))}; }
+
+  const panel = h('section', {class:'panel graph-panel' + (g.expanded ? ' graph-expanded' : ''), 'aria-label':g.expanded ? 'Expanded dependency graph' : 'Dependency graph', ...(g.expanded ? {role:'dialog', 'aria-modal':'true', tabindex:'-1'} : {})});
+  const viewport = graphControl('div', 'graph-viewport', {class:'graph-viewport', tabindex:'0', 'aria-label':'Dependency graph canvas'});
+  const scaleWrap = h('div', {style:`width:${width*g.zoom}px;height:${height*g.zoom}px;position:relative`});
+  const space = h('div', {class:'graph-space', style:`width:${width}px;height:${height}px;transform:scale(${g.zoom})`});
+  const svg = buildEdges();
+  space.append(svg);
+  for (const [id, node] of nodes) {
+    const p = coords(id);
+    node.style.cssText = `left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`;
+    space.append(node);
+  }
+  scaleWrap.append(space);
+  viewport.append(scaleWrap);
+
+  function buildEdges() {
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'graph-edges'); svg.setAttribute('width', width); svg.setAttribute('height', height); svg.setAttribute('aria-hidden', 'true');
+    const defs = document.createElementNS(ns, 'defs'), marker = document.createElementNS(ns, 'marker'), arrow = document.createElementNS(ns, 'path');
+    for (const [k, v] of Object.entries({id:'graph-arrowhead', viewBox:'0 0 10 10', refX:'9', refY:'5', markerWidth:'5', markerHeight:'5', orient:'auto-start-reverse'})) marker.setAttribute(k, v);
+    arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z'); arrow.setAttribute('fill', 'context-stroke');
+    marker.append(arrow); defs.append(marker); svg.append(defs);
+    for (const [id, parents] of deps) for (const parent of parents) {
+      const a = coords(parent), b = coords(id), path = document.createElementNS(ns, 'path');
+      const x1 = vertical ? a.x + GRAPH_NODE_W / 2 : a.x + GRAPH_NODE_W, y1 = vertical ? a.y + heightFor(parent) : a.y + heightFor(parent) / 2;
+      const x2 = vertical ? b.x + GRAPH_NODE_W / 2 : b.x, y2 = vertical ? b.y : b.y + heightFor(id) / 2;
+      path.setAttribute('d', vertical
+        ? `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`
+        : `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`);
+      path.setAttribute('class', 'graph-edge'); path.setAttribute('data-from', parent); path.setAttribute('data-to', id); path.setAttribute('marker-end', 'url(#graph-arrowhead)');
+      svg.append(path);
+    }
+    return svg;
+  }
+  function highlight() {
+    graphApplyChain(graphChain(g.hover || g.selected, deps, children), space.querySelectorAll('.graph-node'), svg.querySelectorAll('.graph-edge'));
+  }
+  function buildNode(id) {
+    const item = snap.items.get(id), blockers = item ? item.dependencies.filter(dep => !dependencyState(dep).satisfied).length : 0;
+    const collapsed = isCollapsedCard(id, item), closable = !item || item.archived || item.status === lastColumn;
+    const status = item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing card';
+    const readiness = !item ? 'Unavailable, satisfied' : blockers ? 'Blocked' : 'Ready';
+    const classes = ['graph-node', blockers && 'blocked', (!item || item.archived) && 'unavailable', collapsed && 'collapsed', id === g.selected && 'selected', matches.includes(id) && 'search-match'];
+    /* The card is a labelled group of three sibling controls (Select, Edit, Collapse); none is nested in another. */
+    const node = h('div', {
+      class:classes.filter(Boolean).join(' '), 'data-id':id,
+      role:'group', 'aria-label':item?.title || 'Missing card',
+    });
+    const select = () => {
+      if (collapsed) { g.opened.add(id); g.selected = id; }
+      else g.selected = g.selected === id ? null : id;
+      graphRefresh();
+    };
+    /* A native button supplies Enter and Space; clicks anywhere on the card (the button covers it) reach the node. */
+    const selector = graphControl('button', 'graph-node:' + id, {
+      type:'button', class:'graph-select', 'aria-pressed':String(id === g.selected),
+      'aria-label':`${item?.title || 'Missing card'}, ${id}, ${status}, ${readiness}`,
+      title:item?.title || 'Missing card',
+    });
+    node.addEventListener('click', select);
+    const setHover = value => () => { g.hover = value; highlight(); };
+    for (const type of ['mouseenter', 'focusin']) node.addEventListener(type, setHover(id));
+    for (const type of ['mouseleave', 'focusout']) node.addEventListener(type, setHover(null));
+    node.append(selector,
+      h('strong', {text:item?.title || 'Missing card', title:item?.title || 'Missing card', 'aria-hidden':'true'}),
+      h('div', {class:'graph-meta graph-id', 'aria-hidden':'true', text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
+    if (collapsed) return node;
+    const stateClass = !item ? 'unavailable' : blockers ? 'blocked' : 'ready';
+    const stateText = !item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers';
+    /* Displayed fields come first, one line each, so a card grows by exactly one line per value it shows. */
+    if (item) for (const field of g.settings.fields || []) {
+      const value = graphFieldValue(snap, item, field);
+      if (value === null || value === undefined || value === '') continue;
+      const label = snap.config.fields.find(x => 'field:' + x.id === field)?.name || field;
+      selector.title += '\n' + label + ': ' + String(value);
+      node.append(h('div', {class:'graph-meta', title:label + ': ' + String(value), text:label + ': ' + String(value)}));
+    }
+    /* State and actions share one footer row; the actions drop to a second row only when they do not fit beside it. */
+    const actions = h('div', {class:'graph-actions'},
+      item ? graphButton(id + ':graph-edit', 'Edit', e => { e.stopPropagation(); openEditor(id, {returnFocus:id + ':graph-edit'}); }) : null,
+      closable ? graphButton('graph-collapse:' + id, 'Collapse', e => { e.stopPropagation(); g.opened.delete(id); graphRefresh(); }) : null);
+    node.append(h('div', {class:'graph-foot'}, h('div', {class:'graph-meta graph-state ' + stateClass, 'aria-hidden':'true', text:stateText}), actions.children.length ? actions : null));
+    return node;
+  }
+
+  /* Panning and scrolling */
+  viewport.addEventListener('scroll', () => { g.x = viewport.scrollLeft; g.y = viewport.scrollTop; });
+  let suppressClick = false, drag = null;
+  const onScrollbar = e => {
+    const rect = viewport.getBoundingClientRect();
+    return e.clientX - rect.left - viewport.clientLeft >= viewport.clientWidth || e.clientY - rect.top - viewport.clientTop >= viewport.clientHeight;
+  };
+  viewport.addEventListener('click', e => {
+    if (suppressClick) { suppressClick = false; return; }
+    if (e.target === viewport || e.target === space || e.target === scaleWrap) { g.selected = null; graphRefresh(); }
   });
-  root.append(h('section', {class:'panel graph-panel', 'aria-label':'Dependency graph'},
-    h('h2', {text:'Dependency graph'}),
-    h('p', {text:'Arrows point from each card to the cards it depends on. Green borders mean no blockers, amber means blocked, and gray means archived or missing. Text labels describe each state; readiness is advisory.'}),
-    cards.length ? h('ul', {class:'graph-list'}, cards) : h('p', {text:'No dependency links yet.'})));
+  viewport.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('.graph-node') || onScrollbar(e)) return;
+    suppressClick = false;
+    drag = {x:e.clientX, y:e.clientY, left:viewport.scrollLeft, top:viewport.scrollTop};
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (Math.abs(drag.x - e.clientX) + Math.abs(drag.y - e.clientY) > 4) suppressClick = true;
+    viewport.scrollLeft = drag.left + drag.x - e.clientX;
+    viewport.scrollTop = drag.top + drag.y - e.clientY;
+  });
+  for (const type of ['pointerup', 'pointercancel']) viewport.addEventListener(type, () => { drag = null; });
+
+  /* Controls */
+  const orientation = graphControl('select', 'graph-orientation', {'aria-label':'Orientation', disabled:g.saving, onchange:e => graphChange('orientation', e.target.value)},
+    h('option', {value:'horizontal', text:'Left to right'}), h('option', {value:'vertical', text:'Top to bottom'}));
+  orientation.value = g.settings.orientation;
+  const layout = graphControl('select', 'graph-layout', {'aria-label':'Layout', disabled:g.saving, onchange:e => graphChange('layout', e.target.value)},
+    h('option', {value:'compact', text:'Compact'}), h('option', {value:'loose', text:'Loose'}));
+  layout.value = g.settings.layout;
+  const unlinked = graphControl('input', 'graph-unlinked', {type:'checkbox', checked:g.settings.showUnlinked, disabled:g.saving, onchange:e => graphChange('showUnlinked', e.target.checked)});
+  const search = graphControl('input', 'graph-search', {type:'search', value:g.search, 'aria-label':'Search graph', placeholder:'Search title or ID',
+    oninput:e => { g.search = e.target.value; g.match = -1; graphRefresh(); }});
+  function findMatch(delta) {
+    if (!matches.length) return;
+    g.match = g.match < 0 ? (delta > 0 ? 0 : matches.length - 1) : (g.match + delta + matches.length) % matches.length;
+    const p = coords(matches[g.match]);
+    viewport.scrollLeft = Math.max(0, p.x * g.zoom - viewport.clientWidth / 2);
+    viewport.scrollTop = Math.max(0, p.y * g.zoom - viewport.clientHeight / 2);
+  }
+  /* Fit may go below the manual minimum for very large graphs; zooming out afterwards must never enlarge the view. */
+  const zoomOut = () => { g.zoom = Math.min(g.zoom, Math.max(.2, g.zoom - .1)); graphRefresh(); };
+  const zoomIn = () => { g.zoom = Math.min(2, g.zoom + .1); graphRefresh(); };
+  const fit = () => { g.zoom = Math.max(.05, Math.min(1, viewport.clientWidth / width, viewport.clientHeight / height)); g.x = 0; g.y = 0; graphRefresh(); };
+  const toggleExpanded = () => {
+    g.expanded = !g.expanded;
+    graphRefresh();
+    document.querySelector(g.expanded ? '.graph-viewport' : '[data-graph-expand]')?.focus({preventScroll:true});
+  };
+  const tools = h('div', {class:'graph-tools'},
+    h('label', {}, 'Orientation ', orientation), h('label', {}, 'Layout ', layout), h('label', {}, unlinked, 'Show unlinked cards'),
+    search, h('span', {text:query ? `${matches.length} matches` : ''}),
+    graphButton('graph-prev', 'Previous match', () => findMatch(-1)), graphButton('graph-next', 'Next match', () => findMatch(1)),
+    graphButton('graph-zoom-out', 'Zoom out', zoomOut), graphButton('graph-zoom-in', 'Zoom in', zoomIn), graphButton('graph-fit', 'Fit to view', fit),
+    graphButton('graph-expand', g.expanded ? 'Close expanded graph' : 'Expand graph', toggleExpanded, {'data-graph-expand':'true'}));
+
+  const choices = [['assignee', 'Assignee'], ['priority', 'Priority'], ['labels', 'Labels'], ['feature', 'Feature'], ...snap.config.fields.map(f => ['field:' + f.id, f.name])];
+  for (const id of g.settings.fields) if (!choices.some(([key]) => key === id)) choices.push([id, 'Unavailable: ' + id]);
+  const toggleField = (id, on) => graphChange('fields', on ? [...g.settings.fields, id] : g.settings.fields.filter(x => x !== id));
+  const settings = h('details', {open:g.settingsOpen, ontoggle:e => { g.settingsOpen = e.target.open; }},
+    graphControl('summary', 'graph-settings', {}, 'Card display settings'),
+    h('div', {class:'graph-tools'}, choices.map(([id, label]) => h('label', {},
+      graphControl('input', 'graph-field:' + id, {type:'checkbox', checked:(g.settings.fields || []).includes(id), disabled:g.saving, onchange:e => toggleField(id, e.target.checked)}), label))));
+
+  /* Saving stays outside the collapsible settings so unsaved changes and conflicts are always visible. */
+  const save = h('div', {class:'graph-tools graph-save'},
+    graphButton('graph-save', 'Save shared settings', () => graphSave(false), {disabled:!g.dirty || g.saving || !!snap.graphSettingsError}),
+    g.conflict ? h('div', {role:'alert', class:'graph-conflict'}, 'Shared settings changed. ',
+      graphButton('graph-reload', 'Reload shared settings', () => { graphAdoptShared(snap); graphRefresh(); }, {disabled:g.saving}),
+      graphButton('graph-overwrite', 'Overwrite shared settings', () => graphSave(true), {disabled:g.saving || !!snap.graphSettingsError})) : null);
+
+  panel.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (g.selected) {
+      g.selected = null; g.hover = null; e.stopPropagation(); graphRefresh();
+      document.querySelector('.graph-viewport')?.focus({preventScroll:true});
+    } else if (g.expanded) {
+      g.expanded = false; e.stopPropagation(); graphRefresh();
+      document.querySelector('[data-graph-expand]')?.focus({preventScroll:true});
+    }
+  });
+  if (g.expanded) panel.addEventListener('keydown', e => graphTrapTab(panel, e));
+  panel.append(h('h2', {text:'Dependency graph'}));
+  if (snap.graphSettingsError) panel.append(h('p', {role:'alert', text:'Graph settings cannot be saved: ' + snap.graphSettingsError}));
+  const legend = h('ul', {class:'graph-legend', 'aria-label':'Card status key'},
+    h('li', {class:'ready'}, h('i'), 'Ready'), h('li', {class:'blocked'}, h('i'), 'Blocked'), h('li', {class:'unavailable'}, h('i'), 'Missing or archived'));
+  panel.append(tools, save, settings, ids.length ? legend : null, ids.length ? viewport : h('p', {text:'No dependency links yet.'}));
+  if (g.expanded) root.append(h('div', {class:'graph-backdrop', 'aria-hidden':'true'}));
+  root.append(panel);
+  viewport.scrollLeft = g.x; viewport.scrollTop = g.y;
+  graphRestoreFocus(panel, viewport, previousFocus);
+  highlight();
 }
 
 function renderBoard() {
   if (S.drag) { S.renderDeferred = true; return; }
   const root = $('#board'), focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+  const focusedEl = root.contains(document.activeElement) ? document.activeElement : null;
   const scrollX = root.scrollLeft, tops = new Map([...root.querySelectorAll('.col')].map(c => [c.dataset.col, c.querySelector('.col-body') && c.querySelector('.col-body').scrollTop]));
   clear(root);
   if (S.mode === 'launch') { root.append(launchPanel()); updateSummary(); return; }
@@ -1377,7 +1826,7 @@ function renderBoard() {
     else { root.setAttribute('aria-busy', 'true'); root.append(h('div', {class: 'sr-only', role: 'status', text: 'Loading board…'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'})); }
     updateSummary(); return;
   }
-  if (S.view === 'graph') { renderGraph(root); return; }
+  if (S.view === 'graph') { renderGraph(root, focusedEl); return; }
   if (S.view === 'issues') { renderIssues(root); return; }
   if (S.view === 'features') {
     renderFeatures(root);
@@ -1794,7 +2243,7 @@ function openEditor(key, opts = {}) {
   renderDrafts(); renderBoard();
   const first = $('#ed-title'); if (first) { first.focus(); }
 }
-function closeEditorUi() { if (editor().open) editor().close(); }
+function closeEditorUi() { if (editor().open) { editor().close(); if (S.view === 'graph') focusFk(S.returnFocus); } }
 
 function field(id, label, control, extra) {
   return h('div', {class: 'field'}, h('label', {for: id}, label), control, h('div', {class: 'err', id: 'err-' + id.replace(/^ed-/, '')}), extra || null);
@@ -2135,7 +2584,8 @@ async function saveDraft(d) {
       const live = S.snap.items.get(d.id);
       if (live) { d.base = live; d.fields = fieldsFrom(live); d.conflict = null; }
     } else S.drafts.delete(key);
-    S.returnFocus = (createdId || d.id) + ':title';
+    // The graph supplies its own return target (its Edit button); only list views focus the card title.
+    if (S.view !== 'graph') S.returnFocus = (createdId || d.id) + ':title';
     if (S.editing === key) closeEditorUi();
     const msg = createdId ? `Created ${createdId}.` : `Saved ${d.id}.`;
     toast(msg, {kind: 'ok'}); announce(msg);
@@ -2201,7 +2651,12 @@ function wire() {
     const d = key && S.drafts.get(key);
     if (d && !d.keepThreadDraft && !isDirty(d)) S.drafts.delete(key);
     renderDrafts(); renderBoard();
-    if (!focusFk(S.returnFocus)) { const n = S.returnFocus === 'new-card' ? $('#new-card') : null; (n || $('#board')).focus(); }
+    const graphCard = S.view === 'graph' && /:graph-edit$/.test(S.returnFocus || '') ? 'graph-node:' + S.returnFocus.replace(/:graph-edit$/, '') : null;
+    if (!focusFk(S.returnFocus) && !focusFk(graphCard)) {
+      const modal = S.view === 'graph' && graphUI.expanded ? ($('.graph-viewport') || $('.graph-expanded')) : null;
+      const n = S.returnFocus === 'new-card' ? $('#new-card') : null;
+      (modal || n || $('#board')).focus();
+    }
   });
   document.addEventListener('keydown', e => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
