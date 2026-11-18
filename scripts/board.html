@@ -1611,7 +1611,7 @@ function renderGraph(root, previousFocus) {
   /* A card that vanished while hovered or focused never fires mouseleave or blur, so drop the stale highlight here. */
   if (g.hover && !linked.has(g.hover)) g.hover = null;
 
-  const panel = h('section', {class:'panel graph-panel' + (g.expanded ? ' graph-expanded' : ''), 'aria-label':g.expanded ? 'Expanded dependency graph' : 'Dependency graph', ...(g.expanded ? {role:'dialog', 'aria-modal':'true'} : {})});
+  const panel = h('section', {class:'panel graph-panel' + (g.expanded ? ' graph-expanded' : ''), 'aria-label':g.expanded ? 'Expanded dependency graph' : 'Dependency graph', ...(g.expanded ? {role:'dialog', 'aria-modal':'true', tabindex:'-1'} : {})});
   const viewport = graphControl('div', 'graph-viewport', {class:'graph-viewport', tabindex:'0', 'aria-label':'Dependency graph canvas'});
   const scaleWrap = h('div', {style:`width:${width*g.zoom}px;height:${height*g.zoom}px;position:relative`});
   const space = h('div', {class:'graph-space', style:`width:${width}px;height:${height}px;transform:scale(${g.zoom})`});
@@ -2624,7 +2624,11 @@ function wire() {
     if (d && !d.keepThreadDraft && !isDirty(d)) S.drafts.delete(key);
     renderDrafts(); renderBoard();
     const graphCard = S.view === 'graph' && /:graph-edit$/.test(S.returnFocus || '') ? 'graph-node:' + S.returnFocus.replace(/:graph-edit$/, '') : null;
-    if (!focusFk(S.returnFocus) && !focusFk(graphCard)) { const n = S.returnFocus === 'new-card' ? $('#new-card') : null; (n || $('#board')).focus(); }
+    if (!focusFk(S.returnFocus) && !focusFk(graphCard)) {
+      const modal = S.view === 'graph' && graphUI.expanded ? ($('.graph-viewport') || $('.graph-expanded')) : null;
+      const n = S.returnFocus === 'new-card' ? $('#new-card') : null;
+      (modal || n || $('#board')).focus();
+    }
   });
   document.addEventListener('keydown', e => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
