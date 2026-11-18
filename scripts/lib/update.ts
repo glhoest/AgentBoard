@@ -45,7 +45,7 @@ async function updateBeta(target: string, fetcher: typeof fetch, force: boolean,
       if (release?.tag_name !== tag || release?.draft !== false || release?.prerelease !== true ||
           !Number.isFinite(published) || published > now || (!force && now - published < 3 * 86400000)) continue;
       const build = { commit: entry.sha, pr: null, noUpdate: false };
-      const result = await publishedBuild(fetcher, build);
+      const result = await publishedBuild(fetcher, build, release);
       if (result) selected = { commit: entry.sha, asset: result.asset };
       if (selected || explicit) break;
     }

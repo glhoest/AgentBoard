@@ -46,10 +46,12 @@ async function previousCommits(fetcher: typeof fetch, base: string, head: string
   return commits.reverse();
 }
 
-export async function publishedBuild(fetcher: typeof fetch, build: Build) {
+export async function publishedBuild(fetcher: typeof fetch, build: Build, knownRelease?: unknown) {
   const tag = buildTag(build);
   const name = build.noUpdate ? 'agentboard-no-update.tar.gz' : 'agentboard.tar.gz';
-  const release = await metadata(fetcher, `/releases/tags/${tag}`, 'Cannot look up experiment release', true);
+  const release: any = knownRelease === undefined
+    ? await metadata(fetcher, `/releases/tags/${tag}`, 'Cannot look up experiment release', true)
+    : knownRelease;
   if (release === null || release?.draft === true) return null;
   if (release?.tag_name !== tag || release?.draft !== false || release?.prerelease !== true || !Array.isArray(release.assets)) {
     throw new Error('Invalid experiment release metadata');
