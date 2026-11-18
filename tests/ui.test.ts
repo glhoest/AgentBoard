@@ -295,6 +295,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     const p = await chrome.newPage();
     try {
       await p.goto(url()); await p.waitFor(hasCard('Hover gone dependent')); await p.click('#view-graph');
+      await p.send('Input.dispatchMouseEvent', {type:'mouseMoved', x:1, y:1});
       await p.focus(`.graph-node[data-id="${hovered.id}"] .graph-select`);
       // Focusing a card dims everything outside its chain, so the unrelated card proves the hover is active.
       expect(await p.eval(`document.querySelector('.graph-node[data-id="${other.id}"]').classList.contains('dim')`)).toBe(true);
