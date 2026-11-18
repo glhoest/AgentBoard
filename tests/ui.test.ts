@@ -50,6 +50,14 @@ const cardsJs = `[...document.querySelectorAll('.col')].map(c => ({col: c.datase
 const colOf = (title: string) => `(() => { const t = [...document.querySelectorAll('.card-title')].find(x => x.textContent === ${JSON.stringify(title)}); return t ? t.closest('.col').dataset.col : null; })()`;
 const cardSel = (id: string) => `.card[data-id="${id}"]`;
 const hasCard = (title: string) => `[...document.querySelectorAll('.card-title')].some(x => x.textContent === ${JSON.stringify(title)})`;
+/** The selection state lives on the node's select button, not on the node container. */
+const pressed = (node: string) => `${node} .graph-select`;
+/** Native button activation needs the keypress (text) part of the key event, which Page.key() does not send. */
+async function pressActivationKey(p: Page, key: 'Enter' | ' ') {
+  const base = key === 'Enter' ? {key, code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: '\r'} : {key, code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32, text: ' '};
+  await p.send('Input.dispatchKeyEvent', {type: 'keyDown', ...base});
+  await p.send('Input.dispatchKeyEvent', {type: 'keyUp', ...base, text: undefined});
+}
 const shot = async (name: string) => { if (SHOTS) { mkdirSync(SHOTS, {recursive: true}); await page.screenshot(join(SHOTS, name + '.png')); } };
 async function openCard(title: string) { await page.click(`.card-title[title=${JSON.stringify(title)}]`); await page.waitFor(`document.querySelector('#editor').open && document.querySelector('#ed-title').value === ${JSON.stringify(title)}`, 5000, 'editor open for ' + title); }
 
@@ -164,12 +172,12 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).click()`);
       await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Expand graph').click()`);
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).getAttribute('aria-pressed')`)).toBe('true');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node(child.id)))}).getAttribute('aria-pressed')`)).toBe('true');
       if (SHOTS) { mkdirSync(SHOTS, {recursive: true}); await p.resize(1400, 900); await p.screenshot(join(SHOTS, 'graph-expanded-vertical.png')); }
       await p.focus('.graph-viewport');
       await p.key('Escape');
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).getAttribute('aria-pressed')`)).toBe('false');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node(child.id)))}).getAttribute('aria-pressed')`)).toBe('false');
       await p.focus('.graph-viewport');
       await p.key('Escape');
       expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') === null`)).toBe(true);
@@ -213,16 +221,89 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     const node = `.graph-node[data-id="${item.id}"]`;
     try {
       await p.goto(url()); await p.waitFor(hasCard('Keyboard graph item')); await p.click('#view-graph');
-      await p.focus(node); await p.key('Enter');
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
-      await p.focus(`${node} button`);
+      await p.focus(`${node} .graph-select`); await pressActivationKey(p, 'Enter');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
+      await p.focus(`[data-fk="${item.id}:graph-edit"]`);
       expect(await p.eval(`document.activeElement.textContent`)).toBe('Edit');
-      await p.key('Enter');
+      await pressActivationKey(p, 'Enter');
       await p.waitFor(`document.querySelector('#editor').open`);
       expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Keyboard graph item');
       await p.click('#ed-cancel');
       await p.waitFor(`!document.querySelector('#editor').open`);
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('graph node selection, Edit and Collapse are separate non-nested controls', async () => {
+    const done = cliJson('create', 'Accessible done prerequisite');
+    const item = cliJson('create', 'Accessible dependent');
+    cliJson('dependency-add', item.id, done.id);
+    cliJson('move', done.id, 'done');
+    const p = await chrome.newPage();
+    const node = `.graph-node[data-id="${done.id}"]`;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Accessible dependent')); await p.click('#view-graph');
+      await p.waitFor(`document.querySelector(${JSON.stringify(node)})`);
+      await p.focus(`${node} .graph-select`); await pressActivationKey(p, ' ');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).classList.contains('collapsed')`)).toBe(false);
+      const structure = await p.eval<{nodeRole: string | null; nodeTabindex: string | null; nested: number; names: string[]; selectLabel: string}>(`(() => {
+        const n = document.querySelector(${JSON.stringify(node)});
+        const controls = [...n.querySelectorAll('button')];
+        return {
+          nodeRole: n.getAttribute('role'), nodeTabindex: n.getAttribute('tabindex'),
+          nested: n.querySelectorAll('[role="button"] button, button button, button [tabindex]').length,
+          names: controls.map(b => b.getAttribute('aria-label') || b.textContent),
+          selectLabel: n.querySelector('.graph-select').getAttribute('aria-label'),
+        };
+      })()`);
+      expect(structure.nodeRole).toBe('group');
+      expect(structure.nodeTabindex).toBeNull();
+      expect(structure.nested).toBe(0);
+      expect(structure.names).toEqual([structure.selectLabel, 'Edit', 'Collapse']);
+      expect(structure.selectLabel).toContain('Accessible done prerequisite');
+      await p.focus(`[data-fk="graph-collapse:${done.id}"]`); await pressActivationKey(p, 'Enter');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).classList.contains('collapsed')`)).toBe(true);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('saving from the expanded graph editor returns focus to the graph Edit button', async () => {
+    const parent = cliJson('create', 'Save focus prerequisite');
+    const child = cliJson('create', 'Save focus card');
+    cliJson('dependency-add', child.id, parent.id);
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Save focus card')); await p.click('#view-graph');
+      await p.click('[data-graph-expand]');
+      await p.click(`[data-fk="${child.id}:graph-edit"]`);
+      await p.waitFor(`document.querySelector('#editor').open`);
+      await p.set('#ed-title', 'Save focus renamed');
+      await p.click('#ed-save');
+      await p.waitFor(`!document.querySelector('#editor').open`, 10000);
+      await p.waitFor(`document.querySelector('.graph-node[data-id="${child.id}"]').textContent.includes('Save focus renamed')`, 12000);
+      expect(await p.eval(`document.activeElement.dataset.fk`)).toBe(`${child.id}:graph-edit`);
+      expect(await p.eval(`document.querySelector('[aria-label="Expanded dependency graph"]').contains(document.activeElement)`)).toBe(true);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('graph hover highlight is cleared when the hovered card disappears while polling', async () => {
+    const parent = cliJson('create', 'Hover gone prerequisite');
+    const hovered = cliJson('create', 'Hover gone dependent');
+    const other = cliJson('create', 'Hover stays dependent');
+    const anchor = cliJson('create', 'Hover stays prerequisite');
+    cliJson('dependency-add', hovered.id, parent.id);
+    cliJson('dependency-add', other.id, anchor.id);
+    const p = await chrome.newPage();
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Hover gone dependent')); await p.click('#view-graph');
+      await p.focus(`.graph-node[data-id="${hovered.id}"] .graph-select`);
+      // Focusing a card dims everything outside its chain, so the unrelated card proves the hover is active.
+      expect(await p.eval(`document.querySelector('.graph-node[data-id="${other.id}"]').classList.contains('dim')`)).toBe(true);
+      cliJson('dependency-remove', hovered.id, parent.id);
+      await p.waitFor(`!document.querySelector('.graph-node[data-id="${hovered.id}"]')`, 12000);
+      // A stale hover on the vanished card would dim every remaining card and edge.
+      expect(await p.eval(`document.querySelectorAll('.graph-node.dim, .graph-edge.dim').length`)).toBe(0);
     } finally { await p.send('Page.close'); }
   });
 
@@ -285,12 +366,12 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.waitFor(`document.querySelector(${JSON.stringify(node)})`);
       expect(await p.eval(`(() => { const n = document.querySelector(${JSON.stringify(node)}), m = n.querySelector('.graph-meta'); return m.textContent.includes('Done') && m.getBoundingClientRect().bottom <= n.getBoundingClientRect().bottom; })()`)).toBe(true);
       await p.eval(`document.querySelector(${JSON.stringify(node)}).click()`);
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
       await p.eval(`[...document.querySelectorAll(${JSON.stringify(node + ' button')})].find(b => b.textContent === 'Collapse').click()`);
       expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).classList.contains('collapsed')`)).toBe(true);
       await p.eval(`document.querySelector(${JSON.stringify(node)}).click()`);
       expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).classList.contains('collapsed')`)).toBe(false);
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
     } finally { await p.send('Page.close'); }
   });
 
@@ -326,7 +407,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.send('Input.dispatchMouseEvent', {type:'mousePressed', x:point.x, y:point.y, button:'left', buttons:1, clickCount:1});
       await p.send('Input.dispatchMouseEvent', {type:'mouseMoved', x:point.x+65, y:point.y, button:'left', buttons:1});
       await p.send('Input.dispatchMouseEvent', {type:'mouseReleased', x:point.x+65, y:point.y, button:'left', clickCount:1});
-      expect(await p.eval(`document.querySelector(${JSON.stringify(node)}).getAttribute('aria-pressed')`)).toBe('true');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(pressed(node))}).getAttribute('aria-pressed')`)).toBe('true');
     } finally { await p.send('Page.close'); }
   });
 
@@ -339,7 +420,7 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     try {
       await p.goto(url()); await p.waitFor(hasCard('Expanded editor card')); await p.click('#view-graph');
       await p.click('[data-graph-expand]');
-      await p.click(`${node} button`);
+      await p.click(`[data-fk="${child.id}:graph-edit"]`);
       await p.waitFor(`document.querySelector('#editor').open`);
       expect(await p.eval(`document.querySelector('#ed-title').value`)).toBe('Expanded editor card');
       expect(await p.eval(`document.querySelector('#editor').contains(document.activeElement)`)).toBe(true);

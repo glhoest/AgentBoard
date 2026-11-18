@@ -268,7 +268,11 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 .graph-node.dim{opacity:.3}
 .graph-node.search-match{box-shadow:0 0 0 2px var(--warn),0 0 14px color-mix(in srgb,var(--warn) 45%,transparent)}
 .graph-node.selected.search-match{box-shadow:0 0 0 2px var(--accent),0 0 0 5px color-mix(in srgb,var(--warn) 70%,transparent)}
-.graph-node:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.graph-node:has(.graph-select:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+/* The selection control is a real button laid over the card; Edit and Collapse are sibling buttons above it, never nested inside it. */
+.graph-select{position:absolute;inset:0;z-index:0;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:inherit;background:transparent;color:inherit;cursor:pointer}
+.graph-select:focus,.graph-select:focus-visible{outline:none}
+.graph-node .btn.small{position:relative;z-index:1}
 .graph-node p{margin:4px 0}
 .graph-node strong{flex:1 0 100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;font-weight:650;line-height:1.3;letter-spacing:-.005em}
 .graph-node .graph-meta{flex:1 0 100%;font-size:11.5px;line-height:1.35;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1604,6 +1608,8 @@ function renderGraph(root, previousFocus) {
   const query = g.search.trim().toLowerCase();
   const matches = query ? ids.filter(id => (id + ' ' + (snap.items.get(id)?.title || 'Missing card')).toLowerCase().includes(query)) : [];
   if (g.selected && !linked.has(g.selected)) g.selected = null;
+  /* A card that vanished while hovered or focused never fires mouseleave or blur, so drop the stale highlight here. */
+  if (g.hover && !linked.has(g.hover)) g.hover = null;
 
   const panel = h('section', {class:'panel graph-panel' + (g.expanded ? ' graph-expanded' : ''), 'aria-label':g.expanded ? 'Expanded dependency graph' : 'Dependency graph', ...(g.expanded ? {role:'dialog', 'aria-modal':'true'} : {})});
   const viewport = graphControl('div', 'graph-viewport', {class:'graph-viewport', tabindex:'0', 'aria-label':'Dependency graph canvas'});
@@ -1643,30 +1649,32 @@ function renderGraph(root, previousFocus) {
     const status = item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing card';
     const readiness = !item ? 'Unavailable, satisfied' : blockers ? 'Blocked' : 'Ready';
     const classes = ['graph-node', blockers && 'blocked', (!item || item.archived) && 'unavailable', collapsed && 'collapsed', id === g.selected && 'selected', matches.includes(id) && 'search-match'];
-    const node = graphControl('div', 'graph-node:' + id, {
-      class:classes.filter(Boolean).join(' '), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id, tabindex:'0', role:'button',
-      'aria-pressed':String(id === g.selected), 'aria-label':`${item?.title || 'Missing card'}, ${id}, ${status}, ${readiness}`,
+    /* The card is a labelled group of three sibling controls (Select, Edit, Collapse); none is nested in another. */
+    const node = h('div', {
+      class:classes.filter(Boolean).join(' '), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id,
+      role:'group', 'aria-label':item?.title || 'Missing card',
     });
     const select = () => {
       if (collapsed) { g.opened.add(id); g.selected = id; }
       else g.selected = g.selected === id ? null : id;
       graphRefresh();
     };
-    node.addEventListener('click', select);
-    node.addEventListener('keydown', e => {
-      if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(); }
-      else if (e.target instanceof HTMLButtonElement && e.key === 'Enter') { e.preventDefault(); e.target.click(); }
+    /* A native button supplies Enter and Space; clicks anywhere on the card (the button covers it) reach the node. */
+    const selector = graphControl('button', 'graph-node:' + id, {
+      type:'button', class:'graph-select', 'aria-pressed':String(id === g.selected),
+      'aria-label':`${item?.title || 'Missing card'}, ${id}, ${status}, ${readiness}`,
     });
+    node.addEventListener('click', select);
     const setHover = value => () => { g.hover = value; highlight(); };
-    for (const type of ['mouseenter', 'focus']) node.addEventListener(type, setHover(id));
-    for (const type of ['mouseleave', 'blur']) node.addEventListener(type, setHover(null));
-    node.append(
-      h('strong', {text:item?.title || 'Missing card'}),
-      h('div', {class:'graph-meta graph-id', text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
+    for (const type of ['mouseenter', 'focusin']) node.addEventListener(type, setHover(id));
+    for (const type of ['mouseleave', 'focusout']) node.addEventListener(type, setHover(null));
+    node.append(selector,
+      h('strong', {text:item?.title || 'Missing card', 'aria-hidden':'true'}),
+      h('div', {class:'graph-meta graph-id', 'aria-hidden':'true', text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
     if (collapsed) return node;
     const stateClass = !item ? 'unavailable' : blockers ? 'blocked' : 'ready';
     const stateText = !item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers';
-    node.append(h('div', {class:'graph-meta graph-state ' + stateClass, text:stateText}));
+    node.append(h('div', {class:'graph-meta graph-state ' + stateClass, 'aria-hidden':'true', text:stateText}));
     if (item) for (const field of g.settings.fields || []) {
       const value = graphFieldValue(snap, item, field);
       if (value === null || value === undefined || value === '') continue;
@@ -2548,7 +2556,8 @@ async function saveDraft(d) {
       const live = S.snap.items.get(d.id);
       if (live) { d.base = live; d.fields = fieldsFrom(live); d.conflict = null; }
     } else S.drafts.delete(key);
-    S.returnFocus = (createdId || d.id) + ':title';
+    // The graph supplies its own return target (its Edit button); only list views focus the card title.
+    if (S.view !== 'graph') S.returnFocus = (createdId || d.id) + ':title';
     if (S.editing === key) closeEditorUi();
     const msg = createdId ? `Created ${createdId}.` : `Saved ${d.id}.`;
     toast(msg, {kind: 'ok'}); announce(msg);
@@ -2614,7 +2623,8 @@ function wire() {
     const d = key && S.drafts.get(key);
     if (d && !d.keepThreadDraft && !isDirty(d)) S.drafts.delete(key);
     renderDrafts(); renderBoard();
-    if (!focusFk(S.returnFocus)) { const n = S.returnFocus === 'new-card' ? $('#new-card') : null; (n || $('#board')).focus(); }
+    const graphCard = S.view === 'graph' && /:graph-edit$/.test(S.returnFocus || '') ? 'graph-node:' + S.returnFocus.replace(/:graph-edit$/, '') : null;
+    if (!focusFk(S.returnFocus) && !focusFk(graphCard)) { const n = S.returnFocus === 'new-card' ? $('#new-card') : null; (n || $('#board')).focus(); }
   });
   document.addEventListener('keydown', e => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
