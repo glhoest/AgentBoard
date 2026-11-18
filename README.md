@@ -348,6 +348,8 @@ This folder is the source. `tests/` and `docs/` stay here, and setup does not co
 
 Notes on direct mode and the UI:
 
+- Graph display settings are shared in `.agentboard/graph-settings.json`; an absent file uses the defaults. The versioned file stores orientation, layout, unlinked-card visibility and optional card fields. The bridge checks its SHA-256 hash under the board lock before saving. Direct mode checks before writing but cannot make that check atomic with its write. Older AgentBoard copies ignore this separate file.
+- Agents can read the settings and hash with `graph-settings`, and save a complete settings JSON object with `graph-settings-set JSON --hash HASH` (use the literal `null` as the hash when the file is absent). Optional field names are `assignee`, `priority`, `labels`, `feature`, or `field:<custom-field-id>`.
 - Use the column arrows to collapse Backlog or Done on desktop (any column on narrow screens). Counts still reflect the current filters; expand a column to see its cards. Collapse choices last until the page is reloaded and are not written to the board.
 - When issue files exist, direct mode refuses work-card status changes and restoration of archived cards. Use the bridge so linked issues follow work completion and reopening. Issue submission and evidence also require the bridge.
 - Direct mode cannot create a feature file exclusively, because the browser file API has no atomic exclusive create. A second check that the file does not exist makes the race window smaller.

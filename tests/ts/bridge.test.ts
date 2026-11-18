@@ -25,6 +25,16 @@ const board = async () => (await (await fetch(`${base}/api/board`, { headers: au
 const create = async (title: string) => (await (await fetch(`${base}/api/items`, { method: 'POST', headers: json(), body: JSON.stringify({ title }) })).json()) as any;
 const patch = (id: string, body: unknown) => fetch(`${base}/api/items/${id}`, { method: 'PATCH', headers: json(), body: typeof body === 'string' ? body : JSON.stringify(body) });
 
+test('graph settings writes use the snapshot hash for concurrency', async () => {
+  const snap = await board();
+  const settings = {...snap.graphSettings, orientation:'vertical'};
+  const body = JSON.stringify({settings, hash:snap.graphSettingsHash});
+  const save = () => fetch(`${base}/api/graph-settings`, {method:'PATCH', headers:json(), body});
+  expect((await save()).status).toBe(200);
+  expect((await save()).status).toBe(409);
+  expect((await board()).graphSettings.orientation).toBe('vertical');
+});
+
 test('issue submission and evidence use snapshot hashes for conflict detection', async () => {
   const created = await fetch(`${base}/api/issues`, { method: 'POST', headers: json(), body: JSON.stringify({title: 'Defect', observed: 'Fails'}) });
   expect(created.status).toBe(201);

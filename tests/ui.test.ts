@@ -98,23 +98,79 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       expect(await p.eval(`document.querySelector(${JSON.stringify(cardSel(blocker.id))}).innerText`)).toContain('1 dependent');
       await p.click('#view-graph');
       await p.waitFor(`document.querySelector('.graph-panel')`);
-      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Depends on → Graph blocker');
-      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('blocking');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Graph blocker');
+      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Graph dependent');
       expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).not.toContain('Seed card');
-      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).querySelector(':scope > div').textContent`)).toContain('1 blocker');
-      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).querySelector(':scope > div').textContent`)).not.toContain('blocking');
-      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).classList.contains('blocked')`)).toBe(true);
-      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph blocker')).classList.contains('blocked')`)).toBe(false);
+      expect(await p.eval(`(() => { const a = document.querySelector('.graph-node[data-id="${blocker.id}"]').getBoundingClientRect(); const b = document.querySelector('.graph-node[data-id="${dependent.id}"]').getBoundingClientRect(); return a.right < b.left; })()`)).toBe(true);
+      expect(await p.eval(`document.querySelector('.graph-node[data-id="${dependent.id}"]').innerText`)).toMatch(/blocked/i);
       cliJson('edit', blocker.id, '--archive');
-      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Archived (Backlog) — satisfied')`, 10000);
-      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph blocker')).classList.contains('unavailable')`)).toBe(true);
-      expect(await p.eval(`[...document.querySelectorAll('.graph-node')].find(x => x.querySelector('strong').textContent.includes('Graph dependent')).classList.contains('blocked')`)).toBe(false);
+      await p.waitFor(`/archived/i.test(document.querySelector('.graph-node[data-id="${blocker.id}"]').innerText)`, 10000);
+      expect(await p.eval(`document.querySelector('.graph-node[data-id="${dependent.id}"]').innerText`)).toMatch(/ready/i);
       cliJson('edit', blocker.id, '--unarchive');
       cliJson('move', blocker.id, 'done');
-      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Done — satisfied')`, 10000);
+      await p.waitFor(`/done/i.test(document.querySelector('.graph-node[data-id="${blocker.id}"]').innerText)`, 10000);
       rmSync(join(root, '.agentboard', 'items', blocker.id + '.json'));
-      await p.waitFor(`document.querySelector('.graph-panel').innerText.includes('Missing card (${blocker.id}) — Missing — satisfied')`, 10000);
-      expect(await p.eval(`document.querySelector('.graph-panel').innerText`)).toContain('Missing card (' + blocker.id + ')');
+      await p.waitFor(`/missing card/i.test(document.querySelector('.graph-node[data-id="${blocker.id}"]').innerText)`, 10000);
+      expect(await p.eval(`document.querySelector('.graph-node[data-id="${blocker.id}"]').innerText`)).toContain(blocker.id);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('graph highlights only the selected prerequisite and dependent chains', async () => {
+    const parent = cliJson('create', 'Chain prerequisite');
+    const middle = cliJson('create', 'Chain selected');
+    const child = cliJson('create', 'Chain dependent');
+    const sibling = cliJson('create', 'Chain sibling');
+    cliJson('dependency-add', middle.id, parent.id);
+    cliJson('dependency-add', child.id, middle.id);
+    cliJson('dependency-add', sibling.id, parent.id);
+    const p = await chrome.newPage();
+    const node = (id: string) => `.graph-node[data-id="${id}"]`;
+    try {
+      await p.goto(url());
+      await p.waitFor(hasCard('Chain selected'));
+      await p.click('#view-graph');
+      await p.waitFor(`document.querySelector(${JSON.stringify(node(child.id))})`);
+      await p.eval(`document.querySelector(${JSON.stringify(node(middle.id))}).click()`);
+      for (const item of [parent, middle, child]) {
+        expect(await p.eval(`document.querySelector(${JSON.stringify(node(item.id))}).classList.contains('dim')`)).toBe(false);
+      }
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node(sibling.id))}).classList.contains('dim')`)).toBe(true);
+      expect(await p.eval(`document.querySelector('.graph-edge[data-from="${parent.id}"][data-to="${middle.id}"]').classList.contains('active')`)).toBe(true);
+      expect(await p.eval(`document.querySelector('.graph-edge[data-from="${parent.id}"][data-to="${sibling.id}"]').classList.contains('dim')`)).toBe(true);
+      await p.focus('.graph-viewport');
+      await p.key('Escape');
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node(sibling.id))}).classList.contains('dim')`)).toBe(false);
+    } finally { await p.send('Page.close'); }
+  });
+
+  test('graph controls preview orientation, search and expanded view', async () => {
+    const parent = cliJson('create', 'View controls prerequisite');
+    const child = cliJson('create', 'View controls dependent');
+    cliJson('dependency-add', child.id, parent.id);
+    const p = await chrome.newPage();
+    const node = (id: string) => `.graph-node[data-id="${id}"]`;
+    try {
+      await p.goto(url());
+      await p.waitFor(hasCard('View controls dependent'));
+      await p.click('#view-graph');
+      await p.waitFor(`document.querySelector(${JSON.stringify(node(child.id))})`);
+      await p.eval(`(() => { const input = document.querySelector('[aria-label="Orientation"]'); input.value = 'vertical'; input.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+      expect(await p.eval(`(() => { const a = document.querySelector(${JSON.stringify(node(parent.id))}).getBoundingClientRect(); const b = document.querySelector(${JSON.stringify(node(child.id))}).getBoundingClientRect(); return a.bottom < b.top; })()`)).toBe(true);
+      const nodeCount = await p.eval(`document.querySelectorAll('.graph-node').length`);
+      await p.set('[aria-label="Search graph"]', 'View controls');
+      expect(await p.eval(`document.querySelectorAll('.graph-node.search-match').length`)).toBe(2);
+      expect(await p.eval(`document.querySelectorAll('.graph-node').length`)).toBe(nodeCount);
+      await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).click()`);
+      await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Expand graph').click()`);
+      expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).getAttribute('aria-pressed')`)).toBe('true');
+      await p.focus('.graph-viewport');
+      await p.key('Escape');
+      expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') !== null`)).toBe(true);
+      expect(await p.eval(`document.querySelector(${JSON.stringify(node(child.id))}).getAttribute('aria-pressed')`)).toBe('false');
+      await p.focus('.graph-viewport');
+      await p.key('Escape');
+      expect(await p.eval(`document.querySelector('[role="dialog"][aria-label="Expanded dependency graph"]') === null`)).toBe(true);
     } finally { await p.send('Page.close'); }
   });
 

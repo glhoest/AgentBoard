@@ -5,6 +5,7 @@ import { BoardError, Conflict, FeatureSyncError, IssueSyncError } from './types'
 import { encode, snapshot, hashItem, hashFeature, createFeature, updateFeature, create, update, addEntry, editEntry } from './store';
 import { withLock } from './lock';
 import { listIssues, hashIssue, createIssue, updateIssue, addEvidence } from './issues';
+import { readGraphSettings, saveGraphSettings } from './graph-settings';
 
 const FEATURE_ROUTE = /^\/api\/features\/(FT-[0-9A-F]{12})$/;
 const ITEM_ROUTE = /^\/api\/items\/(AB-[0-9A-F]{12})$/;
@@ -31,6 +32,10 @@ function versioned(body: any, payload: 'changes' | 'entry'): unknown {
 }
 
 function handleWrite(root: string, method: string, path: string, body: any): Response {
+  if (method === 'PATCH' && path === '/api/graph-settings') {
+    if (Object.keys(body).sort().join(',') !== 'hash,settings') throw new BoardError('Expected graph settings and hash');
+    return response(200, saveGraphSettings(root, body.settings, body.hash));
+  }
   if (method === 'POST' && path === '/api/issues') return response(201, createIssue(root, body));
   const issueMatch = path.match(/^\/api\/issues\/(IS-[0-9A-F]{12})(\/evidence)?$/);
   if (issueMatch && method === 'PATCH' && !issueMatch[2]) {
@@ -96,6 +101,9 @@ export function startBridge(root: string, port: number, uiPath: string, print: (
         // Under the lock, the snapshot upgrades older files on disk first, so the hashes match the current bytes.
         const result = withLock(root, () => {
           const value = snapshot(root) as any;
+          const graph = readGraphSettings(root);
+          value.graphSettings = graph.settings;
+          value.graphSettingsHash = graph.hash;
           let issueHashes: [string, string][] = [];
           try {
             value.issues = listIssues(root);

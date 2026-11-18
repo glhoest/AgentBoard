@@ -1,0 +1,579 @@
+{
+  "version": "1.3.0",
+  "id": "AB-A5D3E910700C",
+  "revision": 65,
+  "title": "Redesign dependency graph",
+  "status": "in-progress",
+  "priority": "medium",
+  "assignee": "codex",
+  "labels": [],
+  "description": "Redesign the merged dependency view through a user-led grilling session; use the supplied image as inspiration.",
+  "acceptanceCriteria": [],
+  "notes": "",
+  "createdAt": "2026-11-18T12:49:03.501Z",
+  "updatedAt": "2026-11-18T19:47:23.271Z",
+  "archived": false,
+  "feature": null,
+  "thread": [
+    {
+      "id": "TH-A64075E03FAF",
+      "kind": "question",
+      "author": "codex",
+      "body": "Should the primary layout place prerequisites on the left and their dependents on the right, with directed connecting lines?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:49:07.828Z",
+      "updatedAt": "2026-11-18T12:49:07.828Z"
+    },
+    {
+      "id": "TH-1022AA4FF898",
+      "kind": "answer",
+      "author": "user",
+      "body": "Yes: prerequisites left and dependents right, with a toggle for top-to-bottom orientation.",
+      "replyTo": "TH-A64075E03FAF",
+      "createdAt": "2026-11-18T12:50:53.975Z",
+      "updatedAt": "2026-11-18T12:50:53.975Z"
+    },
+    {
+      "id": "TH-56FA533F50A7",
+      "kind": "question",
+      "author": "codex",
+      "body": "Should the graph initially show every card participating in at least one dependency, including disconnected groups, while omitting cards with no links?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:50:54.393Z",
+      "updatedAt": "2026-11-18T12:50:54.393Z"
+    },
+    {
+      "id": "TH-262C7A6B39BE",
+      "kind": "answer",
+      "author": "user",
+      "body": "Show linked cards by default; provide a toggle to include all unlinked cards, disabled by default.",
+      "replyTo": "TH-56FA533F50A7",
+      "createdAt": "2026-11-18T12:51:45.339Z",
+      "updatedAt": "2026-11-18T12:51:45.339Z"
+    },
+    {
+      "id": "TH-30F5B9CF7D28",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should users navigate a graph larger than the available viewport?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:51:45.728Z",
+      "updatedAt": "2026-11-18T12:51:45.728Z"
+    },
+    {
+      "id": "TH-79AA9461D1B9",
+      "kind": "answer",
+      "author": "user",
+      "body": "Use scrollbars and drag-to-pan, zoom controls, and fit to view.",
+      "replyTo": "TH-30F5B9CF7D28",
+      "createdAt": "2026-11-18T12:52:03.789Z",
+      "updatedAt": "2026-11-18T12:52:03.789Z"
+    },
+    {
+      "id": "TH-4590CEF7EDE2",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should highlighting work when a person points at or selects a card?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:52:04.831Z",
+      "updatedAt": "2026-11-18T12:52:04.831Z"
+    },
+    {
+      "id": "TH-2BFBBA125645",
+      "kind": "answer",
+      "author": "user",
+      "body": "Highlight the full dependency chain on hover or keyboard focus, dim unrelated items, and clear when focus leaves.",
+      "replyTo": "TH-4590CEF7EDE2",
+      "createdAt": "2026-11-18T12:52:25.235Z",
+      "updatedAt": "2026-11-18T12:52:25.235Z"
+    },
+    {
+      "id": "TH-A35B29E05A14",
+      "kind": "question",
+      "author": "codex",
+      "body": "What should activating a graph card do?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:52:25.628Z",
+      "updatedAt": "2026-11-18T12:52:25.628Z"
+    },
+    {
+      "id": "TH-228AD078BF27",
+      "kind": "answer",
+      "author": "user",
+      "body": "Clicking or keyboard-activating a card selects it and pins its relationship highlighting.",
+      "replyTo": "TH-A35B29E05A14",
+      "createdAt": "2026-11-18T12:52:54.434Z",
+      "updatedAt": "2026-11-18T12:52:54.434Z"
+    },
+    {
+      "id": "TH-74FACA6254A3",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should a user open the existing card editor from a graph node?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:52:54.827Z",
+      "updatedAt": "2026-11-18T12:52:54.827Z"
+    },
+    {
+      "id": "TH-D610F030DF3F",
+      "kind": "answer",
+      "author": "user",
+      "body": "Provide a clearly labeled Edit button on each card, separate from selection.",
+      "replyTo": "TH-74FACA6254A3",
+      "createdAt": "2026-11-18T12:53:14.908Z",
+      "updatedAt": "2026-11-18T12:53:14.908Z"
+    },
+    {
+      "id": "TH-728E881B6745",
+      "kind": "question",
+      "author": "codex",
+      "body": "What information should each graph card display by default?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:53:16.576Z",
+      "updatedAt": "2026-11-18T12:53:16.576Z"
+    },
+    {
+      "id": "TH-214A3DA14486",
+      "kind": "answer",
+      "author": "user",
+      "body": "Show title, ID, status, readiness and Edit by default; offer settings to add properties such as custom story points.",
+      "replyTo": "TH-728E881B6745",
+      "createdAt": "2026-11-18T12:54:23.018Z",
+      "updatedAt": "2026-11-18T12:54:23.018Z"
+    },
+    {
+      "id": "TH-3B5378E8C4B3",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should graph display settings be saved and shared?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:54:23.399Z",
+      "updatedAt": "2026-11-18T12:54:23.399Z"
+    },
+    {
+      "id": "TH-44D5A1AE2526",
+      "kind": "answer",
+      "author": "user",
+      "body": "Save graph display settings shared in the board repository.",
+      "replyTo": "TH-3B5378E8C4B3",
+      "createdAt": "2026-11-18T12:54:43.835Z",
+      "updatedAt": "2026-11-18T12:54:43.835Z"
+    },
+    {
+      "id": "TH-941E761C9952",
+      "kind": "question",
+      "author": "codex",
+      "body": "Which additional card properties should graph display settings offer?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:54:44.258Z",
+      "updatedAt": "2026-11-18T12:54:44.258Z"
+    },
+    {
+      "id": "TH-6C0659168423",
+      "kind": "answer",
+      "author": "user",
+      "body": "Offer optional assignee, priority, labels, feature and board-defined custom fields; omit empty values.",
+      "replyTo": "TH-941E761C9952",
+      "createdAt": "2026-11-18T12:55:05.514Z",
+      "updatedAt": "2026-11-18T12:55:05.514Z"
+    },
+    {
+      "id": "TH-6DB0A22AF85F",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should status and dependency readiness appear visually on graph cards?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:55:05.939Z",
+      "updatedAt": "2026-11-18T12:55:05.939Z"
+    },
+    {
+      "id": "TH-675B58570D52",
+      "kind": "answer",
+      "author": "user",
+      "body": "Show status and a colored flag border.",
+      "replyTo": "TH-6DB0A22AF85F",
+      "createdAt": "2026-11-18T12:55:38.858Z",
+      "updatedAt": "2026-11-18T12:55:38.858Z"
+    },
+    {
+      "id": "TH-AF45ADE0F469",
+      "kind": "question",
+      "author": "codex",
+      "body": "What should the colored flag border represent?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:55:39.243Z",
+      "updatedAt": "2026-11-18T12:55:39.243Z"
+    },
+    {
+      "id": "TH-17C2FD885F4B",
+      "kind": "answer",
+      "author": "user",
+      "body": "The colored flag border represents dependency readiness, with an accessible textual description.",
+      "replyTo": "TH-AF45ADE0F469",
+      "createdAt": "2026-11-18T12:56:11.348Z",
+      "updatedAt": "2026-11-18T12:56:11.348Z"
+    },
+    {
+      "id": "TH-A6B8CEBD8085",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should completed, archived, and missing dependencies appear in the graph?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:56:11.834Z",
+      "updatedAt": "2026-11-18T12:56:11.834Z"
+    },
+    {
+      "id": "TH-4301F7342F00",
+      "kind": "answer",
+      "author": "user",
+      "body": "Show all; collapse completed, archived and missing dependencies to title only and open on click.",
+      "replyTo": "TH-A6B8CEBD8085",
+      "createdAt": "2026-11-18T12:57:04.837Z",
+      "updatedAt": "2026-11-18T12:57:04.837Z"
+    },
+    {
+      "id": "TH-368694069561",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should clicking a collapsed dependency interact with pinned highlighting?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:57:05.225Z",
+      "updatedAt": "2026-11-18T12:57:05.225Z"
+    },
+    {
+      "id": "TH-3840FDD90DCC",
+      "kind": "answer",
+      "author": "user",
+      "body": "Clicking a collapsed card expands it and pins highlighting; provide a separate collapse control.",
+      "replyTo": "TH-368694069561",
+      "createdAt": "2026-11-18T12:57:25.252Z",
+      "updatedAt": "2026-11-18T12:57:25.252Z"
+    },
+    {
+      "id": "TH-75950446C52D",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should a pinned selection be cleared or changed?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:57:25.725Z",
+      "updatedAt": "2026-11-18T12:57:25.725Z"
+    },
+    {
+      "id": "TH-CE4887A82D2B",
+      "kind": "answer",
+      "author": "user",
+      "body": "Click selected card again, click empty canvas or press Escape to clear; selecting another replaces it.",
+      "replyTo": "TH-75950446C52D",
+      "createdAt": "2026-11-18T12:57:43.917Z",
+      "updatedAt": "2026-11-18T12:57:43.917Z"
+    },
+    {
+      "id": "TH-47FD054D010B",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should existing board filters affect the dependency graph?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:57:44.315Z",
+      "updatedAt": "2026-11-18T12:57:44.315Z"
+    },
+    {
+      "id": "TH-62772F5EDC89",
+      "kind": "answer",
+      "author": "user",
+      "body": "Keep the graph independent of board filters.",
+      "replyTo": "TH-47FD054D010B",
+      "createdAt": "2026-11-18T12:58:09.220Z",
+      "updatedAt": "2026-11-18T12:58:09.220Z"
+    },
+    {
+      "id": "TH-C427188CBB48",
+      "kind": "question",
+      "author": "codex",
+      "body": "Should the graph have its own search or filtering controls?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:58:09.633Z",
+      "updatedAt": "2026-11-18T12:58:09.633Z"
+    },
+    {
+      "id": "TH-B782725946BE",
+      "kind": "answer",
+      "author": "user",
+      "body": "Provide graph-specific search by title or ID that locates and highlights matches without hiding other cards.",
+      "replyTo": "TH-C427188CBB48",
+      "createdAt": "2026-11-18T12:58:26.317Z",
+      "updatedAt": "2026-11-18T12:58:26.317Z"
+    },
+    {
+      "id": "TH-2ACDC5785060",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should the graph work on narrow screens and touch devices?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:58:26.706Z",
+      "updatedAt": "2026-11-18T12:58:26.706Z"
+    },
+    {
+      "id": "TH-12C6FFEFCF8F",
+      "kind": "comment",
+      "author": "user",
+      "body": "Additional request: offer compact layout like the reference and a loose layout keeping dependent cards in their parent lane, accepting whitespace; provide a 90% semi-fullscreen modal for more graph space. Details to clarify.",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:58:36.751Z",
+      "updatedAt": "2026-11-18T12:58:36.751Z"
+    },
+    {
+      "id": "TH-A7637F59D2A8",
+      "kind": "answer",
+      "author": "user",
+      "body": "Desktop only for this redesign. Plan mobile separately in the backlog; it needs further grilling.",
+      "replyTo": "TH-2ACDC5785060",
+      "createdAt": "2026-11-18T12:59:43.404Z",
+      "updatedAt": "2026-11-18T12:59:43.404Z"
+    },
+    {
+      "id": "TH-7874D2BF8EBF",
+      "kind": "question",
+      "author": "codex",
+      "body": "In loose layout, how should branches and cards with multiple prerequisites be assigned to lanes?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T12:59:44.219Z",
+      "updatedAt": "2026-11-18T12:59:44.219Z"
+    },
+    {
+      "id": "TH-472D7700D47F",
+      "kind": "answer",
+      "author": "user",
+      "body": "Keep one dependent aligned with its prerequisite, place siblings in adjacent lanes, and assign shared dependents to one prerequisite lane without duplication.",
+      "replyTo": "TH-7874D2BF8EBF",
+      "createdAt": "2026-11-18T19:35:28.397Z",
+      "updatedAt": "2026-11-18T19:35:28.397Z"
+    },
+    {
+      "id": "TH-CDE0B5D9182C",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should the larger graph modal be opened and closed?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:35:28.771Z",
+      "updatedAt": "2026-11-18T19:35:28.771Z"
+    },
+    {
+      "id": "TH-F3499AC42B7F",
+      "kind": "answer",
+      "author": "user",
+      "body": "Provide Expand and Close buttons and Escape to return, preserving selection, layout and viewport.",
+      "replyTo": "TH-CDE0B5D9182C",
+      "createdAt": "2026-11-18T19:35:43.936Z",
+      "updatedAt": "2026-11-18T19:35:43.936Z"
+    },
+    {
+      "id": "TH-2E6B42A8B43E",
+      "kind": "question",
+      "author": "codex",
+      "body": "When a selection is pinned inside the expanded modal, what should Escape do first?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:35:44.333Z",
+      "updatedAt": "2026-11-18T19:35:44.333Z"
+    },
+    {
+      "id": "TH-5C176151E165",
+      "kind": "answer",
+      "author": "user",
+      "body": "First Escape clears a pinned selection; the next closes the expanded modal.",
+      "replyTo": "TH-2E6B42A8B43E",
+      "createdAt": "2026-11-18T19:36:01.949Z",
+      "updatedAt": "2026-11-18T19:36:01.949Z"
+    },
+    {
+      "id": "TH-61F5C62175B9",
+      "kind": "question",
+      "author": "codex",
+      "body": "Which graph layout should be the default?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:36:02.342Z",
+      "updatedAt": "2026-11-18T19:36:02.342Z"
+    },
+    {
+      "id": "TH-7405C9284BB0",
+      "kind": "answer",
+      "author": "user",
+      "body": "Compact is the default layout; loose is available via a toggle.",
+      "replyTo": "TH-61F5C62175B9",
+      "createdAt": "2026-11-18T19:36:33.772Z",
+      "updatedAt": "2026-11-18T19:36:33.772Z"
+    },
+    {
+      "id": "TH-CE27A95D37FA",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should changes to shared graph display settings be applied?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:36:34.144Z",
+      "updatedAt": "2026-11-18T19:36:34.144Z"
+    },
+    {
+      "id": "TH-96EB3056E75B",
+      "kind": "answer",
+      "author": "user",
+      "body": "Use an explicit Save button for shared graph settings; other viewers see saved changes on refresh or polling.",
+      "replyTo": "TH-CE27A95D37FA",
+      "createdAt": "2026-11-18T19:36:52.185Z",
+      "updatedAt": "2026-11-18T19:36:52.185Z"
+    },
+    {
+      "id": "TH-5CE223436E2B",
+      "kind": "question",
+      "author": "codex",
+      "body": "Should graph display controls preview changes locally before saving shared settings?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:36:52.592Z",
+      "updatedAt": "2026-11-18T19:36:52.592Z"
+    },
+    {
+      "id": "TH-E30799F57620",
+      "kind": "comment",
+      "author": "user",
+      "body": "Loose layout: when a card has multiple prerequisites, the first in its dependency list is its primary parent for lane alignment.",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:37:01.286Z",
+      "updatedAt": "2026-11-18T19:37:01.286Z"
+    },
+    {
+      "id": "TH-B31E5667BCF2",
+      "kind": "answer",
+      "author": "user",
+      "body": "Preview orientation, layout, unlinked cards and optional fields immediately locally; Save makes them shared defaults.",
+      "replyTo": "TH-5CE223436E2B",
+      "createdAt": "2026-11-18T19:37:15.441Z",
+      "updatedAt": "2026-11-18T19:37:15.441Z"
+    },
+    {
+      "id": "TH-F488BBBBD13F",
+      "kind": "question",
+      "author": "codex",
+      "body": "What does the full highlighted dependency chain include at branching points?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:37:15.836Z",
+      "updatedAt": "2026-11-18T19:37:15.836Z"
+    },
+    {
+      "id": "TH-4997FB75A152",
+      "kind": "answer",
+      "author": "user",
+      "body": "Highlight all transitive prerequisites and dependents, excluding siblings connected only through a shared prerequisite.",
+      "replyTo": "TH-F488BBBBD13F",
+      "createdAt": "2026-11-18T19:37:42.143Z",
+      "updatedAt": "2026-11-18T19:37:42.143Z"
+    },
+    {
+      "id": "TH-4FABD4BD7C8A",
+      "kind": "question",
+      "author": "codex",
+      "body": "What zoom should the graph use when first opened?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:37:42.537Z",
+      "updatedAt": "2026-11-18T19:37:42.537Z"
+    },
+    {
+      "id": "TH-22936728DE86",
+      "kind": "answer",
+      "author": "user",
+      "body": "Start at readable 100% scale at the graph beginning; Fit to view is available.",
+      "replyTo": "TH-4FABD4BD7C8A",
+      "createdAt": "2026-11-18T19:38:08.074Z",
+      "updatedAt": "2026-11-18T19:38:08.074Z"
+    },
+    {
+      "id": "TH-DBF5B3072DCF",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should graph search navigate multiple matching cards?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:38:08.449Z",
+      "updatedAt": "2026-11-18T19:38:08.449Z"
+    },
+    {
+      "id": "TH-A5437F18974B",
+      "kind": "answer",
+      "author": "user",
+      "body": "Highlight all search matches, show a count and previous/next controls that bring matches into view without changing the pinned card.",
+      "replyTo": "TH-DBF5B3072DCF",
+      "createdAt": "2026-11-18T19:38:51.801Z",
+      "updatedAt": "2026-11-18T19:38:51.801Z"
+    },
+    {
+      "id": "TH-5979A0D78929",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should a missing dependency appear when collapsed and expanded?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:38:52.192Z",
+      "updatedAt": "2026-11-18T19:38:52.192Z"
+    },
+    {
+      "id": "TH-600729257BD0",
+      "kind": "answer",
+      "author": "user",
+      "body": "Show Missing card and its ID collapsed; expanded explain unavailable and satisfied, without Edit.",
+      "replyTo": "TH-5979A0D78929",
+      "createdAt": "2026-11-18T19:39:18.335Z",
+      "updatedAt": "2026-11-18T19:39:18.335Z"
+    },
+    {
+      "id": "TH-7948A83B8137",
+      "kind": "question",
+      "author": "codex",
+      "body": "How should live board changes affect an open graph?",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:39:18.707Z",
+      "updatedAt": "2026-11-18T19:39:18.707Z"
+    },
+    {
+      "id": "TH-62F367EE8E42",
+      "kind": "answer",
+      "author": "user",
+      "body": "Update automatically while preserving selection and viewport whenever possible.",
+      "replyTo": "TH-7948A83B8137",
+      "createdAt": "2026-11-18T19:40:23.808Z",
+      "updatedAt": "2026-11-18T19:40:23.808Z"
+    },
+    {
+      "id": "TH-A5032D12DA03",
+      "kind": "comment",
+      "author": "user",
+      "body": "Shared settings: preserve unsaved local preview and warn on a remote conflict. Dependency links are edited through the existing card editor.",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:40:24.204Z",
+      "updatedAt": "2026-11-18T19:40:24.204Z"
+    },
+    {
+      "id": "TH-94B351B7B4FD",
+      "kind": "comment",
+      "author": "user",
+      "body": "Conflict resolution: offer reload shared settings or explicit overwrite. Hover or focus temporarily previews another chain and restores pinned highlight afterwards. Use the visual graph only, with no separate text representation; retain agreed keyboard operation.",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:41:03.595Z",
+      "updatedAt": "2026-11-18T19:41:03.595Z"
+    },
+    {
+      "id": "TH-ADFB71D4E7E8",
+      "kind": "comment",
+      "author": "user",
+      "body": "Recheck the latest shared version on explicit overwrite and warn again if it changes. Support shared settings in direct folder mode under its existing concurrency warning. Collapsed completed and archived nodes show title and status.",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:46:13.008Z",
+      "updatedAt": "2026-11-18T19:46:13.008Z"
+    },
+    {
+      "id": "TH-E253808D18A4",
+      "kind": "comment",
+      "author": "user",
+      "body": "User confirmed the complete design and authorized implementation and PR delivery.",
+      "replyTo": null,
+      "createdAt": "2026-11-18T19:46:55.399Z",
+      "updatedAt": "2026-11-18T19:46:55.399Z"
+    }
+  ],
+  "fields": {},
+  "dependencies": []
+}
