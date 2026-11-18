@@ -245,6 +245,7 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 .graph-tools .btn.small{min-height:28px;padding:1px 9px;font-size:12.5px;font-weight:500;border-radius:6px;background:var(--surface-2)}
 .graph-tools .btn.small:hover{background:var(--accent-soft);border-color:var(--accent)}
 .graph-tools [data-graph-expand]{margin-left:auto;font-weight:600}
+.graph-conflict{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;color:var(--warn)}
 .graph-panel details{font-size:13px;color:var(--muted)}
 .graph-panel details>summary{cursor:pointer;width:max-content;padding:2px 0}
 .graph-panel details[open]{padding:8px 10px;border:1px dashed var(--line-strong);border-radius:8px}
@@ -1422,125 +1423,361 @@ function graphDefaults() { return {version:'1.0.0', orientation:'horizontal', la
 function graphRefresh() { if (S.view === 'graph') renderBoard(); }
 function graphReach(id, adjacent) {
   const seen = new Set(), pending = [id];
-  while (pending.length) { const current = pending.pop(); if (seen.has(current)) continue; seen.add(current); for (const next of adjacent.get(current) || []) pending.push(next); }
+  while (pending.length) {
+    const current = pending.pop();
+    if (seen.has(current)) continue;
+    seen.add(current);
+    for (const next of adjacent.get(current) || []) pending.push(next);
+  }
   return seen;
 }
-function renderGraph(root) {
-  const snap = S.snap, g = graphUI;
-  const shared = snap.graphSettings || graphDefaults(), sharedKey = JSON.stringify(shared);
-  if (!g.settings) { g.settings = structuredClone(shared); g.base = sharedKey; g.hash = snap.graphSettingsHash ?? null; }
-  else if (sharedKey !== g.base || (snap.graphSettingsHash ?? null) !== g.hash) {
-    if (g.dirty) g.conflict = true;
-    else { g.settings = structuredClone(shared); g.base = sharedKey; g.hash = snap.graphSettingsHash ?? null; g.conflict = false; }
+/* The prerequisite and dependent chains of one card; null when nothing is hovered or selected. */
+function graphChain(id, deps, children) {
+  if (!id) return null;
+  const ancestors = graphReach(id, deps), descendants = graphReach(id, children);
+  return {
+    hasNode: node => ancestors.has(node) || descendants.has(node),
+    hasEdge: (from, to) => (ancestors.has(from) && ancestors.has(to)) || (descendants.has(from) && descendants.has(to)),
+  };
+}
+function graphApplyChain(chain, nodes, edges) {
+  for (const node of nodes) node.classList.toggle('dim', !!chain && !chain.hasNode(node.dataset.id));
+  for (const edge of edges) {
+    const on = !!chain && chain.hasEdge(edge.dataset.from, edge.dataset.to);
+    edge.classList.toggle('active', on);
+    edge.classList.toggle('dim', !!chain && !on);
   }
+}
+function graphDepths(ids, deps) {
+  const depth = new Map(), visiting = new Set();
+  function level(id) {
+    if (depth.has(id)) return depth.get(id);
+    if (visiting.has(id)) return 0;
+    visiting.add(id);
+    const d = Math.max(0, ...(deps.get(id) || []).map(parent => level(parent) + 1));
+    visiting.delete(id);
+    depth.set(id, d);
+    return d;
+  }
+  ids.forEach(level);
+  return depth;
+}
+/* Loose: every card hangs under its primary (first) prerequisite. A subtree owns a block of consecutive lanes, the
+   first child shares its parent's lane and later children follow, so blocks never collide and siblings stay adjacent.
+   Compact: one lane per card in each column, ordered by the average lane of its prerequisites to limit crossings. */
+function graphPositions(ids, deps, depth, loose) {
+  const positions = new Map(), byId = (a, b) => a.localeCompare(b);
+  if (loose) {
+    const kids = new Map(ids.map(id => [id, []])), roots = [];
+    for (const id of ids) {
+      const primary = (deps.get(id) || [])[0];
+      if (primary !== undefined && depth.get(primary) < depth.get(id)) kids.get(primary).push(id);
+      else roots.push(id);
+    }
+    let next = 0;
+    const place = id => {
+      const start = next;
+      positions.set(id, {depth:depth.get(id), lane:start});
+      for (const child of kids.get(id).sort(byId)) place(child);
+      next = Math.max(next, start + 1);
+    };
+    roots.sort(byId).forEach(place);
+    return positions;
+  }
+  const layers = new Map();
+  for (const id of ids) {
+    if (!layers.has(depth.get(id))) layers.set(depth.get(id), []);
+    layers.get(depth.get(id)).push(id);
+  }
+  const barycenter = id => {
+    const lanes = (deps.get(id) || []).map(parent => positions.get(parent)?.lane).filter(lane => lane !== undefined);
+    return lanes.length ? lanes.reduce((sum, lane) => sum + lane, 0) / lanes.length : Number.MAX_SAFE_INTEGER;
+  };
+  for (const d of [...layers.keys()].sort((a, b) => a - b)) {
+    layers.get(d)
+      .map(id => ({id, key:barycenter(id)}))
+      .sort((a, b) => a.key - b.key || byId(a.id, b.id))
+      .forEach((entry, lane) => positions.set(entry.id, {depth:d, lane}));
+  }
+  return positions;
+}
+function graphFieldValue(snap, item, field) {
+  let value;
+  if (field.startsWith('field:')) value = hasOwn(item.fields, field.slice(6)) ? item.fields[field.slice(6)] : undefined;
+  else if (field === 'feature') value = snap.features.get(item.feature)?.title;
+  else value = item[field];
+  return Array.isArray(value) ? value.join(', ') : value;
+}
+/* Shared graph settings: adopt them as the local preview, or flag a conflict when the preview has unsaved edits. */
+function graphAdoptShared(snap) {
+  const g = graphUI, shared = snap.graphSettings || graphDefaults();
+  g.settings = structuredClone(shared);
+  g.base = JSON.stringify(shared);
+  g.hash = snap.graphSettingsHash ?? null;
+  g.dirty = false;
+  g.conflict = false;
+}
+function graphSyncShared(snap) {
+  const g = graphUI;
+  if (!g.settings) { graphAdoptShared(snap); return; }
+  const changed = JSON.stringify(snap.graphSettings || graphDefaults()) !== g.base || (snap.graphSettingsHash ?? null) !== g.hash;
+  if (!changed) return;
+  if (g.dirty) g.conflict = true;
+  else graphAdoptShared(snap);
+}
+function graphChange(key, value) {
+  const g = graphUI;
+  if (g.saving) return;
+  g.settings[key] = value;
+  g.dirty = JSON.stringify(g.settings) !== g.base;
+  graphRefresh();
+}
+/* Save the preview as shared settings; overwrite re-bases on the newest hash after a conflict. */
+async function graphSave(overwrite) {
+  const g = graphUI;
+  if (g.saving) return;
+  g.saving = true;
+  if (overwrite) g.hash = S.snap.graphSettingsHash ?? null;
+  const submitted = structuredClone(g.settings);
+  graphRefresh();
+  try {
+    const result = await mutate(() => S.backend.saveGraphSettings(submitted, g.hash));
+    g.hash = result.hash;
+    g.base = JSON.stringify(result.settings);
+    g.dirty = JSON.stringify(g.settings) !== g.base;
+    g.conflict = false;
+    await pollFresh();
+  } catch (e) {
+    const conflict = e.status === 409 || e.kind === 'conflict';
+    if (conflict) { g.conflict = true; await pollFresh(); }
+    if (!conflict || overwrite) toast(e.message, {kind:'error'});
+  } finally {
+    g.saving = false;
+    graphRefresh();
+  }
+}
+/* Every focusable graph control carries a stable data-fk so a redraw (preview, polling) can put focus back. */
+function graphControl(tag, fk, attrs, ...kids) { return h(tag, {...attrs, 'data-fk':fk}, ...kids); }
+function graphButton(fk, label, onclick, attrs) { return graphControl('button', fk, {type:'button', class:'btn small', onclick, ...attrs}, label); }
+function graphRestoreFocus(panel, viewport, previous) {
+  if (!previous || !previous.closest('.graph-panel')) return;
+  const find = key => key ? [...panel.querySelectorAll('[data-fk]')].find(el => el.dataset.fk === key) : null;
+  const nodeId = previous.closest('.graph-node')?.dataset.id;
+  const target = find(previous.dataset.fk) || (nodeId && find('graph-node:' + nodeId)) || (graphUI.expanded ? viewport : null);
+  if (!target) return;
+  target.focus({preventScroll:true});
+  if (target.dataset.fk === previous.dataset.fk && previous.selectionStart != null && target.setSelectionRange) {
+    try { target.setSelectionRange(previous.selectionStart, previous.selectionEnd); } catch {}
+  }
+}
+function graphTrapTab(panel, e) {
+  if (e.key !== 'Tab') return;
+  const controls = [...panel.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, [tabindex="0"]')].filter(el => el.getClientRects().length);
+  if (!controls.length) { e.preventDefault(); return; }
+  const first = controls[0], last = controls.at(-1);
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+function renderGraph(root, previousFocus) {
+  const snap = S.snap, g = graphUI;
+  graphSyncShared(snap);
+  const lastColumn = snap.config.columns.at(-1).id;
   const linked = new Set(snap.list.filter(x => x.dependencies.length).flatMap(x => [x.id, ...x.dependencies]));
   if (g.settings.showUnlinked) for (const item of snap.list) linked.add(item.id);
   const ids = [...linked].sort(), deps = new Map(), children = new Map();
-  for (const id of ids) { deps.set(id, (snap.items.get(id)?.dependencies || []).filter(x => linked.has(x))); children.set(id, []); }
-  for (const [id, parents] of deps) for (const parent of parents) children.get(parent)?.push(id);
-  const depth = new Map(), visiting = new Set();
-  function level(id) { if (depth.has(id)) return depth.get(id); if (visiting.has(id)) return 0; visiting.add(id); const d = Math.max(0, ...(deps.get(id) || []).map(p => level(p) + 1)); visiting.delete(id); depth.set(id, d); return d; }
-  ids.forEach(level);
-  const layers = new Map(); for (const id of ids) { const d = depth.get(id); if (!layers.has(d)) layers.set(d, []); layers.get(d).push(id); }
-  const positions = new Map(), used = new Map(), inherited = new Set();
-  for (const d of [...layers.keys()].sort((a,b) => a-b)) for (const id of layers.get(d).sort((a,b) => {
-    if (g.settings.layout !== 'loose') return a.localeCompare(b);
-    const aParent = deps.get(a)[0], bParent = deps.get(b)[0];
-    const laneDiff = (positions.get(aParent)?.lane ?? -1) - (positions.get(bParent)?.lane ?? -1);
-    return laneDiff || String(aParent || '').localeCompare(String(bParent || '')) || a.localeCompare(b);
-  })) {
-    let lane = 0; const primary = deps.get(id)[0], occupied = used.get(d) || new Set();
-    if (g.settings.layout === 'loose' && positions.has(primary)) {
-      const parentLane = positions.get(primary).lane;
-      if (!inherited.has(primary) && !occupied.has(parentLane)) lane = parentLane;
-      else { lane = parentLane + 1; while (occupied.has(lane)) lane++; }
-      inherited.add(primary);
-    } else { while (occupied.has(lane)) lane++; }
-    occupied.add(lane); used.set(d, occupied);
-    positions.set(id, {depth:d, lane});
+  for (const id of ids) {
+    deps.set(id, (snap.items.get(id)?.dependencies || []).filter(x => linked.has(x)));
+    children.set(id, []);
   }
+  for (const [id, parents] of deps) for (const parent of parents) children.get(parent)?.push(id);
+  const depth = graphDepths(ids, deps);
+  const positions = graphPositions(ids, deps, depth, g.settings.layout === 'loose');
   const vertical = g.settings.orientation === 'vertical', cellW = 300, nodeHeight = 140 + (g.settings.fields || []).length * 24, cellH = nodeHeight + 40;
-  function heightFor(id) { const item = snap.items.get(id); return (!item || item.archived || item.status === snap.config.columns.at(-1).id) && !g.opened.has(id) ? 58 : nodeHeight; }
+  const isCollapsedCard = (id, item) => (!item || item.archived || item.status === lastColumn) && !g.opened.has(id);
+  const heightFor = id => isCollapsedCard(id, snap.items.get(id)) ? 58 : nodeHeight;
   const maxDepth = Math.max(0, ...depth.values()), maxLane = Math.max(0, ...[...positions.values()].map(p => p.lane));
   const width = (vertical ? maxLane : maxDepth) * cellW + 280, height = (vertical ? maxDepth : maxLane) * cellH + nodeHeight + 40;
-  function coords(id) { const p = positions.get(id); return {x:20 + (vertical ? p.lane : p.depth) * cellW, y:20 + (vertical ? p.depth : p.lane) * cellH}; }
-  const query = g.search.trim().toLowerCase(), matches = query ? ids.filter(id => (id + ' ' + (snap.items.get(id)?.title || 'Missing card')).toLowerCase().includes(query)) : [];
+  function coords(id) {
+    const p = positions.get(id);
+    return {x:20 + (vertical ? p.lane : p.depth) * cellW, y:20 + (vertical ? p.depth : p.lane) * cellH};
+  }
+  const query = g.search.trim().toLowerCase();
+  const matches = query ? ids.filter(id => (id + ' ' + (snap.items.get(id)?.title || 'Missing card')).toLowerCase().includes(query)) : [];
   if (g.selected && !linked.has(g.selected)) g.selected = null;
-  const active = g.hover || g.selected, highlighted = active ? new Set([...graphReach(active, deps), ...graphReach(active, children)]) : null;
+
   const panel = h('section', {class:'panel graph-panel' + (g.expanded ? ' graph-expanded' : ''), 'aria-label':g.expanded ? 'Expanded dependency graph' : 'Dependency graph', ...(g.expanded ? {role:'dialog', 'aria-modal':'true'} : {})});
-  const viewport = h('div', {class:'graph-viewport', tabindex:'0', 'aria-label':'Dependency graph canvas'});
+  const viewport = graphControl('div', 'graph-viewport', {class:'graph-viewport', tabindex:'0', 'aria-label':'Dependency graph canvas'});
   const scaleWrap = h('div', {style:`width:${width*g.zoom}px;height:${height*g.zoom}px;position:relative`});
   const space = h('div', {class:'graph-space', style:`width:${width}px;height:${height}px;transform:scale(${g.zoom})`});
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class','graph-edges'); svg.setAttribute('width',width); svg.setAttribute('height',height); svg.setAttribute('aria-hidden','true');
-  const defs = document.createElementNS(svg.namespaceURI,'defs'), marker = document.createElementNS(svg.namespaceURI,'marker'), arrow = document.createElementNS(svg.namespaceURI,'path');
-  for (const [k,v] of Object.entries({id:'graph-arrowhead',viewBox:'0 0 10 10',refX:'9',refY:'5',markerWidth:'5',markerHeight:'5',orient:'auto-start-reverse'})) marker.setAttribute(k,v);
-  arrow.setAttribute('d','M 0 0 L 10 5 L 0 10 z'); arrow.setAttribute('fill','context-stroke'); marker.append(arrow); defs.append(marker); svg.append(defs);
-  for (const [id, parents] of deps) for (const parent of parents) {
-    const a = coords(parent), b = coords(id), path = document.createElementNS(svg.namespaceURI,'path');
-    const x1 = vertical ? a.x+120 : a.x+240, y1 = vertical ? a.y+heightFor(parent) : a.y+heightFor(parent)/2, x2 = vertical ? b.x+120 : b.x, y2 = vertical ? b.y : b.y+heightFor(id)/2;
-    path.setAttribute('d', vertical ? `M ${x1} ${y1} C ${x1} ${(y1+y2)/2}, ${x2} ${(y1+y2)/2}, ${x2} ${y2}` : `M ${x1} ${y1} C ${(x1+x2)/2} ${y1}, ${(x1+x2)/2} ${y2}, ${x2} ${y2}`);
-    const on = highlighted && highlighted.has(parent) && highlighted.has(id) && ((graphReach(active,deps).has(parent) && graphReach(active,deps).has(id)) || (graphReach(active,children).has(parent) && graphReach(active,children).has(id)));
-    path.setAttribute('class','graph-edge' + (on ? ' active' : highlighted ? ' dim' : '')); path.setAttribute('data-from',parent); path.setAttribute('data-to',id); path.setAttribute('marker-end','url(#graph-arrowhead)'); svg.append(path);
-  }
+  const svg = buildEdges();
   space.append(svg);
-  for (const id of ids) {
-    const item = snap.items.get(id), p = coords(id), state = dependencyState(id), blockers = item ? item.dependencies.filter(dep => !dependencyState(dep).satisfied).length : 0;
-    const isDone = item && item.status === snap.config.columns.at(-1).id, collapsed = (!item || item.archived || isDone) && !g.opened.has(id);
+  for (const id of ids) space.append(buildNode(id));
+  scaleWrap.append(space);
+  viewport.append(scaleWrap);
+
+  function buildEdges() {
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'graph-edges'); svg.setAttribute('width', width); svg.setAttribute('height', height); svg.setAttribute('aria-hidden', 'true');
+    const defs = document.createElementNS(ns, 'defs'), marker = document.createElementNS(ns, 'marker'), arrow = document.createElementNS(ns, 'path');
+    for (const [k, v] of Object.entries({id:'graph-arrowhead', viewBox:'0 0 10 10', refX:'9', refY:'5', markerWidth:'5', markerHeight:'5', orient:'auto-start-reverse'})) marker.setAttribute(k, v);
+    arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z'); arrow.setAttribute('fill', 'context-stroke');
+    marker.append(arrow); defs.append(marker); svg.append(defs);
+    for (const [id, parents] of deps) for (const parent of parents) {
+      const a = coords(parent), b = coords(id), path = document.createElementNS(ns, 'path');
+      const x1 = vertical ? a.x + 120 : a.x + 240, y1 = vertical ? a.y + heightFor(parent) : a.y + heightFor(parent) / 2;
+      const x2 = vertical ? b.x + 120 : b.x, y2 = vertical ? b.y : b.y + heightFor(id) / 2;
+      path.setAttribute('d', vertical
+        ? `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`
+        : `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`);
+      path.setAttribute('class', 'graph-edge'); path.setAttribute('data-from', parent); path.setAttribute('data-to', id); path.setAttribute('marker-end', 'url(#graph-arrowhead)');
+      svg.append(path);
+    }
+    return svg;
+  }
+  function highlight() {
+    graphApplyChain(graphChain(g.hover || g.selected, deps, children), space.querySelectorAll('.graph-node'), svg.querySelectorAll('.graph-edge'));
+  }
+  function buildNode(id) {
+    const item = snap.items.get(id), p = coords(id), blockers = item ? item.dependencies.filter(dep => !dependencyState(dep).satisfied).length : 0;
+    const collapsed = isCollapsedCard(id, item), closable = !item || item.archived || item.status === lastColumn;
     const status = item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing card';
-    const node = h('div', {class:'graph-node' + (blockers ? ' blocked' : '') + (!item || item.archived ? ' unavailable' : '') + (collapsed ? ' collapsed' : '') + (id === g.selected ? ' selected' : '') + (highlighted && !highlighted.has(id) ? ' dim' : '') + (matches.includes(id) ? ' search-match' : ''), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id, tabindex:'0', role:'button', 'aria-pressed':String(id === g.selected), 'aria-label':(item?.title || 'Missing card') + ', ' + id + ', ' + status + ', ' + (!item ? 'Unavailable, satisfied' : blockers ? 'Blocked' : 'Ready')});
-    const select = () => { if (collapsed) { g.opened.add(id); g.selected = id; } else g.selected = g.selected === id ? null : id; graphRefresh(); document.querySelector('.graph-node[data-id="' + CSS.escape(id) + '"]')?.focus({preventScroll:true}); };
-    node.addEventListener('click',select); node.addEventListener('keydown',e => {
+    const readiness = !item ? 'Unavailable, satisfied' : blockers ? 'Blocked' : 'Ready';
+    const classes = ['graph-node', blockers && 'blocked', (!item || item.archived) && 'unavailable', collapsed && 'collapsed', id === g.selected && 'selected', matches.includes(id) && 'search-match'];
+    const node = graphControl('div', 'graph-node:' + id, {
+      class:classes.filter(Boolean).join(' '), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id, tabindex:'0', role:'button',
+      'aria-pressed':String(id === g.selected), 'aria-label':`${item?.title || 'Missing card'}, ${id}, ${status}, ${readiness}`,
+    });
+    const select = () => {
+      if (collapsed) { g.opened.add(id); g.selected = id; }
+      else g.selected = g.selected === id ? null : id;
+      graphRefresh();
+    };
+    node.addEventListener('click', select);
+    node.addEventListener('keydown', e => {
       if (e.target === node && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(); }
       else if (e.target instanceof HTMLButtonElement && e.key === 'Enter') { e.preventDefault(); e.target.click(); }
     });
-    node.addEventListener('mouseenter',() => {g.hover=id; graphHighlight();}); node.addEventListener('mouseleave',() => {g.hover=null; graphHighlight();});
-    node.addEventListener('focus',() => {g.hover=id; graphHighlight();}); node.addEventListener('blur',() => {g.hover=null; graphHighlight();});
-    node.append(h('strong',{text:item?.title || 'Missing card'}),h('div',{class:'graph-meta graph-id',text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
-    if (!collapsed) {
-      node.append(h('div',{class:'graph-meta graph-state ' + (!item ? 'unavailable' : blockers ? 'blocked' : 'ready'),text:!item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers'}));
-      if (item) for (const field of g.settings.fields || []) { let value = field.startsWith('field:') ? (hasOwn(item.fields, field.slice(6)) ? item.fields[field.slice(6)] : undefined) : field === 'feature' ? snap.features.get(item.feature)?.title : item[field]; if (Array.isArray(value)) value = value.join(', '); if (value !== null && value !== undefined && value !== '') node.append(h('div',{class:'graph-meta',text:(snap.config.fields.find(x => 'field:' + x.id === field)?.name || field) + ': ' + String(value)})); }
-      if (item) node.append(h('button',{type:'button',class:'btn small', 'data-fk':id + ':graph-edit', onclick:e => {e.stopPropagation();openEditor(id, {returnFocus:id + ':graph-edit'});}},'Edit'));
-      if (!item || item.archived || isDone) node.append(h('button',{type:'button',class:'btn small',onclick:e => {e.stopPropagation();g.opened.delete(id);graphRefresh();}},'Collapse'));
+    const setHover = value => () => { g.hover = value; highlight(); };
+    for (const type of ['mouseenter', 'focus']) node.addEventListener(type, setHover(id));
+    for (const type of ['mouseleave', 'blur']) node.addEventListener(type, setHover(null));
+    node.append(
+      h('strong', {text:item?.title || 'Missing card'}),
+      h('div', {class:'graph-meta graph-id', text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
+    if (collapsed) return node;
+    const stateClass = !item ? 'unavailable' : blockers ? 'blocked' : 'ready';
+    const stateText = !item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers';
+    node.append(h('div', {class:'graph-meta graph-state ' + stateClass, text:stateText}));
+    if (item) for (const field of g.settings.fields || []) {
+      const value = graphFieldValue(snap, item, field);
+      if (value === null || value === undefined || value === '') continue;
+      const label = snap.config.fields.find(x => 'field:' + x.id === field)?.name || field;
+      node.append(h('div', {class:'graph-meta', text:label + ': ' + String(value)}));
     }
-    space.append(node);
+    if (item) node.append(graphButton(id + ':graph-edit', 'Edit', e => { e.stopPropagation(); openEditor(id, {returnFocus:id + ':graph-edit'}); }));
+    if (closable) node.append(graphButton('graph-collapse:' + id, 'Collapse', e => { e.stopPropagation(); g.opened.delete(id); graphRefresh(); }));
+    return node;
   }
-  function graphHighlight() { const current=g.hover || g.selected, ancestors=current ? graphReach(current,deps) : null, descendants=current ? graphReach(current,children) : null; for(const node of space.querySelectorAll('.graph-node')) node.classList.toggle('dim',!!current && !ancestors.has(node.dataset.id) && !descendants.has(node.dataset.id)); for(const edge of svg.querySelectorAll('.graph-edge')) {const on=!!current && ((ancestors.has(edge.dataset.from)&&ancestors.has(edge.dataset.to)) || (descendants.has(edge.dataset.from)&&descendants.has(edge.dataset.to)));edge.classList.toggle('active',on);edge.classList.toggle('dim',!!current&&!on);} }
-  scaleWrap.append(space); viewport.append(scaleWrap);
-  viewport.addEventListener('scroll',() => {g.x=viewport.scrollLeft;g.y=viewport.scrollTop;});
-  let suppressClick = false;
-  viewport.addEventListener('click',e => {if (suppressClick) { suppressClick=false; return; } if(e.target===viewport || e.target===space || e.target===scaleWrap) {g.selected=null;graphRefresh();}});
-  let drag = null; viewport.addEventListener('pointerdown',e => {if(e.button!==0 || e.target.closest('.graph-node')) return; suppressClick=false; drag={x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};viewport.setPointerCapture(e.pointerId);});
-  viewport.addEventListener('pointermove',e => {if(drag){if (Math.abs(drag.x-e.clientX)+Math.abs(drag.y-e.clientY)>4) suppressClick=true; viewport.scrollLeft=drag.left+drag.x-e.clientX;viewport.scrollTop=drag.top+drag.y-e.clientY;}}); viewport.addEventListener('pointerup',()=>{drag=null;}); viewport.addEventListener('pointercancel',()=>{drag=null;});
-  const change = (key,value) => {if (g.saving) return; g.settings[key]=value;g.dirty=JSON.stringify(g.settings)!==g.base;graphRefresh();};
-  const orientation = h('select',{'aria-label':'Orientation',disabled:g.saving,onchange:e=>change('orientation',e.target.value)},h('option',{value:'horizontal',text:'Left to right'}),h('option',{value:'vertical',text:'Top to bottom'}));orientation.value=g.settings.orientation;
-  const layout = h('select',{'aria-label':'Layout',disabled:g.saving,onchange:e=>change('layout',e.target.value)},h('option',{value:'compact',text:'Compact'}),h('option',{value:'loose',text:'Loose'}));layout.value=g.settings.layout;
-  const search = h('input',{type:'search',value:g.search,'aria-label':'Search graph',placeholder:'Search title or ID',oninput:e=>{g.search=e.target.value;g.match=-1; const start=e.target.selectionStart, end=e.target.selectionEnd; graphRefresh();const input=$('[aria-label="Search graph"]'); input?.focus(); if (start != null && end != null) input?.setSelectionRange(start,end);}});
-  function findMatch(delta){if(!matches.length)return;g.match=g.match < 0 ? (delta > 0 ? 0 : matches.length - 1) : (g.match+delta+matches.length)%matches.length;const p=coords(matches[g.match]);viewport.scrollLeft=Math.max(0,p.x*g.zoom-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,p.y*g.zoom-viewport.clientHeight/2);}
-  const tools = h('div',{class:'graph-tools'},h('label',{},'Orientation ',orientation),h('label',{},'Layout ',layout),h('label',{},h('input',{type:'checkbox',checked:g.settings.showUnlinked,disabled:g.saving,onchange:e=>change('showUnlinked',e.target.checked)}),'Show unlinked cards'),search,h('span',{text:query ? `${matches.length} matches` : ''}),h('button',{type:'button',class:'btn small',onclick:()=>findMatch(-1)},'Previous match'),h('button',{type:'button',class:'btn small',onclick:()=>findMatch(1)},'Next match'),h('button',{type:'button',class:'btn small',onclick:()=>{g.zoom=Math.max(.2,g.zoom-.1);graphRefresh();}},'Zoom out'),h('button',{type:'button',class:'btn small',onclick:()=>{g.zoom=Math.min(2,g.zoom+.1);graphRefresh();}},'Zoom in'),h('button',{type:'button',class:'btn small',onclick:()=>{g.zoom=Math.min(1,viewport.clientWidth/width,viewport.clientHeight/height);g.x=0;g.y=0;graphRefresh();}},'Fit to view'),h('button',{type:'button',class:'btn small',onclick:()=>{g.expanded=!g.expanded;graphRefresh();document.querySelector(g.expanded ? '[aria-label="Dependency graph canvas"]' : '[data-graph-expand]')?.focus({preventScroll:true});},'data-graph-expand':'true'},g.expanded ? 'Close expanded graph' : 'Expand graph'));
-  const choices = [['assignee','Assignee'],['priority','Priority'],['labels','Labels'],['feature','Feature'],...snap.config.fields.map(f=>['field:'+f.id,f.name])];
-  for (const id of g.settings.fields) if (!choices.some(([key]) => key === id)) choices.push([id, 'Unavailable: ' + id]);
-  const settings = h('details',{open:g.settingsOpen, ontoggle:e=>{g.settingsOpen=e.target.open;}},h('summary',{text:'Card display settings'}),h('div',{class:'graph-tools'},choices.map(([id,label])=>h('label',{},h('input',{type:'checkbox',checked:(g.settings.fields||[]).includes(id),disabled:g.saving,onchange:e=>change('fields',e.target.checked ? [...g.settings.fields,id] : g.settings.fields.filter(x=>x!==id))}),label))),h('button',{type:'button',class:'btn small',disabled:!g.dirty || g.saving || !!snap.graphSettingsError,onclick:async()=>{if (g.saving) return; g.saving=true; const submitted=structuredClone(g.settings); graphRefresh(); try {const result=await mutate(() => S.backend.saveGraphSettings(submitted,g.hash));g.hash=result.hash;g.base=JSON.stringify(result.settings);g.dirty=JSON.stringify(g.settings)!==g.base;g.conflict=false;await pollFresh();}catch(e){if(e.status===409 || e.kind==='conflict'){g.conflict=true;await pollFresh();} else toast(e.message,{kind:'error'});} finally {g.saving=false;graphRefresh();}}},'Save shared settings'),g.conflict ? h('div',{role:'alert'},'Shared settings changed. ',h('button',{type:'button',class:'btn small',disabled:g.saving,onclick:()=>{g.settings=structuredClone(snap.graphSettings||graphDefaults());g.hash=snap.graphSettingsHash??null;g.base=JSON.stringify(g.settings);g.dirty=false;g.conflict=false;graphRefresh();}},'Reload shared settings'),h('button',{type:'button',class:'btn small',disabled:g.saving || !!snap.graphSettingsError,onclick:async()=>{if(g.saving)return;g.saving=true;g.hash=S.snap.graphSettingsHash??null;const submitted=structuredClone(g.settings);graphRefresh();try{const result=await mutate(() => S.backend.saveGraphSettings(submitted,g.hash));g.hash=result.hash;g.base=JSON.stringify(result.settings);g.dirty=JSON.stringify(g.settings)!==g.base;g.conflict=false;await pollFresh();}catch(e){if(e.status===409 || e.kind==='conflict'){g.conflict=true;await pollFresh();}toast(e.message,{kind:'error'});}finally{g.saving=false;graphRefresh();}}},'Overwrite shared settings')) : null);
-  panel.addEventListener('keydown',e=>{if(e.key==='Escape'){if(g.selected){g.selected=null;g.hover=null;e.stopPropagation();graphRefresh();document.querySelector('.graph-viewport')?.focus({preventScroll:true});}else if(g.expanded){g.expanded=false;e.stopPropagation();graphRefresh();document.querySelector('[data-graph-expand]')?.focus({preventScroll:true});}}});
-  panel.append(h('h2',{text:'Dependency graph'}));
-  if (snap.graphSettingsError) panel.append(h('p',{role:'alert',text:'Graph settings cannot be saved: ' + snap.graphSettingsError}));
-  const legend = h('ul',{class:'graph-legend','aria-label':'Card status key'},h('li',{class:'ready'},h('i'),'Ready'),h('li',{class:'blocked'},h('i'),'Blocked'),h('li',{class:'unavailable'},h('i'),'Missing or archived'));
-  panel.append(tools,settings,ids.length ? legend : null,ids.length ? viewport : h('p',{text:'No dependency links yet.'}));
-  if (g.expanded) root.append(h('div',{class:'graph-backdrop','aria-hidden':'true'}));
-  root.append(panel);
-  viewport.scrollLeft=g.x; viewport.scrollTop=g.y;
-  if (g.expanded) panel.addEventListener('keydown', e => {
-    if (e.key !== 'Tab') return;
-    const controls = [...panel.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary, [tabindex="0"]')].filter(el => el.getClientRects().length);
-    if (!controls.length) { e.preventDefault(); return; }
-    const first=controls[0], last=controls.at(-1);
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+
+  /* Panning and scrolling */
+  viewport.addEventListener('scroll', () => { g.x = viewport.scrollLeft; g.y = viewport.scrollTop; });
+  let suppressClick = false, drag = null;
+  const onScrollbar = e => {
+    const rect = viewport.getBoundingClientRect();
+    return e.clientX - rect.left - viewport.clientLeft >= viewport.clientWidth || e.clientY - rect.top - viewport.clientTop >= viewport.clientHeight;
+  };
+  viewport.addEventListener('click', e => {
+    if (suppressClick) { suppressClick = false; return; }
+    if (e.target === viewport || e.target === space || e.target === scaleWrap) { g.selected = null; graphRefresh(); }
   });
+  viewport.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('.graph-node') || onScrollbar(e)) return;
+    suppressClick = false;
+    drag = {x:e.clientX, y:e.clientY, left:viewport.scrollLeft, top:viewport.scrollTop};
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (Math.abs(drag.x - e.clientX) + Math.abs(drag.y - e.clientY) > 4) suppressClick = true;
+    viewport.scrollLeft = drag.left + drag.x - e.clientX;
+    viewport.scrollTop = drag.top + drag.y - e.clientY;
+  });
+  for (const type of ['pointerup', 'pointercancel']) viewport.addEventListener(type, () => { drag = null; });
+
+  /* Controls */
+  const orientation = graphControl('select', 'graph-orientation', {'aria-label':'Orientation', disabled:g.saving, onchange:e => graphChange('orientation', e.target.value)},
+    h('option', {value:'horizontal', text:'Left to right'}), h('option', {value:'vertical', text:'Top to bottom'}));
+  orientation.value = g.settings.orientation;
+  const layout = graphControl('select', 'graph-layout', {'aria-label':'Layout', disabled:g.saving, onchange:e => graphChange('layout', e.target.value)},
+    h('option', {value:'compact', text:'Compact'}), h('option', {value:'loose', text:'Loose'}));
+  layout.value = g.settings.layout;
+  const unlinked = graphControl('input', 'graph-unlinked', {type:'checkbox', checked:g.settings.showUnlinked, disabled:g.saving, onchange:e => graphChange('showUnlinked', e.target.checked)});
+  const search = graphControl('input', 'graph-search', {type:'search', value:g.search, 'aria-label':'Search graph', placeholder:'Search title or ID',
+    oninput:e => { g.search = e.target.value; g.match = -1; graphRefresh(); }});
+  function findMatch(delta) {
+    if (!matches.length) return;
+    g.match = g.match < 0 ? (delta > 0 ? 0 : matches.length - 1) : (g.match + delta + matches.length) % matches.length;
+    const p = coords(matches[g.match]);
+    viewport.scrollLeft = Math.max(0, p.x * g.zoom - viewport.clientWidth / 2);
+    viewport.scrollTop = Math.max(0, p.y * g.zoom - viewport.clientHeight / 2);
+  }
+  /* Fit may go below the manual minimum for very large graphs; zooming out afterwards must never enlarge the view. */
+  const zoomOut = () => { g.zoom = Math.min(g.zoom, Math.max(.2, g.zoom - .1)); graphRefresh(); };
+  const zoomIn = () => { g.zoom = Math.min(2, g.zoom + .1); graphRefresh(); };
+  const fit = () => { g.zoom = Math.max(.05, Math.min(1, viewport.clientWidth / width, viewport.clientHeight / height)); g.x = 0; g.y = 0; graphRefresh(); };
+  const toggleExpanded = () => {
+    g.expanded = !g.expanded;
+    graphRefresh();
+    document.querySelector(g.expanded ? '.graph-viewport' : '[data-graph-expand]')?.focus({preventScroll:true});
+  };
+  const tools = h('div', {class:'graph-tools'},
+    h('label', {}, 'Orientation ', orientation), h('label', {}, 'Layout ', layout), h('label', {}, unlinked, 'Show unlinked cards'),
+    search, h('span', {text:query ? `${matches.length} matches` : ''}),
+    graphButton('graph-prev', 'Previous match', () => findMatch(-1)), graphButton('graph-next', 'Next match', () => findMatch(1)),
+    graphButton('graph-zoom-out', 'Zoom out', zoomOut), graphButton('graph-zoom-in', 'Zoom in', zoomIn), graphButton('graph-fit', 'Fit to view', fit),
+    graphButton('graph-expand', g.expanded ? 'Close expanded graph' : 'Expand graph', toggleExpanded, {'data-graph-expand':'true'}));
+
+  const choices = [['assignee', 'Assignee'], ['priority', 'Priority'], ['labels', 'Labels'], ['feature', 'Feature'], ...snap.config.fields.map(f => ['field:' + f.id, f.name])];
+  for (const id of g.settings.fields) if (!choices.some(([key]) => key === id)) choices.push([id, 'Unavailable: ' + id]);
+  const toggleField = (id, on) => graphChange('fields', on ? [...g.settings.fields, id] : g.settings.fields.filter(x => x !== id));
+  const settings = h('details', {open:g.settingsOpen, ontoggle:e => { g.settingsOpen = e.target.open; }},
+    graphControl('summary', 'graph-settings', {}, 'Card display settings'),
+    h('div', {class:'graph-tools'}, choices.map(([id, label]) => h('label', {},
+      graphControl('input', 'graph-field:' + id, {type:'checkbox', checked:(g.settings.fields || []).includes(id), disabled:g.saving, onchange:e => toggleField(id, e.target.checked)}), label))));
+
+  /* Saving stays outside the collapsible settings so unsaved changes and conflicts are always visible. */
+  const save = h('div', {class:'graph-tools graph-save'},
+    graphButton('graph-save', 'Save shared settings', () => graphSave(false), {disabled:!g.dirty || g.saving || !!snap.graphSettingsError}),
+    g.conflict ? h('div', {role:'alert', class:'graph-conflict'}, 'Shared settings changed. ',
+      graphButton('graph-reload', 'Reload shared settings', () => { graphAdoptShared(snap); graphRefresh(); }, {disabled:g.saving}),
+      graphButton('graph-overwrite', 'Overwrite shared settings', () => graphSave(true), {disabled:g.saving || !!snap.graphSettingsError})) : null);
+
+  panel.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (g.selected) {
+      g.selected = null; g.hover = null; e.stopPropagation(); graphRefresh();
+      document.querySelector('.graph-viewport')?.focus({preventScroll:true});
+    } else if (g.expanded) {
+      g.expanded = false; e.stopPropagation(); graphRefresh();
+      document.querySelector('[data-graph-expand]')?.focus({preventScroll:true});
+    }
+  });
+  if (g.expanded) panel.addEventListener('keydown', e => graphTrapTab(panel, e));
+  panel.append(h('h2', {text:'Dependency graph'}));
+  if (snap.graphSettingsError) panel.append(h('p', {role:'alert', text:'Graph settings cannot be saved: ' + snap.graphSettingsError}));
+  const legend = h('ul', {class:'graph-legend', 'aria-label':'Card status key'},
+    h('li', {class:'ready'}, h('i'), 'Ready'), h('li', {class:'blocked'}, h('i'), 'Blocked'), h('li', {class:'unavailable'}, h('i'), 'Missing or archived'));
+  panel.append(tools, save, settings, ids.length ? legend : null, ids.length ? viewport : h('p', {text:'No dependency links yet.'}));
+  if (g.expanded) root.append(h('div', {class:'graph-backdrop', 'aria-hidden':'true'}));
+  root.append(panel);
+  viewport.scrollLeft = g.x; viewport.scrollTop = g.y;
+  graphRestoreFocus(panel, viewport, previousFocus);
+  highlight();
 }
 
 function renderBoard() {
   if (S.drag) { S.renderDeferred = true; return; }
   const root = $('#board'), focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+  const focusedEl = root.contains(document.activeElement) ? document.activeElement : null;
   const scrollX = root.scrollLeft, tops = new Map([...root.querySelectorAll('.col')].map(c => [c.dataset.col, c.querySelector('.col-body') && c.querySelector('.col-body').scrollTop]));
   clear(root);
   if (S.mode === 'launch') { root.append(launchPanel()); updateSummary(); return; }
@@ -1553,7 +1790,7 @@ function renderBoard() {
     else { root.setAttribute('aria-busy', 'true'); root.append(h('div', {class: 'sr-only', role: 'status', text: 'Loading board…'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'}), h('div', {class: 'skeleton'})); }
     updateSummary(); return;
   }
-  if (S.view === 'graph') { renderGraph(root); return; }
+  if (S.view === 'graph') { renderGraph(root, focusedEl); return; }
   if (S.view === 'issues') { renderIssues(root); return; }
   if (S.view === 'features') {
     renderFeatures(root);
