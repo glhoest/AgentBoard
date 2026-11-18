@@ -45,13 +45,11 @@ export function setup(target: string, skillDirectory: string) {
   const destination = join(root, '.agents', 'skills', 'agentboard');
   if (source !== resolve(destination)) {
     const parent = dirname(destination);
-    const fromSourceBuild = existsSync(join(source, provenancePath));
-    const replacingSourceBuild = !fromSourceBuild &&
-      lstatSync(join(destination, provenancePath), { throwIfNoEntry: false }) !== undefined;
+    const replacingSourceBuild = lstatSync(join(destination, provenancePath), { throwIfNoEntry: false }) !== undefined;
     const checkLocalInstall = () => {
       for (const path of [dirname(parent), parent, destination]) {
         if (!lstatSync(path, { throwIfNoEntry: false })?.isDirectory()) {
-          throw new BoardError('Returning to stable requires a local AgentBoard installation directory');
+          throw new BoardError('Replacing a source build requires a local AgentBoard installation directory');
         }
       }
     };

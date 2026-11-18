@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildTag, generatedFiles, noUpdatePath, noticePath, repository, sourceFiles } from '../../scripts/lib/distribution';
@@ -273,9 +273,17 @@ test('workflow packager produces both Git-backed variants and their installed CL
     }
 
     const extra = join(skill, 'scripts', 'experiment-only');
+    const beta = join(root, noUpdate ? 'beta-offline' : 'beta-regular');
+    cpSync(skill, beta, { recursive: true });
+    cpSync(join(import.meta.dir, '../../scripts/lib/setup.ts'), join(beta, 'scripts/lib/setup.ts'));
+    writeFileSync(join(beta, '.agentboard-build.json'), JSON.stringify({ channel: 'beta' }));
     mkdirSync(extra);
     writeFileSync(join(extra, 'extra.ts'), 'experiment code');
     symlinkSync(join(project, '.agentboard'), join(extra, 'outside'), process.platform === 'win32' ? 'junction' : 'dir');
+    const betaSetup = run(join(beta, 'scripts/agentboard.ts'), '--quiet', 'setup', project);
+    expect(betaSetup.exitCode).toBe(0);
+    expect(existsSync(extra)).toBe(false);
+    expect(readFileSync(board)).toEqual(before);
     const restored = run(cli, '--quiet', 'setup', project);
     expect(restored.stderr.toString()).toBe('');
     expect(restored.exitCode).toBe(0);
