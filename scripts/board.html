@@ -260,7 +260,7 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 .graph-edge{fill:none;stroke:var(--line-strong);stroke-width:1.5;stroke-linecap:round;transition:opacity .15s}
 .graph-edge.active{stroke:var(--accent);stroke-width:2.5}
 .graph-edge.dim{opacity:.12}
-.graph-node{position:absolute;display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:3px 6px;width:240px;min-height:94px;box-sizing:border-box;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:8px;padding:9px 10px 9px 11px;background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(20,24,40,.12);cursor:pointer;overflow:hidden;overflow-wrap:anywhere;transition:opacity .15s,box-shadow .15s,border-color .15s}
+.graph-node{position:absolute;display:flex;flex-wrap:wrap;align-items:center;align-content:flex-start;gap:2px 6px;width:240px;box-sizing:border-box;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:8px;padding:7px 10px 7px 11px;background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(20,24,40,.12);cursor:pointer;overflow:hidden;overflow-wrap:anywhere;transition:opacity .15s,box-shadow .15s,border-color .15s}
 .graph-node:hover{border-color:var(--line-strong);box-shadow:0 3px 10px rgba(20,24,40,.2)}
 .graph-node.blocked{border-left-color:var(--warn)}
 .graph-node.unavailable{border-left-color:var(--muted);border-style:dashed;border-left-style:solid;background:var(--surface-2)}
@@ -280,9 +280,11 @@ details.draft-text textarea{width:100%;min-height:120px;font-family:ui-monospace
 .graph-node .graph-state{flex:0 0 auto;max-width:100%;padding:1px 8px;border-radius:999px;font-size:11px;line-height:1.35;font-weight:600;background:var(--ok-soft);color:var(--ok)}
 .graph-node .graph-state.blocked{background:var(--warn-soft);color:var(--warn)}
 .graph-node .graph-state.unavailable{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
-.graph-node .btn.small{min-height:24px;margin-top:4px;padding:0 9px;font-size:12px;font-weight:500;border-radius:6px;background:transparent;border-color:var(--line-strong)}
+.graph-node .btn.small{min-height:22px;margin:0;padding:0 8px;font-size:12px;line-height:1.2;font-weight:500;border-radius:6px;background:transparent;border-color:var(--line-strong)}
 .graph-node .btn.small:hover{background:var(--accent-soft);border-color:var(--accent)}
-.graph-node.collapsed{min-height:52px;flex-wrap:nowrap;flex-direction:column;align-items:stretch;gap:0;opacity:.82}
+.graph-foot{flex:1 0 100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:2px;min-width:0}
+.graph-actions{display:flex;gap:6px;margin-left:auto}
+.graph-node.collapsed{flex-wrap:nowrap;flex-direction:column;align-items:stretch;gap:0;opacity:.82}
 .graph-node.collapsed strong{flex:0 0 auto;-webkit-line-clamp:1}
 .graph-node.collapsed .graph-meta{flex:0 0 auto}
 .graph-node.collapsed.dim{opacity:.3}
@@ -1505,6 +1507,17 @@ function graphPositions(ids, deps, depth, loose) {
   }
   return positions;
 }
+const GRAPH_NODE_W = 240;
+/* Natural height of each card at its fixed width. Cards are measured unscaled in a hidden host, then handed back to the
+   caller, which pins each card to its measured height so edge anchors and row spacing match what is drawn. */
+function graphMeasure(nodes) {
+  const host = h('div', {'aria-hidden':'true', style:'position:absolute;left:-10000px;top:0;visibility:hidden;pointer-events:none'});
+  document.body.append(host);
+  host.append(...nodes.values());
+  const heights = new Map([...nodes].map(([id, node]) => [id, Math.ceil(node.getBoundingClientRect().height) || 90]));
+  host.remove();
+  return heights;
+}
 function graphFieldValue(snap, item, field) {
   let value;
   if (field.startsWith('field:')) value = hasOwn(item.fields, field.slice(6)) ? item.fields[field.slice(6)] : undefined;
@@ -1596,20 +1609,26 @@ function renderGraph(root, previousFocus) {
   for (const [id, parents] of deps) for (const parent of parents) children.get(parent)?.push(id);
   const depth = graphDepths(ids, deps);
   const positions = graphPositions(ids, deps, depth, g.settings.layout === 'loose');
-  const vertical = g.settings.orientation === 'vertical', cellW = 300, nodeHeight = 140 + (g.settings.fields || []).length * 24, cellH = nodeHeight + 40;
-  const isCollapsedCard = (id, item) => (!item || item.archived || item.status === lastColumn) && !g.opened.has(id);
-  const heightFor = id => isCollapsedCard(id, snap.items.get(id)) ? 58 : nodeHeight;
-  const maxDepth = Math.max(0, ...depth.values()), maxLane = Math.max(0, ...[...positions.values()].map(p => p.lane));
-  const width = (vertical ? maxLane : maxDepth) * cellW + 280, height = (vertical ? maxDepth : maxLane) * cellH + nodeHeight + 40;
-  function coords(id) {
-    const p = positions.get(id);
-    return {x:20 + (vertical ? p.lane : p.depth) * cellW, y:20 + (vertical ? p.depth : p.lane) * cellH};
-  }
   const query = g.search.trim().toLowerCase();
   const matches = query ? ids.filter(id => (id + ' ' + (snap.items.get(id)?.title || 'Missing card')).toLowerCase().includes(query)) : [];
   if (g.selected && !linked.has(g.selected)) g.selected = null;
   /* A card that vanished while hovered or focused never fires mouseleave or blur, so drop the stale highlight here. */
   if (g.hover && !linked.has(g.hover)) g.hover = null;
+  const vertical = g.settings.orientation === 'vertical', cellW = GRAPH_NODE_W + 60, rowGap = vertical ? 48 : 20;
+  const isCollapsedCard = (id, item) => (!item || item.archived || item.status === lastColumn) && !g.opened.has(id);
+  /* Cards size to their content, so measure them first. Cards sharing a row (a lane when horizontal, a depth when
+     vertical) are top-aligned; the row is as tall as its tallest card, so rows never overlap however much a card shows. */
+  const nodes = new Map(ids.map(id => [id, buildNode(id)]));
+  const heights = graphMeasure(nodes);
+  const heightFor = id => heights.get(id);
+  const rowOf = id => vertical ? positions.get(id).depth : positions.get(id).lane, colOf = id => vertical ? positions.get(id).lane : positions.get(id).depth;
+  const rowHeights = new Map(), rowTops = new Map();
+  for (const id of ids) rowHeights.set(rowOf(id), Math.max(rowHeights.get(rowOf(id)) || 0, heightFor(id)));
+  let cursor = 20;
+  for (const row of [...rowHeights.keys()].sort((a, b) => a - b)) { rowTops.set(row, cursor); cursor += rowHeights.get(row) + rowGap; }
+  const maxCol = Math.max(0, ...ids.map(colOf));
+  const width = maxCol * cellW + GRAPH_NODE_W + 40, height = ids.length ? cursor - rowGap + 20 : 40;
+  function coords(id) { return {x:20 + colOf(id) * cellW, y:rowTops.get(rowOf(id))}; }
 
   const panel = h('section', {class:'panel graph-panel' + (g.expanded ? ' graph-expanded' : ''), 'aria-label':g.expanded ? 'Expanded dependency graph' : 'Dependency graph', ...(g.expanded ? {role:'dialog', 'aria-modal':'true', tabindex:'-1'} : {})});
   const viewport = graphControl('div', 'graph-viewport', {class:'graph-viewport', tabindex:'0', 'aria-label':'Dependency graph canvas'});
@@ -1617,7 +1636,11 @@ function renderGraph(root, previousFocus) {
   const space = h('div', {class:'graph-space', style:`width:${width}px;height:${height}px;transform:scale(${g.zoom})`});
   const svg = buildEdges();
   space.append(svg);
-  for (const id of ids) space.append(buildNode(id));
+  for (const [id, node] of nodes) {
+    const p = coords(id);
+    node.style.cssText = `left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`;
+    space.append(node);
+  }
   scaleWrap.append(space);
   viewport.append(scaleWrap);
 
@@ -1630,8 +1653,8 @@ function renderGraph(root, previousFocus) {
     marker.append(arrow); defs.append(marker); svg.append(defs);
     for (const [id, parents] of deps) for (const parent of parents) {
       const a = coords(parent), b = coords(id), path = document.createElementNS(ns, 'path');
-      const x1 = vertical ? a.x + 120 : a.x + 240, y1 = vertical ? a.y + heightFor(parent) : a.y + heightFor(parent) / 2;
-      const x2 = vertical ? b.x + 120 : b.x, y2 = vertical ? b.y : b.y + heightFor(id) / 2;
+      const x1 = vertical ? a.x + GRAPH_NODE_W / 2 : a.x + GRAPH_NODE_W, y1 = vertical ? a.y + heightFor(parent) : a.y + heightFor(parent) / 2;
+      const x2 = vertical ? b.x + GRAPH_NODE_W / 2 : b.x, y2 = vertical ? b.y : b.y + heightFor(id) / 2;
       path.setAttribute('d', vertical
         ? `M ${x1} ${y1} C ${x1} ${(y1 + y2) / 2}, ${x2} ${(y1 + y2) / 2}, ${x2} ${y2}`
         : `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`);
@@ -1644,14 +1667,14 @@ function renderGraph(root, previousFocus) {
     graphApplyChain(graphChain(g.hover || g.selected, deps, children), space.querySelectorAll('.graph-node'), svg.querySelectorAll('.graph-edge'));
   }
   function buildNode(id) {
-    const item = snap.items.get(id), p = coords(id), blockers = item ? item.dependencies.filter(dep => !dependencyState(dep).satisfied).length : 0;
+    const item = snap.items.get(id), blockers = item ? item.dependencies.filter(dep => !dependencyState(dep).satisfied).length : 0;
     const collapsed = isCollapsedCard(id, item), closable = !item || item.archived || item.status === lastColumn;
     const status = item ? (item.archived ? 'Archived · ' : '') + (snap.config.columns.find(c => c.id === item.status)?.name || item.status) : 'Missing card';
     const readiness = !item ? 'Unavailable, satisfied' : blockers ? 'Blocked' : 'Ready';
     const classes = ['graph-node', blockers && 'blocked', (!item || item.archived) && 'unavailable', collapsed && 'collapsed', id === g.selected && 'selected', matches.includes(id) && 'search-match'];
     /* The card is a labelled group of three sibling controls (Select, Edit, Collapse); none is nested in another. */
     const node = h('div', {
-      class:classes.filter(Boolean).join(' '), style:`left:${p.x}px;top:${p.y}px;height:${heightFor(id)}px`, 'data-id':id,
+      class:classes.filter(Boolean).join(' '), 'data-id':id,
       role:'group', 'aria-label':item?.title || 'Missing card',
     });
     const select = () => {
@@ -1669,20 +1692,23 @@ function renderGraph(root, previousFocus) {
     for (const type of ['mouseenter', 'focusin']) node.addEventListener(type, setHover(id));
     for (const type of ['mouseleave', 'focusout']) node.addEventListener(type, setHover(null));
     node.append(selector,
-      h('strong', {text:item?.title || 'Missing card', 'aria-hidden':'true'}),
+      h('strong', {text:item?.title || 'Missing card', title:item?.title || 'Missing card', 'aria-hidden':'true'}),
       h('div', {class:'graph-meta graph-id', 'aria-hidden':'true', text:collapsed ? status + (!item ? ' · ' + id : '') : id + ' · ' + status}));
     if (collapsed) return node;
     const stateClass = !item ? 'unavailable' : blockers ? 'blocked' : 'ready';
     const stateText = !item ? 'Unavailable · satisfied' : blockers ? 'Blocked · ' + blockers + ' blocker' + (blockers === 1 ? '' : 's') : 'Ready · no blockers';
-    node.append(h('div', {class:'graph-meta graph-state ' + stateClass, 'aria-hidden':'true', text:stateText}));
+    /* Displayed fields come first, one line each, so a card grows by exactly one line per value it shows. */
     if (item) for (const field of g.settings.fields || []) {
       const value = graphFieldValue(snap, item, field);
       if (value === null || value === undefined || value === '') continue;
       const label = snap.config.fields.find(x => 'field:' + x.id === field)?.name || field;
-      node.append(h('div', {class:'graph-meta', text:label + ': ' + String(value)}));
+      node.append(h('div', {class:'graph-meta', title:label + ': ' + String(value), text:label + ': ' + String(value)}));
     }
-    if (item) node.append(graphButton(id + ':graph-edit', 'Edit', e => { e.stopPropagation(); openEditor(id, {returnFocus:id + ':graph-edit'}); }));
-    if (closable) node.append(graphButton('graph-collapse:' + id, 'Collapse', e => { e.stopPropagation(); g.opened.delete(id); graphRefresh(); }));
+    /* State and actions share one footer row; the actions drop to a second row only when they do not fit beside it. */
+    const actions = h('div', {class:'graph-actions'},
+      item ? graphButton(id + ':graph-edit', 'Edit', e => { e.stopPropagation(); openEditor(id, {returnFocus:id + ':graph-edit'}); }) : null,
+      closable ? graphButton('graph-collapse:' + id, 'Collapse', e => { e.stopPropagation(); g.opened.delete(id); graphRefresh(); }) : null);
+    node.append(h('div', {class:'graph-foot'}, h('div', {class:'graph-meta graph-state ' + stateClass, 'aria-hidden':'true', text:stateText}), actions.children.length ? actions : null));
     return node;
   }
 

@@ -333,6 +333,99 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
     } finally { await p.send('Page.close'); }
   });
 
+  /** Geometry of every graph card and edge in the unscaled canvas, plus any card content that spills out of its card. */
+  const graphGeometry = `(() => {
+    const nodes = [...document.querySelectorAll('.graph-node')].map(n => {
+      const r = n.getBoundingClientRect();
+      const spill = [...n.children].filter(c => !c.classList.contains('graph-select')).flatMap(c => [c, ...c.querySelectorAll('button')])
+        .filter(c => { const cr = c.getBoundingClientRect(); return cr.bottom > r.bottom + .5 || cr.right > r.right + .5 || cr.left < r.left - .5; }).length;
+      return {id: n.dataset.id, x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight, spill, collapsed: n.classList.contains('collapsed')};
+    });
+    const edges = [...document.querySelectorAll('.graph-edge')].map(e => ({from: e.dataset.from, to: e.dataset.to, nums: e.getAttribute('d').match(/-?\\d+(\\.\\d+)?/g).map(Number)}));
+    return {nodes, edges};
+  })()`;
+  type GraphGeometry = {nodes: {id: string; x: number; y: number; w: number; h: number; spill: number; collapsed: boolean}[]; edges: {from: string; to: string; nums: number[]}[]};
+  const setGraph = (p: Page, label: string, value: string) => p.eval(`(() => { const el = document.querySelector('[aria-label="${label}"]'); el.value = '${value}'; el.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+
+  test('default graph cards are compact and grow one line per displayed field', async () => {
+    cliJson('field-add', 'compact-a', '--type', 'text', '--name', 'Compact A');
+    cliJson('field-add', 'compact-b', '--type', 'text', '--name', 'Compact B');
+    const root1 = cliJson('create', 'Compact prerequisite');
+    const filled = cliJson('create', 'Compact filled', '--field', 'compact-a=first value', '--field', 'compact-b=second value');
+    const empty = cliJson('create', 'Compact empty');
+    const wrapped = cliJson('create', 'Compact title that is certainly long enough to wrap onto a second line of the card');
+    for (const item of [filled, empty, wrapped]) cliJson('dependency-add', item.id, root1.id);
+    const p = await chrome.newPage();
+    const geometry = async () => (await p.eval<GraphGeometry>(graphGeometry)).nodes;
+    const find = (nodes: GraphGeometry['nodes'], id: string) => nodes.find(n => n.id === id)!;
+    try {
+      await p.goto(url()); await p.waitFor(hasCard('Compact filled')); await p.click('#view-graph');
+      await p.waitFor(`document.querySelector('.graph-node[data-id="${filled.id}"]')`);
+      const before = await geometry();
+      // Default card: well below the former fixed 140px and no empty band under the footer.
+      expect(find(before, empty.id).h).toBeLessThan(100);
+      expect(find(before, wrapped.id).h).toBeGreaterThan(find(before, empty.id).h);   // a wrapped title earns a second line
+      expect(await p.eval(`(() => { const n = document.querySelector('.graph-node[data-id="${empty.id}"]'); return n.getBoundingClientRect().bottom - n.querySelector('.graph-foot').getBoundingClientRect().bottom; })()`)).toBeLessThanOrEqual(10);
+      expect(await p.eval(`document.querySelector('.graph-node[data-id="${wrapped.id}"] strong').getBoundingClientRect().height`)).toBeLessThanOrEqual(38);
+      await p.eval(`document.querySelector('.graph-panel details').open = true`);
+      for (const name of ['Compact A', 'Compact B']) await p.eval(`[...document.querySelectorAll('.graph-panel label')].find(l => l.textContent.includes('${name}')).querySelector('input').click()`);
+      const after = await geometry();
+      const growth = find(after, filled.id).h - find(before, filled.id).h;
+      expect(growth).toBeGreaterThanOrEqual(28);   // two displayed values
+      expect(growth).toBeLessThanOrEqual(44);
+      expect(find(after, empty.id).h).toBe(find(before, empty.id).h);   // no value, no extra line
+      for (const n of after) expect(n.spill).toBe(0);
+    } finally { await p.send('Page.close'); }
+  });
+
+  for (const orientation of ['horizontal', 'vertical']) for (const layout of ['compact', 'loose']) {
+    test(`graph keeps long content, edge anchors and spacing correct (${orientation}, ${layout})`, async () => {
+      cli('field-add', 'geo-note', '--type', 'text', '--name', 'Geo note');
+      const stem = `Geo ${orientation} ${layout}`;
+      const top = cliJson('create', `${stem} prerequisite`);
+      const tall = cliJson('create', `${stem} ${'unbroken'.repeat(30)}`, '--field', `geo-note=${'long field value '.repeat(40)}`);
+      const plain = cliJson('create', `${stem} plain`);
+      const merge = cliJson('create', `${stem} join`, '--field', 'geo-note=short');
+      const done = cliJson('create', `${stem} finished`);
+      for (const item of [tall, plain]) cliJson('dependency-add', item.id, top.id);
+      cliJson('dependency-add', merge.id, tall.id); cliJson('dependency-add', merge.id, plain.id);
+      cliJson('dependency-add', plain.id, done.id);
+      cliJson('move', done.id, 'done');
+      const p = await chrome.newPage();
+      try {
+        await p.goto(url()); await p.waitFor(hasCard(`${stem} join`)); await p.click('#view-graph');
+        await p.waitFor(`document.querySelector('.graph-node[data-id="${merge.id}"]')`);
+        await setGraph(p, 'Orientation', orientation === 'vertical' ? 'vertical' : 'horizontal');
+        await setGraph(p, 'Layout', layout);
+        await p.eval(`document.querySelector('.graph-panel details').open = true`);
+        await p.eval(`[...document.querySelectorAll('.graph-panel label')].find(l => l.textContent.includes('Geo note')).querySelector('input').click()`);
+        const {nodes, edges} = await p.eval<GraphGeometry>(graphGeometry);
+        const byId = new Map(nodes.map(n => [n.id, n]));
+        expect(byId.get(done.id)!.collapsed).toBe(true);
+        expect(byId.get(tall.id)!.h).toBeGreaterThan(byId.get(plain.id)!.h);   // long field grows the card
+        for (const n of nodes) { expect(n.w).toBe(240); expect(n.spill).toBe(0); }
+        for (const [i, a] of nodes.entries()) for (const b of nodes.slice(i + 1)) {
+          expect(a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y).toBe(false);
+        }
+        const linked = edges.filter(e => [top, tall, plain, merge, done].some(x => x.id === e.to));
+        expect(linked.length).toBeGreaterThanOrEqual(5);
+        for (const e of edges) {
+          const from = byId.get(e.from)!, to = byId.get(e.to)!;
+          const expected = orientation === 'vertical'
+            ? [from.x + from.w / 2, from.y + from.h, to.x + to.w / 2, to.y]
+            : [from.x + from.w, from.y + from.h / 2, to.x, to.y + to.h / 2];
+          const d = e.nums;
+          expect(Math.abs(d[0] - expected[0])).toBeLessThan(.5); expect(Math.abs(d[1] - expected[1])).toBeLessThan(.5);
+          expect(Math.abs(d.at(-2)! - expected[2])).toBeLessThan(.5); expect(Math.abs(d.at(-1)! - expected[3])).toBeLessThan(.5);
+        }
+        // The canvas is sized to its cards: nothing is cut off or floats in a large empty frame.
+        const extent = await p.eval<{w: number; h: number; right: number; bottom: number}>(`(() => { const s = document.querySelector('.graph-space'); const n = [...document.querySelectorAll('.graph-node')]; return {w: s.offsetWidth, h: s.offsetHeight, right: Math.max(...n.map(x => x.offsetLeft + x.offsetWidth)), bottom: Math.max(...n.map(x => x.offsetTop + x.offsetHeight))}; })()`);
+        expect(extent.w - extent.right).toBeLessThanOrEqual(21);
+        expect(extent.h - extent.bottom).toBeLessThanOrEqual(21);
+      } finally { await p.send('Page.close'); }
+    });
+  }
+
   test('graph retains scroll through live updates and restores focus after expansion', async () => {
     const chain = Array.from({length: 9}, (_, i) => cliJson('create', `Scroll graph ${i}`));
     for (let i = 1; i < chain.length; i++) cliJson('dependency-add', chain[i].id, chain[i - 1].id);
@@ -513,12 +606,14 @@ describe.skipIf(!ready)('board.html (bridge mode)', () => {
       await p.resize(1400, 900); await p.goto(url()); await p.waitFor(hasCard('Review and release')); await p.click('#view-graph');
       await p.waitFor(`document.querySelector('.graph-node[data-id="${cards[4].id}"]')`);
       await p.eval(`document.querySelector('.graph-node[data-id="${cards[4].id}"]').click()`);
-      await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Fit to view').click()`);
       mkdirSync(SHOTS, {recursive:true});
-      await p.screenshot(join(SHOTS, 'dependency-graph.png'));
       await p.click('[data-graph-expand]');
-      await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Fit to view').click()`);
-      await p.screenshot(join(SHOTS, 'dependency-graph-expanded.png'));
+      for (const layout of ['compact', 'loose']) for (const orientation of ['horizontal', 'vertical']) {
+        await p.eval(`(() => { const el = document.querySelector('[aria-label="Layout"]'); el.value = ${JSON.stringify(layout)}; el.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+        await p.eval(`(() => { const el = document.querySelector('[aria-label="Orientation"]'); el.value = ${JSON.stringify(orientation)}; el.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+        await p.eval(`[...document.querySelectorAll('.graph-tools button')].find(b => b.textContent === 'Fit to view').click()`);
+        await p.screenshot(join(SHOTS, `graph-${layout}-${orientation}.png`));
+      }
     } finally { await p.send('Page.close'); }
   });
 
