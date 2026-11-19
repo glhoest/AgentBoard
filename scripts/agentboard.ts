@@ -7,7 +7,7 @@ import { withLock } from './lib/lock';
 import { startBridge } from './lib/serve';
 import { setup } from './lib/setup';
 import { updateNotice } from './lib/update-check';
-import { noUpdatePath, provenancePath } from './lib/distribution';
+import { noUpdatePath } from './lib/distribution';
 import * as store from './lib/store';
 import { buildFieldChange, buildFieldFilter, hasValue } from './lib/fields';
 import { BoardError, Conflict, type Changes, type Entry, type Item, type FeatureChanges } from './lib/types';
@@ -385,14 +385,10 @@ if (import.meta.main) {
   }
   if (parsed.kind === 'ok' && parsed.args.cmd === 'update') {
     if (noUpdate) { console.error('This AgentBoard build does not support updates.'); process.exit(1); }
-    if (existsSync(join(skill, provenancePath))) {
-      console.error('This is a source build. Use trusted stable setup to return to stable, or use experiment to install a PR head.');
-      process.exit(1);
-    }
     if (!skill.endsWith(join('.agents', 'skills', 'agentboard'))) { console.error('Update requires an installed AgentBoard copy.'); process.exit(1); }
     try {
       const { updateInstallation } = await import('./lib/update');
-      const result = await updateInstallation(skill, fetch, parsed.args.force);
+      const result = await updateInstallation(skill, fetch, parsed.args.force, Date.now(), parsed.args.version);
       console.log(parsed.args.json ? JSON.stringify(result) : result.changed ? `Updated AgentBoard to ${result.version}.` : `AgentBoard is already at ${result.version} or newer.`);
       process.exit(0);
     } catch (error) { console.error(`Update failed: ${error instanceof Error ? error.message : String(error)}`); process.exit(1); }

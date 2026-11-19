@@ -46,10 +46,12 @@ async function previousCommits(fetcher: typeof fetch, base: string, head: string
   return commits.reverse();
 }
 
-async function publishedBuild(fetcher: typeof fetch, build: Build) {
+export async function publishedBuild(fetcher: typeof fetch, build: Build, knownRelease?: unknown) {
   const tag = buildTag(build);
   const name = build.noUpdate ? 'agentboard-no-update.tar.gz' : 'agentboard.tar.gz';
-  const release = await metadata(fetcher, `/releases/tags/${tag}`, 'Cannot look up experiment release', true);
+  const release: any = knownRelease === undefined
+    ? await metadata(fetcher, `/releases/tags/${tag}`, 'Cannot look up experiment release', true)
+    : knownRelease;
   if (release === null || release?.draft === true) return null;
   if (release?.tag_name !== tag || release?.draft !== false || release?.prerelease !== true || !Array.isArray(release.assets)) {
     throw new Error('Invalid experiment release metadata');
@@ -86,7 +88,7 @@ async function boundedBytes(stream: ReadableStream<Uint8Array> | null, limit: nu
   }
 }
 
-async function verifiedFiles(fetcher: typeof fetch, build: Build, asset: { url: string; digest: string; size: number }) {
+export async function verifiedFiles(fetcher: typeof fetch, build: Build, asset: { url: string; digest: string; size: number }) {
   const commit = await metadata(fetcher, `/git/commits/${build.commit}`, 'Cannot verify PR head commit');
   if (commit?.sha !== build.commit || !validCommit(commit?.tree?.sha)) throw new Error('Invalid canonical commit metadata');
   const tree = await metadata(fetcher, `/git/trees/${commit.tree.sha}?recursive=1`, 'Cannot verify PR source tree');

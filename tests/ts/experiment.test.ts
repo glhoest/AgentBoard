@@ -263,10 +263,10 @@ test('workflow packager produces both Git-backed variants and their installed CL
     const list = run(installedCli, '--quiet', '--root', project, 'list');
     expect(list.exitCode).toBe(0);
     expect(list.stdout.toString()).toContain('Packaged CLI works');
-    const update = run(installedCli, 'update', '--force');
-    expect(update.exitCode).toBe(1);
-    expect(update.stderr.toString()).toContain(noUpdate ? 'does not support updates' : 'This is a source build');
     if (noUpdate) {
+      const update = run(installedCli, 'update', '--force');
+      expect(update.exitCode).toBe(1);
+      expect(update.stderr.toString()).toContain('does not support updates');
       const experiment = run(installedCli, 'experiment', pr);
       expect(experiment.exitCode).toBe(1);
       expect(experiment.stderr.toString()).toContain('does not support updates');
